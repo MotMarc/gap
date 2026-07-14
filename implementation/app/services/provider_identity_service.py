@@ -17,7 +17,7 @@ def create_provider_identity_document(
     public_key: Ed25519PublicKey,
 ) -> ProviderIdentityDocument:
     """
-    Create a public Provider Identity Document.
+    Create a public GAP Provider Identity Document.
     """
 
     return ProviderIdentityDocument(

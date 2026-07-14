@@ -303,3 +303,48 @@ without changing the structure of the Generation Credential Payload.
 
 The provider, rather than GAP itself, issues and signs each Generation
 Credential.
+
+# Decision 010
+
+## Title
+
+Provider Identity Documents publish verification keys
+
+## Status
+
+Accepted
+
+## Date
+
+14 July 2026
+
+## Decision
+
+Each participating provider SHALL publish a Provider Identity Document
+containing its stable provider identifier and one or more public verification
+keys.
+
+Each verification key SHALL define a key identifier, signature algorithm,
+encoded public-key value, and operational status.
+
+A Generation Credential SHALL identify its signing key through the `key_id`
+field in its proof object.
+
+## Rationale
+
+A Provider Identity Document allows independent verifiers to obtain the public
+key required to authenticate a Generation Credential.
+
+Publishing multiple keys supports key rotation while preserving the ability to
+verify credentials issued under older keys.
+
+This design avoids requiring a central GAP verification service.
+
+## Key statuses
+
+An active key MAY be used for new credentials and verification.
+
+A retired key MUST NOT be used to issue new credentials but MAY remain valid
+for verifying historical credentials.
+
+A revoked key MUST NOT be trusted for credential verification.

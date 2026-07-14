@@ -29,7 +29,7 @@ def save_private_key(
     path: Path,
 ) -> None:
     """
-    Save an Ed25519 private key as raw base64 text.
+    Save an Ed25519 private key as Base64 text.
     """
 
     raw_private_key = private_key.private_bytes(
@@ -50,33 +50,37 @@ def save_public_key(
     path: Path,
 ) -> None:
     """
-    Save an Ed25519 public key as raw base64 text.
+    Save an Ed25519 public key as Base64 text.
     """
-
-    raw_public_key = public_key.public_bytes(
-        encoding=Encoding.Raw,
-        format=PublicFormat.Raw,
-    )
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        base64.b64encode(raw_public_key).decode("utf-8"),
+        encode_public_key(public_key),
         encoding="utf-8",
     )
 
 
 def load_private_key(path: Path) -> Ed25519PrivateKey:
+    """
+    Load an Ed25519 private key from Base64 text.
+    """
+
     encoded_key = path.read_text(encoding="utf-8")
-    raw_key = base64.b64decode(encoded_key)
+    raw_key = base64.b64decode(
+        encoded_key,
+        validate=True,
+    )
 
     return Ed25519PrivateKey.from_private_bytes(raw_key)
 
 
 def load_public_key(path: Path) -> Ed25519PublicKey:
-    encoded_key = path.read_text(encoding="utf-8")
-    raw_key = base64.b64decode(encoded_key)
+    """
+    Load an Ed25519 public key from Base64 text.
+    """
 
-    return Ed25519PublicKey.from_public_bytes(raw_key)
+    encoded_key = path.read_text(encoding="utf-8")
+    return decode_public_key(encoded_key)
 
 
 def encode_public_key(
@@ -98,7 +102,7 @@ def decode_public_key(
     encoded_public_key: str,
 ) -> Ed25519PublicKey:
     """
-    Decode a Base64 encoded Ed25519 public key.
+    Decode a Base64-encoded Ed25519 public key.
     """
 
     raw_public_key = base64.b64decode(
