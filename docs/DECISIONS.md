@@ -348,3 +348,40 @@ A retired key MUST NOT be used to issue new credentials but MAY remain valid
 for verifying historical credentials.
 
 A revoked key MUST NOT be trusted for credential verification.
+
+# Decision 011
+
+## Title
+
+Provider Identity Documents use a well-known endpoint
+
+## Status
+
+Accepted provisionally
+
+## Date
+
+14 July 2026
+
+## Decision
+
+The GAP reference implementation SHALL expose its Provider Identity Document at:
+
+`/.well-known/gap.json`
+
+Providers MAY expose credential issuance and verification APIs independently
+of this endpoint.
+
+## Rationale
+
+A predictable well-known location enables verifiers to discover provider
+identity information and public verification keys without relying upon a
+central GAP service.
+
+The endpoint structure follows established discovery patterns used by other
+Internet protocols.
+
+## Limitations
+
+The endpoint path remains provisional and would require appropriate
+standardisation before production use.
