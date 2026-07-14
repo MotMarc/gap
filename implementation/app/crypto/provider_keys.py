@@ -77,3 +77,33 @@ def load_public_key(path: Path) -> Ed25519PublicKey:
     raw_key = base64.b64decode(encoded_key)
 
     return Ed25519PublicKey.from_public_bytes(raw_key)
+
+
+def encode_public_key(
+    public_key: Ed25519PublicKey,
+) -> str:
+    """
+    Encode an Ed25519 public key as Base64 text.
+    """
+
+    raw_public_key = public_key.public_bytes(
+        encoding=Encoding.Raw,
+        format=PublicFormat.Raw,
+    )
+
+    return base64.b64encode(raw_public_key).decode("utf-8")
+
+
+def decode_public_key(
+    encoded_public_key: str,
+) -> Ed25519PublicKey:
+    """
+    Decode a Base64 encoded Ed25519 public key.
+    """
+
+    raw_public_key = base64.b64decode(
+        encoded_public_key,
+        validate=True,
+    )
+
+    return Ed25519PublicKey.from_public_bytes(raw_public_key)

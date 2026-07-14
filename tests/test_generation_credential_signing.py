@@ -15,15 +15,16 @@ from app.services.generation_credential_service import (  # noqa: E402
     create_credential_payload,
     issue_generation_credential,
 )
+from app.services.provider_identity_service import (  # noqa: E402
+    create_provider_identity_document,
+)
 from app.services.verification_service import (  # noqa: E402
     verify_generation_credential,
 )
 
 
-def test_generation_credential_signature_is_valid() -> None:
-    private_key, public_key = generate_provider_key_pair()
-
-    event = GenerationEvent(
+def create_test_event() -> GenerationEvent:
+    return GenerationEvent(
         generation_id="gid_" + "a" * 64,
         provider_id="gap-demo-provider",
         model_id="demo-model-v1",
@@ -31,13 +32,17 @@ def test_generation_credential_signature_is_valid() -> None:
         gap_version="0.1",
     )
 
+
+def test_generation_credential_signature_is_valid() -> None:
+    private_key, public_key = generate_provider_key_pair()
+
     artifact = create_artifact_descriptor(
         artifact=b"generated artifact",
         media_type="text/plain",
     )
 
     payload = create_credential_payload(
-        event=event,
+        event=create_test_event(),
         artifacts=[artifact],
     )
 
@@ -47,22 +52,21 @@ def test_generation_credential_signature_is_valid() -> None:
         private_key=private_key,
     )
 
+    provider_document = create_provider_identity_document(
+        provider_id="gap-demo-provider",
+        provider_name="GAP Demo Provider",
+        key_id="key-2026-01",
+        public_key=public_key,
+    )
+
     assert verify_generation_credential(
         credential=credential,
-        public_key=public_key,
+        provider_document=provider_document,
     )
 
 
 def test_modified_payload_fails_verification() -> None:
     private_key, public_key = generate_provider_key_pair()
-
-    event = GenerationEvent(
-        generation_id="gid_" + "b" * 64,
-        provider_id="gap-demo-provider",
-        model_id="demo-model-v1",
-        created_at=datetime.now(timezone.utc),
-        gap_version="0.1",
-    )
 
     artifact = create_artifact_descriptor(
         artifact=b"original artifact",
@@ -70,7 +74,7 @@ def test_modified_payload_fails_verification() -> None:
     )
 
     payload = create_credential_payload(
-        event=event,
+        event=create_test_event(),
         artifacts=[artifact],
     )
 
@@ -80,9 +84,80 @@ def test_modified_payload_fails_verification() -> None:
         private_key=private_key,
     )
 
+    provider_document = create_provider_identity_document(
+        provider_id="gap-demo-provider",
+        provider_name="GAP Demo Provider",
+        key_id="key-2026-01",
+        public_key=public_key,
+    )
+
     credential.payload.model.model_id = "tampered-model"
 
     assert not verify_generation_credential(
         credential=credential,
+        provider_document=provider_document,
+    )
+
+
+def test_unknown_key_id_fails_verification() -> None:
+    private_key, public_key = generate_provider_key_pair()
+
+    artifact = create_artifact_descriptor(
+        artifact=b"generated artifact",
+        media_type="text/plain",
+    )
+
+    payload = create_credential_payload(
+        event=create_test_event(),
+        artifacts=[artifact],
+    )
+
+    credential = issue_generation_credential(
+        payload=payload,
+        key_id="unknown-key",
+        private_key=private_key,
+    )
+
+    provider_document = create_provider_identity_document(
+        provider_id="gap-demo-provider",
+        provider_name="GAP Demo Provider",
+        key_id="key-2026-01",
         public_key=public_key,
+    )
+
+    assert not verify_generation_credential(
+        credential=credential,
+        provider_document=provider_document,
+    )
+
+
+def test_wrong_provider_fails_verification() -> None:
+    private_key, public_key = generate_provider_key_pair()
+
+    artifact = create_artifact_descriptor(
+        artifact=b"generated artifact",
+        media_type="text/plain",
+    )
+
+    payload = create_credential_payload(
+        event=create_test_event(),
+        artifacts=[artifact],
+    )
+
+    credential = issue_generation_credential(
+        payload=payload,
+        key_id="key-2026-01",
+        private_key=private_key,
+    )
+
+    provider_document = create_provider_identity_document(
+        provider_id="different-provider",
+        provider_name="Different Provider",
+        key_id="key-2026-01",
+        public_key=public_key,
+    )
+
+    assert not verify_generation_credential(
+        credential=credential,
+        provider_document=provider_document,
     )
