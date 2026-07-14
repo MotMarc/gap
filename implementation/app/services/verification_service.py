@@ -1,44 +1,24 @@
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
 from app.crypto.canonical_json import canonicalise_model
-from app.crypto.provider_keys import decode_public_key
 from app.crypto.signatures import verify_payload
 from app.schemas.generation_credential import GenerationCredential
-from app.schemas.provider_identity import ProviderIdentityDocument
 
 
 def verify_generation_credential(
     credential: GenerationCredential,
-    provider_document: ProviderIdentityDocument,
+    public_key: Ed25519PublicKey,
 ) -> bool:
     """
-    Verify a Generation Credential against a Provider Identity Document.
+    Verify a Generation Credential using a provider public key.
     """
-
-    if credential.payload.provider.provider_id != provider_document.provider_id:
-        return False
 
     if credential.proof.type != "Ed25519":
         return False
 
-    matching_key = next(
-        (
-            key
-            for key in provider_document.keys
-            if key.key_id == credential.proof.key_id
-        ),
-        None,
+    canonical_payload = canonicalise_model(
+        credential.payload,
     )
-
-    if matching_key is None:
-        return False
-
-    if matching_key.algorithm != credential.proof.type:
-        return False
-
-    if matching_key.status == "revoked":
-        return False
-
-    public_key = decode_public_key(matching_key.public_key)
-    canonical_payload = canonicalise_model(credential.payload)
 
     return verify_payload(
         payload=canonical_payload,

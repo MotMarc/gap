@@ -22,6 +22,10 @@ def create_credential_payload(
     event: GenerationEvent,
     artifacts: list[ArtifactDescriptor],
 ) -> GenerationCredentialPayload:
+    """
+    Create an unsigned Generation Credential Payload.
+    """
+
     return GenerationCredentialPayload(
         version=CURRENT_CREDENTIAL_VERSION,
         credential_id=generate_credential_id(),
@@ -44,8 +48,15 @@ def issue_generation_credential(
     key_id: str,
     private_key: Ed25519PrivateKey,
 ) -> GenerationCredential:
+    """
+    Sign a Generation Credential Payload and return a complete credential.
+    """
+
     canonical_payload = canonicalise_model(payload)
-    signature = sign_payload(canonical_payload, private_key)
+    signature = sign_payload(
+        payload=canonical_payload,
+        private_key=private_key,
+    )
 
     return GenerationCredential(
         payload=payload,

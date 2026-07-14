@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -34,9 +35,16 @@ class GenerationCredentialPayload(BaseModel):
 
 
 class GenerationCredentialProof(BaseModel):
-    type: str = "Ed25519"
-    key_id: str
-    signature: str
+    type: Literal["Ed25519"] = "Ed25519"
+
+    key_id: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    signature: str = Field(
+        min_length=1,
+    )
 
 
 class GenerationCredential(BaseModel):

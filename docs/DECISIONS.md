@@ -194,3 +194,112 @@ Each artifact entry SHALL include a media type and a cryptographic digest.
 
 The protocol SHALL avoid terminology and fields that assume a specific output
 modality.
+
+# Decision 008
+
+## Title
+
+Generation Credentials use deterministic canonical JSON
+
+## Status
+
+Accepted provisionally
+
+## Date
+
+14 July 2026
+
+## Decision
+
+The experimental GAP reference implementation SHALL serialize unsigned
+Generation Credential payloads as compact JSON with alphabetically sorted
+object keys, direct Unicode representation, and UTF-8 encoding before signing.
+
+The `signature` field SHALL NOT be included within the signed payload.
+
+## Rationale
+
+Digital signatures operate over bytes. Different whitespace, key ordering, or
+character escaping can cause logically equivalent JSON objects to produce
+different byte sequences.
+
+A deterministic representation is therefore necessary for repeatable signing
+and verification.
+
+## Limitations
+
+The current mechanism is suitable for the experimental Python reference
+implementation but is not yet considered a final cross-language
+canonicalisation standard.
+
+Future versions SHALL evaluate adoption of the JSON Canonicalization Scheme
+defined by RFC 8785.
+
+# Decision 010
+
+## Title
+
+Provider Identity Documents publish verification keys
+
+## Status
+
+Accepted
+
+## Date
+
+14 July 2026
+
+## Decision
+
+Participating providers SHALL publish a Provider Identity Document containing
+their provider identifier and one or more public verification keys.
+
+Each public key SHALL include a key identifier, algorithm, encoded public key
+value, and operational status.
+
+Generation Credentials SHALL reference the signing key through the `key_id`
+field in their proof object.
+
+## Rationale
+
+Publishing multiple verification keys enables key rotation while preserving the
+verifiability of previously issued credentials.
+
+The Provider Identity Document separates public cryptographic identity from
+private provider infrastructure and avoids requiring a central verification
+service.
+
+# Decision 009
+
+## Title
+
+Generation Credentials separate payloads from cryptographic proofs
+
+## Status
+
+Accepted
+
+## Date
+
+14 July 2026
+
+## Decision
+
+A Generation Credential SHALL consist of exactly one Generation Credential
+Payload and exactly one cryptographic proof.
+
+The proof SHALL contain the signature algorithm, signing key identifier, and
+encoded signature value.
+
+The proof SHALL NOT be included in the canonical bytes signed by the provider.
+
+## Rationale
+
+Separating the signed payload from its cryptographic proof prevents ambiguity
+regarding the data covered by the signature.
+
+This design also permits future cryptographic algorithms to be introduced
+without changing the structure of the Generation Credential Payload.
+
+The provider, rather than GAP itself, issues and signs each Generation
+Credential.
