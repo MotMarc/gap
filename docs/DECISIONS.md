@@ -147,3 +147,50 @@ security properties, and broad implementation support.
 
 The choice remains provisional until the protocol undergoes formal
 cryptographic review.
+
+# Decision 007
+
+## Title
+
+GAP is artifact-agnostic
+
+## Status
+
+Accepted
+
+## Date
+
+14 July 2026
+
+## Decision
+
+The Generation Attribution Protocol SHALL apply to generated artifacts
+independently of the underlying generative system or output modality.
+
+GAP SHALL NOT be limited to AI-generated images or media.
+
+A Generation Event MAY produce one or more artifacts, including but not limited
+to images, video, audio, text, source code, documents, three-dimensional assets,
+synthetic datasets, or other machine-generated outputs.
+
+## Rationale
+
+Restricting GAP to contemporary AI image generation would unnecessarily couple
+the protocol to a specific technology and output type.
+
+The protocol's fundamental purpose is to establish cryptographically verifiable
+attribution for generation events. The underlying model, system, and artifact
+format are implementation details belonging to the provider.
+
+An artifact-agnostic design allows GAP to remain applicable as generative
+technologies evolve.
+
+## Consequences
+
+Generation Credentials SHALL represent associated outputs through an
+`artifacts` collection rather than a single image-specific field.
+
+Each artifact entry SHALL include a media type and a cryptographic digest.
+
+The protocol SHALL avoid terminology and fields that assume a specific output
+modality.
