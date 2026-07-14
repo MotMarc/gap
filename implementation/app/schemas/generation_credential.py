@@ -10,10 +10,6 @@ class CredentialProvider(BaseModel):
         min_length=1,
         max_length=100,
     )
-    key_id: str = Field(
-        min_length=1,
-        max_length=100,
-    )
 
 
 class CredentialGeneration(BaseModel):
@@ -34,10 +30,15 @@ class GenerationCredentialPayload(BaseModel):
     generation: CredentialGeneration
     provider: CredentialProvider
     model: CredentialModel
-    artifacts: list[ArtifactDescriptor] = Field(
-        min_length=1,
-    )
+    artifacts: list[ArtifactDescriptor] = Field(min_length=1)
 
 
-class GenerationCredential(GenerationCredentialPayload):
+class GenerationCredentialProof(BaseModel):
+    type: str = "Ed25519"
+    key_id: str
     signature: str
+
+
+class GenerationCredential(BaseModel):
+    payload: GenerationCredentialPayload
+    proof: GenerationCredentialProof

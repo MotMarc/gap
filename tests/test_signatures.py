@@ -2,21 +2,21 @@ import sys
 from pathlib import Path
 
 IMPLEMENTATION_DIRECTORY = (
-    Path(__file__).resolve().parents[1]
-    / "implementation"
+    Path(__file__).resolve().parents[1] / "implementation"
 )
 
 sys.path.insert(0, str(IMPLEMENTATION_DIRECTORY))
 
-from app.crypto.provider_keys import generate_provider_key_pair
-from app.crypto.signatures import (
+from app.crypto.provider_keys import (  # noqa: E402
+    generate_provider_key_pair,
+)
+from app.crypto.signatures import (  # noqa: E402
     sign_payload,
     verify_payload,
 )
 
 
-def test_signature_roundtrip():
-
+def test_signature_roundtrip() -> None:
     private_key, public_key = generate_provider_key_pair()
 
     payload = b"Hello GAP"
@@ -33,8 +33,7 @@ def test_signature_roundtrip():
     )
 
 
-def test_modified_payload_fails():
-
+def test_modified_payload_fails() -> None:
     private_key, public_key = generate_provider_key_pair()
 
     signature = sign_payload(

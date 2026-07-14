@@ -2,7 +2,6 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 IMPLEMENTATION_DIRECTORY = Path(__file__).resolve().parents[1] / "implementation"
 
 sys.path.insert(0, str(IMPLEMENTATION_DIRECTORY))
@@ -40,7 +39,7 @@ def test_artifact_descriptor_contains_correct_hash() -> None:
 
 def test_create_credential_payload() -> None:
     event = GenerationEvent(
-        generation_id=("gid_" + "a" * 64),
+        generation_id="gid_" + "a" * 64,
         provider_id="gap-demo-provider",
         model_id="demo-model-v1",
         created_at=datetime.now(timezone.utc),
@@ -54,14 +53,12 @@ def test_create_credential_payload() -> None:
 
     credential = create_credential_payload(
         event=event,
-        key_id="key-2026-01",
         artifacts=[artifact],
     )
 
     assert credential.version == "0.0.1"
     assert credential.generation.generation_id == event.generation_id
     assert credential.provider.provider_id == "gap-demo-provider"
-    assert credential.provider.key_id == "key-2026-01"
     assert credential.model.model_id == "demo-model-v1"
     assert len(credential.artifacts) == 1
     assert is_valid_credential_id(credential.credential_id)
@@ -69,7 +66,7 @@ def test_create_credential_payload() -> None:
 
 def test_canonicalisation_is_deterministic() -> None:
     event = GenerationEvent(
-        generation_id=("gid_" + "b" * 64),
+        generation_id="gid_" + "b" * 64,
         provider_id="gap-demo-provider",
         model_id="demo-model-v1",
         created_at=datetime(
@@ -90,7 +87,6 @@ def test_canonicalisation_is_deterministic() -> None:
 
     credential = create_credential_payload(
         event=event,
-        key_id="key-2026-01",
         artifacts=[artifact],
     )
 
