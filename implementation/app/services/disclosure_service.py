@@ -21,7 +21,7 @@ SUPPORTED_DISCLOSURE_PURPOSES = {
 
 class DisclosureDeniedError(PermissionError):
     """
-    Raised when a disclosure request fails authorisation checks.
+    Raised when a disclosure request fails provider policy checks.
     """
 
     def __init__(self, reason: str) -> None:
@@ -30,19 +30,15 @@ class DisclosureDeniedError(PermissionError):
 
 
 def _utc_now() -> datetime:
-    """
-    Return the current timezone-aware UTC datetime.
-    """
-
     return datetime.now(timezone.utc)
 
 
 def _normalise_datetime(value: datetime) -> datetime:
     """
-    Ensure a datetime is timezone-aware and represented in UTC.
+    Return a timezone-aware UTC datetime.
 
-    Naive datetimes are rejected because their timezone cannot be determined
-    reliably.
+    Naive datetimes are rejected because their intended timezone cannot be
+    reliably established.
     """
 
     if value.tzinfo is None:
@@ -60,10 +56,6 @@ def _create_audit_record(
     approved: bool,
     denial_reason: str | None,
 ) -> DisclosureAuditRecord:
-    """
-    Create an immutable audit record for one disclosure attempt.
-    """
-
     return DisclosureAuditRecord(
         disclosure_id=generate_disclosure_id(),
         generation_id=generation_id,
@@ -86,10 +78,6 @@ def _record_denial(
     reason: str,
     audit_repository: DisclosureAuditRepository,
 ) -> None:
-    """
-    Record a denied disclosure attempt and raise DisclosureDeniedError.
-    """
-
     audit_repository.append(
         _create_audit_record(
             generation_id=generation_id,
@@ -103,19 +91,57 @@ def _record_denial(
     raise DisclosureDeniedError(reason)
 
 
+def _validate_record_lifecycle(
+    record: ProviderAttributionRecord,
+    authorisation: DisclosureAuthorisation,
+    attribution_repository: AttributionRepository,
+    audit_repository: DisclosureAuditRepository,
+) -> ProviderAttributionRecord:
+    """
+    Ensure that the Provider Attribution Record remains available for lawful
+    disclosure.
+    """
+
+    if record.retention_status == "deleted":
+        _record_denial(
+            generation_id=record.generation_id,
+            provider_id=record.provider_id,
+            authorisation=authorisation,
+            reason="The attribution record has been deleted.",
+            audit_repository=audit_repository,
+        )
+
+    if record.retention_status == "expired":
+        _record_denial(
+            generation_id=record.generation_id,
+            provider_id=record.provider_id,
+            authorisation=authorisation,
+            reason="The attribution record has expired.",
+            audit_repository=audit_repository,
+        )
+
+    if record.retained_until <= _utc_now():
+        expired_record = attribution_repository.set_retention_status(
+            generation_id=record.generation_id,
+            retention_status="expired",
+        )
+
+        _record_denial(
+            generation_id=expired_record.generation_id,
+            provider_id=expired_record.provider_id,
+            authorisation=authorisation,
+            reason="The attribution record has expired.",
+            audit_repository=audit_repository,
+        )
+
+    return record
+
+
 def _validate_authorisation(
     record: ProviderAttributionRecord,
     authorisation: DisclosureAuthorisation,
     audit_repository: DisclosureAuditRepository,
 ) -> None:
-    """
-    Validate the structural, temporal, and provider-scoping properties of a
-    disclosure authorisation.
-
-    This reference implementation does not verify whether the authorisation
-    represents a genuine court order or warrant.
-    """
-
     if not authorisation.authorisation_id.strip():
         _record_denial(
             generation_id=record.generation_id,
@@ -219,20 +245,23 @@ def disclose_attribution_record(
     audit_repository: DisclosureAuditRepository,
 ) -> ProviderAttributionRecord:
     """
-    Resolve a Generation Identifier to its private Provider Attribution Record.
+    Resolve a Generation Identifier to a private Provider Attribution Record.
 
-    Every successful or denied authorisation attempt is written to the
-    disclosure audit repository.
-
-    Requests for unknown Generation Identifiers raise
-    AttributionRecordNotFoundError. They are not added to the provider's
-    disclosure log because no associated provider record exists.
+    Every authorised or denied attempt relating to an existing attribution
+    record is written to the disclosure audit log.
     """
 
     try:
         record = attribution_repository.get(generation_id)
     except AttributionRecordNotFoundError:
         raise
+
+    record = _validate_record_lifecycle(
+        record=record,
+        authorisation=authorisation,
+        attribution_repository=attribution_repository,
+        audit_repository=audit_repository,
+    )
 
     _validate_authorisation(
         record=record,

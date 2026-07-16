@@ -42,6 +42,15 @@ class IssueCredentialRequest(BaseModel):
         description="Prompt retained privately by the provider.",
     )
 
+    retention_days: int = Field(
+        default=365,
+        ge=1,
+        le=3650,
+        description=(
+            "Number of days for which the private attribution record remains active."
+        ),
+    )
+
 
 class VerifyCredentialRequest(BaseModel):
     credential: GenerationCredential
@@ -89,7 +98,6 @@ class DisclosureAuthorisationRequest(BaseModel):
     ]
 
     issued_at: datetime
-
     expires_at: datetime
 
     provider_id: str = Field(
@@ -99,10 +107,7 @@ class DisclosureAuthorisationRequest(BaseModel):
 
 
 class DisclosureRequest(BaseModel):
-    generation_id: str = Field(
-        min_length=1,
-    )
-
+    generation_id: str = Field(min_length=1)
     authorisation: DisclosureAuthorisationRequest
 
 
@@ -113,6 +118,7 @@ class AttributionDisclosureResponse(BaseModel):
     prompt_hash: str
     model_id: str
     created_at: datetime
+    retained_until: datetime
     retention_status: str
 
 

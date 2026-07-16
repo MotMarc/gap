@@ -454,3 +454,82 @@ authorisation reference supplied by the caller.
 
 It does not validate genuine warrants, court orders, investigator identities,
 jurisdiction, or legal sufficiency.
+
+# Decision 014
+
+## Title
+
+Disclosure requires structured authorisation
+
+## Status
+
+Accepted
+
+## Decision
+
+A request to disclose a Provider Attribution Record SHALL include a structured
+Disclosure Authorisation.
+
+The authorisation SHALL identify the investigator, issuing authority,
+jurisdiction, purpose, applicable provider, issue time, and expiry time.
+
+The reference implementation SHALL reject authorisations that are expired,
+not yet valid, scoped to another provider, or associated with an unsupported
+purpose.
+
+Every approved or denied disclosure attempt SHALL produce an audit record.
+
+## Rationale
+
+An unstructured authorisation reference does not provide sufficient context for
+provider-side access control or later accountability.
+
+Structured authorisation enables deterministic policy checks and produces a
+more useful audit trail while preserving the separation between public
+credentials and private attribution records.
+
+## Limitation
+
+The reference implementation validates only the structure, scope, timing, and
+declared purpose of the authorisation.
+
+It does not establish that an authorisation represents a genuine warrant,
+court order, or other legally sufficient instrument.
+# Decision 015
+
+## Title
+
+Provider Attribution Records have explicit retention lifecycles
+
+## Status
+
+Accepted
+
+## Decision
+
+Every Provider Attribution Record SHALL define a retention expiry time and a
+retention status.
+
+The reference implementation recognises the statuses `active`, `expired`, and
+`deleted`.
+
+Only active records whose retention period has not elapsed MAY be disclosed.
+
+A disclosure attempt involving an expired or deleted record SHALL be denied
+and SHALL produce an audit record.
+
+## Rationale
+
+Provider-held attribution information creates privacy and security risks if it
+is retained indefinitely.
+
+Explicit retention periods allow providers to limit data exposure, satisfy
+retention policies, and demonstrate that lawful attribution does not require
+permanent storage of user-linked information.
+
+## Limitation
+
+The current reference implementation stores records in memory and performs
+logical lifecycle transitions only.
+
+It does not securely erase protected information from persistent storage.

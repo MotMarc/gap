@@ -48,10 +48,6 @@ router = APIRouter(
 def get_provider_document(
     provider_id: str,
 ) -> ProviderIdentityDocument:
-    """
-    Resolve a provider and construct its public GAP identity document.
-    """
-
     try:
         provider = provider_repository.get(provider_id)
     except ProviderNotFoundError as error:
@@ -72,14 +68,8 @@ def get_provider_document(
     )
 
 
-@router.get(
-    "/providers",
-)
+@router.get("/providers")
 def list_providers() -> list[dict[str, str]]:
-    """
-    List providers available in the GAP reference implementation.
-    """
-
     return [
         {
             "provider_id": provider.provider_id,
@@ -96,10 +86,6 @@ def list_providers() -> list[dict[str, str]]:
 def read_provider_identity(
     provider_id: str,
 ) -> ProviderIdentityDocument:
-    """
-    Publish a provider's GAP identity and public verification keys.
-    """
-
     return get_provider_document(provider_id)
 
 
@@ -110,15 +96,6 @@ def read_provider_identity(
 def issue_credential(
     request: IssueCredentialRequest,
 ):
-    """
-    Issue a signed Generation Credential for a Base64-encoded artifact.
-
-    The public Generation Credential is returned to the caller.
-
-    A private Provider Attribution Record is also created and stored using
-    the Generation Identifier as its lookup key.
-    """
-
     try:
         provider = provider_repository.get(
             request.provider_id,
@@ -151,15 +128,20 @@ def issue_credential(
         model_id=request.model_id,
     )
 
-    attribution_record = create_provider_attribution_record(
-        event=event,
-        account_reference=request.account_reference,
-        prompt=request.prompt,
-    )
+    try:
+        attribution_record = create_provider_attribution_record(
+            event=event,
+            account_reference=request.account_reference,
+            prompt=request.prompt,
+            retention_days=request.retention_days,
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
 
-    attribution_repository.add(
-        attribution_record,
-    )
+    attribution_repository.add(attribution_record)
 
     artifact = create_artifact_descriptor(
         artifact=artifact_bytes,
@@ -189,16 +171,10 @@ def issue_credential(
 def verify_credential(
     request: VerifyCredentialRequest,
 ) -> VerificationResponse:
-    """
-    Verify a Generation Credential using its provider's published identity.
-    """
-
     credential = request.credential
     provider_id = credential.payload.provider.provider_id
 
-    provider_document = get_provider_document(
-        provider_id,
-    )
+    provider_document = get_provider_document(provider_id)
 
     valid = verify_generation_credential(
         credential=credential,
@@ -222,14 +198,6 @@ def verify_credential(
 def resolve_attribution_record(
     request: DisclosureRequest,
 ) -> AttributionDisclosureResponse:
-    """
-    Resolve a private Provider Attribution Record using a structured
-    disclosure authorisation.
-
-    This reference implementation validates structure, timing, provider scope,
-    and supported purpose. It does not verify genuine court orders or warrants.
-    """
-
     authorisation = DisclosureAuthorisation(
         authorisation_id=request.authorisation.authorisation_id,
         investigator_reference=request.authorisation.investigator_reference,
@@ -266,6 +234,7 @@ def resolve_attribution_record(
         prompt_hash=record.prompt_hash,
         model_id=record.model_id,
         created_at=record.created_at,
+        retained_until=record.retained_until,
         retention_status=record.retention_status,
     )
 
@@ -275,12 +244,6 @@ def resolve_attribution_record(
     response_model=list[DisclosureAuditResponse],
 )
 def read_disclosure_audit_log() -> list[DisclosureAuditResponse]:
-    """
-    Return the disclosure audit log.
-
-    This endpoint is exposed publicly only for demonstration purposes.
-    """
-
     return [
         DisclosureAuditResponse(
             disclosure_id=record.disclosure_id,

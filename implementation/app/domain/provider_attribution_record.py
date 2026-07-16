@@ -1,5 +1,13 @@
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal
+
+
+RetentionStatus = Literal[
+    "active",
+    "expired",
+    "deleted",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -7,7 +15,8 @@ class ProviderAttributionRecord:
     """
     Confidential provider-side record associated with a Generation Event.
 
-    This record must never be embedded within a public Generation Credential.
+    Provider Attribution Records are never embedded within public Generation
+    Credentials. They exist exclusively within provider-controlled systems.
     """
 
     generation_id: str
@@ -16,4 +25,5 @@ class ProviderAttributionRecord:
     prompt_hash: str
     model_id: str
     created_at: datetime
-    retention_status: str
+    retained_until: datetime
+    retention_status: RetentionStatus

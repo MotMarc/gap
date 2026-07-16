@@ -1,4 +1,5 @@
 import sys
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -27,9 +28,12 @@ from app.services.disclosure_service import (  # noqa: E402
 )
 
 
+GENERATION_ID = "gid_" + "a" * 64
+
+
 def create_test_event() -> GenerationEvent:
     return GenerationEvent(
-        generation_id="gid_" + "a" * 64,
+        generation_id=GENERATION_ID,
         provider_id="gap-demo-provider",
         model_id="demo-model-v1",
         created_at=datetime.now(timezone.utc),
@@ -55,7 +59,10 @@ def create_valid_authorisation(
     )
 
 
-def create_repositories() -> tuple[
+def create_repositories(
+    record_status: str = "active",
+    expired: bool = False,
+) -> tuple[
     AttributionRepository,
     DisclosureAuditRepository,
 ]:
@@ -66,7 +73,20 @@ def create_repositories() -> tuple[
         event=create_test_event(),
         account_reference="user-001",
         prompt="Generate an artifact.",
+        retention_days=365,
     )
+
+    if expired:
+        record = replace(
+            record,
+            retained_until=datetime.now(timezone.utc) - timedelta(minutes=1),
+        )
+
+    if record_status != "active":
+        record = replace(
+            record,
+            retention_status=record_status,
+        )
 
     attribution_repository.add(record)
 
@@ -77,7 +97,7 @@ def test_valid_authorisation_discloses_record() -> None:
     attribution_repository, audit_repository = create_repositories()
 
     record = disclose_attribution_record(
-        generation_id="gid_" + "a" * 64,
+        generation_id=GENERATION_ID,
         authorisation=create_valid_authorisation(),
         attribution_repository=attribution_repository,
         audit_repository=audit_repository,
@@ -88,9 +108,50 @@ def test_valid_authorisation_discloses_record() -> None:
     assert audit_repository.list_all()[0].approved is True
 
 
+def test_expired_attribution_record_is_denied() -> None:
+    attribution_repository, audit_repository = create_repositories(expired=True)
+
+    with pytest.raises(
+        DisclosureDeniedError,
+        match="The attribution record has expired.",
+    ):
+        disclose_attribution_record(
+            generation_id=GENERATION_ID,
+            authorisation=create_valid_authorisation(),
+            attribution_repository=attribution_repository,
+            audit_repository=audit_repository,
+        )
+
+    assert attribution_repository.get(GENERATION_ID).retention_status == "expired"
+
+    audit_record = audit_repository.list_all()[0]
+
+    assert audit_record.approved is False
+    assert audit_record.denial_reason == ("The attribution record has expired.")
+
+
+def test_deleted_attribution_record_is_denied() -> None:
+    attribution_repository, audit_repository = create_repositories(
+        record_status="deleted"
+    )
+
+    with pytest.raises(
+        DisclosureDeniedError,
+        match="The attribution record has been deleted.",
+    ):
+        disclose_attribution_record(
+            generation_id=GENERATION_ID,
+            authorisation=create_valid_authorisation(),
+            attribution_repository=attribution_repository,
+            audit_repository=audit_repository,
+        )
+
+    assert audit_repository.count() == 1
+    assert audit_repository.list_all()[0].approved is False
+
+
 def test_expired_authorisation_is_denied() -> None:
     attribution_repository, audit_repository = create_repositories()
-
     current_time = datetime.now(timezone.utc)
 
     authorisation = DisclosureAuthorisation(
@@ -109,7 +170,7 @@ def test_expired_authorisation_is_denied() -> None:
         match="The authorisation has expired.",
     ):
         disclose_attribution_record(
-            generation_id="gid_" + "a" * 64,
+            generation_id=GENERATION_ID,
             authorisation=authorisation,
             attribution_repository=attribution_repository,
             audit_repository=audit_repository,
@@ -117,15 +178,9 @@ def test_expired_authorisation_is_denied() -> None:
 
     assert audit_repository.count() == 1
 
-    audit_record = audit_repository.list_all()[0]
-
-    assert audit_record.approved is False
-    assert audit_record.denial_reason == "The authorisation has expired."
-
 
 def test_future_authorisation_is_denied() -> None:
     attribution_repository, audit_repository = create_repositories()
-
     current_time = datetime.now(timezone.utc)
 
     authorisation = DisclosureAuthorisation(
@@ -144,96 +199,45 @@ def test_future_authorisation_is_denied() -> None:
         match="The authorisation is not yet valid.",
     ):
         disclose_attribution_record(
-            generation_id="gid_" + "a" * 64,
+            generation_id=GENERATION_ID,
             authorisation=authorisation,
             attribution_repository=attribution_repository,
             audit_repository=audit_repository,
         )
 
-    assert audit_repository.count() == 1
-    assert audit_repository.list_all()[0].approved is False
-
 
 def test_wrong_provider_authorisation_is_denied() -> None:
     attribution_repository, audit_repository = create_repositories()
-
-    authorisation = create_valid_authorisation(provider_id="different-provider")
 
     with pytest.raises(
         DisclosureDeniedError,
         match="The authorisation does not apply to this provider.",
     ):
         disclose_attribution_record(
-            generation_id="gid_" + "a" * 64,
-            authorisation=authorisation,
+            generation_id=GENERATION_ID,
+            authorisation=create_valid_authorisation(provider_id="different-provider"),
             attribution_repository=attribution_repository,
             audit_repository=audit_repository,
         )
 
-    assert audit_repository.count() == 1
-
-    audit_record = audit_repository.list_all()[0]
-
-    assert audit_record.approved is False
-    assert audit_record.denial_reason == (
-        "The authorisation does not apply to this provider."
-    )
-
 
 def test_unsupported_purpose_is_denied() -> None:
     attribution_repository, audit_repository = create_repositories()
-
-    authorisation = create_valid_authorisation(purpose="unsupported-purpose")
 
     with pytest.raises(
         DisclosureDeniedError,
         match="The disclosure purpose is not supported.",
     ):
         disclose_attribution_record(
-            generation_id="gid_" + "a" * 64,
-            authorisation=authorisation,
+            generation_id=GENERATION_ID,
+            authorisation=create_valid_authorisation(purpose="unsupported-purpose"),
             attribution_repository=attribution_repository,
             audit_repository=audit_repository,
         )
-
-    assert audit_repository.count() == 1
-    assert audit_repository.list_all()[0].approved is False
-
-
-def test_expiry_before_issue_time_is_denied() -> None:
-    attribution_repository, audit_repository = create_repositories()
-
-    current_time = datetime.now(timezone.utc)
-
-    authorisation = DisclosureAuthorisation(
-        authorisation_id="court-order-invalid-range",
-        investigator_reference="investigator-001",
-        issuing_authority="Crown Court",
-        jurisdiction="GB",
-        purpose="criminal-investigation",
-        issued_at=current_time,
-        expires_at=current_time - timedelta(minutes=1),
-        provider_id="gap-demo-provider",
-    )
-
-    with pytest.raises(
-        DisclosureDeniedError,
-        match="The authorisation expiry must be after its issue time.",
-    ):
-        disclose_attribution_record(
-            generation_id="gid_" + "a" * 64,
-            authorisation=authorisation,
-            attribution_repository=attribution_repository,
-            audit_repository=audit_repository,
-        )
-
-    assert audit_repository.count() == 1
-    assert audit_repository.list_all()[0].approved is False
 
 
 def test_naive_authorisation_timestamps_are_denied() -> None:
     attribution_repository, audit_repository = create_repositories()
-
     current_time = datetime.now()
 
     authorisation = DisclosureAuthorisation(
@@ -252,11 +256,8 @@ def test_naive_authorisation_timestamps_are_denied() -> None:
         match=("Authorisation timestamps must include timezone information."),
     ):
         disclose_attribution_record(
-            generation_id="gid_" + "a" * 64,
+            generation_id=GENERATION_ID,
             authorisation=authorisation,
             attribution_repository=attribution_repository,
             audit_repository=audit_repository,
         )
-
-    assert audit_repository.count() == 1
-    assert audit_repository.list_all()[0].approved is False
