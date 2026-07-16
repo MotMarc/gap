@@ -35,8 +35,19 @@ def issue_test_credential() -> dict:
     return response.json()
 
 
+def test_list_providers() -> None:
+    response = client.get("/providers")
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert len(body) == 1
+    assert body[0]["provider_id"] == "gap-demo-provider"
+
+
 def test_provider_identity_endpoint() -> None:
-    response = client.get("/.well-known/gap.json")
+    response = client.get("/providers/gap-demo-provider/.well-known/gap.json")
 
     assert response.status_code == 200
 
@@ -48,6 +59,12 @@ def test_provider_identity_endpoint() -> None:
     assert body["keys"][0]["algorithm"] == "Ed25519"
 
 
+def test_unknown_provider_identity_returns_404() -> None:
+    response = client.get("/providers/unknown-provider/.well-known/gap.json")
+
+    assert response.status_code == 404
+
+
 def test_issue_generation_credential() -> None:
     credential = issue_test_credential()
 
@@ -55,6 +72,24 @@ def test_issue_generation_credential() -> None:
     assert credential["payload"]["model"]["model_id"] == "demo-model-v1"
     assert credential["proof"]["type"] == "Ed25519"
     assert credential["proof"]["key_id"] == "key-2026-01"
+
+
+def test_unknown_provider_cannot_issue_credential() -> None:
+    artifact = base64.b64encode(
+        b"GAP generated artifact",
+    ).decode("utf-8")
+
+    response = client.post(
+        "/credentials/issue",
+        json={
+            "provider_id": "unknown-provider",
+            "model_id": "demo-model-v1",
+            "media_type": "text/plain",
+            "artifact_base64": artifact,
+        },
+    )
+
+    assert response.status_code == 404
 
 
 def test_verify_generation_credential() -> None:

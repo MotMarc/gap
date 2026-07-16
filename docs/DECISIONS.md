@@ -385,3 +385,34 @@ Internet protocols.
 
 The endpoint path remains provisional and would require appropriate
 standardisation before production use.
+
+# Decision 012
+
+## Title
+
+Providers are first-class domain entities
+
+## Status
+
+Accepted
+
+## Decision
+
+A participating GAP provider SHALL be represented independently of the
+credential issuance API.
+
+Each provider SHALL define a stable provider identifier, display name, active
+signing-key identifier, and references to its private and public key material.
+
+The reference implementation SHALL resolve providers through a repository
+abstraction rather than hardcoded module-level constants.
+
+## Rationale
+
+Treating providers as first-class entities permits multiple independent
+providers to issue and verify GAP credentials through the same reference
+implementation.
+
+The repository abstraction allows the current in-memory implementation to be
+replaced by configuration files, databases, or remote provider discovery
+without changing the credential protocol.

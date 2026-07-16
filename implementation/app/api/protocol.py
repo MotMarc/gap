@@ -3,13 +3,6 @@ from binascii import Error as Base64DecodeError
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.core.provider_config import (
-    KEY_ID,
-    PRIVATE_KEY_PATH,
-    PROVIDER_ID,
-    PROVIDER_NAME,
-    PUBLIC_KEY_PATH,
-)
 from app.crypto.provider_keys import load_private_key, load_public_key
 from app.schemas.protocol_api import (
     IssueCredentialRequest,
@@ -26,7 +19,11 @@ from app.services.generation_event_service import create_generation_event
 from app.services.provider_identity_service import (
     create_provider_identity_document,
 )
+from app.services.provider_repository import (
+    ProviderNotFoundError,
+)
 from app.services.verification_service import verify_generation_credential
+from app.core.provider_config import provider_repository
 
 
 router = APIRouter(
@@ -34,27 +31,58 @@ router = APIRouter(
 )
 
 
-def get_provider_document() -> ProviderIdentityDocument:
-    public_key = load_public_key(PUBLIC_KEY_PATH)
+def get_provider_document(
+    provider_id: str,
+) -> ProviderIdentityDocument:
+    try:
+        provider = provider_repository.get(provider_id)
+    except ProviderNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
+
+    public_key = load_public_key(
+        provider.public_key_path,
+    )
 
     return create_provider_identity_document(
-        provider_id=PROVIDER_ID,
-        provider_name=PROVIDER_NAME,
-        key_id=KEY_ID,
+        provider_id=provider.provider_id,
+        provider_name=provider.provider_name,
+        key_id=provider.key_id,
         public_key=public_key,
     )
 
 
 @router.get(
-    "/.well-known/gap.json",
-    response_model=ProviderIdentityDocument,
+    "/providers",
 )
-def read_provider_identity() -> ProviderIdentityDocument:
+def list_providers() -> list[dict[str, str]]:
     """
-    Publish the demo provider's GAP identity and public verification key.
+    List providers available in the reference implementation.
     """
 
-    return get_provider_document()
+    return [
+        {
+            "provider_id": provider.provider_id,
+            "provider_name": provider.provider_name,
+        }
+        for provider in provider_repository.list_all()
+    ]
+
+
+@router.get(
+    "/providers/{provider_id}/.well-known/gap.json",
+    response_model=ProviderIdentityDocument,
+)
+def read_provider_identity(
+    provider_id: str,
+) -> ProviderIdentityDocument:
+    """
+    Publish a provider's GAP identity and verification keys.
+    """
+
+    return get_provider_document(provider_id)
 
 
 @router.post(
@@ -68,12 +96,15 @@ def issue_credential(
     Issue a signed Generation Credential for a Base64-encoded artifact.
     """
 
-    if request.provider_id != PROVIDER_ID:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This reference provider cannot issue credentials for "
-            "another provider identifier.",
+    try:
+        provider = provider_repository.get(
+            request.provider_id,
         )
+    except ProviderNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
 
     try:
         artifact_bytes = base64.b64decode(
@@ -93,7 +124,7 @@ def issue_credential(
         )
 
     event = create_generation_event(
-        provider_id=PROVIDER_ID,
+        provider_id=provider.provider_id,
         model_id=request.model_id,
     )
 
@@ -107,11 +138,13 @@ def issue_credential(
         artifacts=[artifact],
     )
 
-    private_key = load_private_key(PRIVATE_KEY_PATH)
+    private_key = load_private_key(
+        provider.private_key_path,
+    )
 
     return issue_generation_credential(
         payload=payload,
-        key_id=KEY_ID,
+        key_id=provider.key_id,
         private_key=private_key,
     )
 
@@ -124,11 +157,15 @@ def verify_credential(
     request: VerifyCredentialRequest,
 ) -> VerificationResponse:
     """
-    Verify a Generation Credential using the provider's published identity.
+    Verify a Generation Credential using its provider identity document.
     """
 
     credential = request.credential
-    provider_document = get_provider_document()
+    provider_id = credential.payload.provider.provider_id
+
+    provider_document = get_provider_document(
+        provider_id,
+    )
 
     valid = verify_generation_credential(
         credential=credential,
@@ -137,7 +174,7 @@ def verify_credential(
 
     return VerificationResponse(
         valid=valid,
-        provider_id=credential.payload.provider.provider_id,
+        provider_id=provider_id,
         generation_id=credential.payload.generation.generation_id,
         credential_id=credential.payload.credential_id,
         key_id=credential.proof.key_id,
