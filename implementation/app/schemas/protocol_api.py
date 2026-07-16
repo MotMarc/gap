@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -55,16 +56,54 @@ class VerificationResponse(BaseModel):
     algorithm: str
 
 
-class DisclosureRequest(BaseModel):
-    generation_id: str = Field(min_length=1)
+class DisclosureAuthorisationRequest(BaseModel):
+    authorisation_id: str = Field(
+        min_length=1,
+        max_length=200,
+        examples=["court-order-001"],
+    )
+
     investigator_reference: str = Field(
         min_length=1,
         max_length=200,
+        examples=["investigator-001"],
     )
-    authorisation_reference: str = Field(
+
+    issuing_authority: str = Field(
         min_length=1,
-        max_length=200,
+        max_length=300,
+        examples=["Crown Court"],
     )
+
+    jurisdiction: str = Field(
+        min_length=1,
+        max_length=100,
+        examples=["GB"],
+    )
+
+    purpose: Literal[
+        "criminal-investigation",
+        "civil-proceedings",
+        "regulatory-investigation",
+        "national-security-investigation",
+    ]
+
+    issued_at: datetime
+
+    expires_at: datetime
+
+    provider_id: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+
+class DisclosureRequest(BaseModel):
+    generation_id: str = Field(
+        min_length=1,
+    )
+
+    authorisation: DisclosureAuthorisationRequest
 
 
 class AttributionDisclosureResponse(BaseModel):
@@ -82,5 +121,10 @@ class DisclosureAuditResponse(BaseModel):
     generation_id: str
     provider_id: str
     investigator_reference: str
-    authorisation_reference: str
+    authorisation_id: str
+    issuing_authority: str
+    jurisdiction: str
+    purpose: str
+    approved: bool
+    denial_reason: str | None
     disclosed_at: datetime

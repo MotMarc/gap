@@ -1,5 +1,6 @@
 import base64
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -34,6 +35,24 @@ def issue_test_credential() -> dict:
     assert response.status_code == 201
 
     return response.json()
+
+
+def create_valid_authorisation(
+    provider_id: str = "gap-demo-provider",
+    purpose: str = "criminal-investigation",
+) -> dict:
+    current_time = datetime.now(timezone.utc)
+
+    return {
+        "authorisation_id": "court-order-001",
+        "investigator_reference": "investigator-001",
+        "issuing_authority": "Crown Court",
+        "jurisdiction": "GB",
+        "purpose": purpose,
+        "issued_at": (current_time - timedelta(minutes=5)).isoformat(),
+        "expires_at": (current_time + timedelta(hours=1)).isoformat(),
+        "provider_id": provider_id,
+    }
 
 
 def test_list_providers() -> None:
@@ -143,15 +162,13 @@ def test_invalid_base64_is_rejected() -> None:
 
 def test_private_attribution_record_can_be_disclosed() -> None:
     credential = issue_test_credential()
-
     generation_id = credential["payload"]["generation"]["generation_id"]
 
     response = client.post(
         "/disclosures/resolve",
         json={
             "generation_id": generation_id,
-            "investigator_reference": "investigator-001",
-            "authorisation_reference": "court-order-001",
+            "authorisation": create_valid_authorisation(),
         },
     )
 
@@ -170,29 +187,90 @@ def test_unknown_generation_id_cannot_be_disclosed() -> None:
         "/disclosures/resolve",
         json={
             "generation_id": "gid_" + "f" * 64,
-            "investigator_reference": "investigator-001",
-            "authorisation_reference": "court-order-001",
+            "authorisation": create_valid_authorisation(),
         },
     )
 
     assert response.status_code == 404
 
 
-def test_disclosure_is_written_to_audit_log() -> None:
+def test_expired_authorisation_is_denied() -> None:
     credential = issue_test_credential()
-
     generation_id = credential["payload"]["generation"]["generation_id"]
 
-    disclosure_response = client.post(
+    current_time = datetime.now(timezone.utc)
+
+    authorisation = create_valid_authorisation()
+    authorisation["issued_at"] = (current_time - timedelta(hours=2)).isoformat()
+    authorisation["expires_at"] = (current_time - timedelta(hours=1)).isoformat()
+
+    response = client.post(
         "/disclosures/resolve",
         json={
             "generation_id": generation_id,
-            "investigator_reference": "investigator-002",
-            "authorisation_reference": "court-order-002",
+            "authorisation": authorisation,
         },
     )
 
-    assert disclosure_response.status_code == 200
+    assert response.status_code == 403
+    assert response.json()["detail"] == "The authorisation has expired."
+
+
+def test_future_authorisation_is_denied() -> None:
+    credential = issue_test_credential()
+    generation_id = credential["payload"]["generation"]["generation_id"]
+
+    current_time = datetime.now(timezone.utc)
+
+    authorisation = create_valid_authorisation()
+    authorisation["issued_at"] = (current_time + timedelta(hours=1)).isoformat()
+    authorisation["expires_at"] = (current_time + timedelta(hours=2)).isoformat()
+
+    response = client.post(
+        "/disclosures/resolve",
+        json={
+            "generation_id": generation_id,
+            "authorisation": authorisation,
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == ("The authorisation is not yet valid.")
+
+
+def test_wrong_provider_authorisation_is_denied() -> None:
+    credential = issue_test_credential()
+    generation_id = credential["payload"]["generation"]["generation_id"]
+
+    response = client.post(
+        "/disclosures/resolve",
+        json={
+            "generation_id": generation_id,
+            "authorisation": create_valid_authorisation(
+                provider_id="different-provider"
+            ),
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "The authorisation does not apply to this provider."
+    )
+
+
+def test_successful_disclosure_is_written_to_audit_log() -> None:
+    credential = issue_test_credential()
+    generation_id = credential["payload"]["generation"]["generation_id"]
+
+    response = client.post(
+        "/disclosures/resolve",
+        json={
+            "generation_id": generation_id,
+            "authorisation": create_valid_authorisation(),
+        },
+    )
+
+    assert response.status_code == 200
 
     audit_response = client.get("/disclosures/audit")
 
@@ -202,5 +280,36 @@ def test_disclosure_is_written_to_audit_log() -> None:
     latest_record = audit_response.json()[-1]
 
     assert latest_record["generation_id"] == generation_id
-    assert latest_record["investigator_reference"] == "investigator-002"
-    assert latest_record["authorisation_reference"] == "court-order-002"
+    assert latest_record["authorisation_id"] == "court-order-001"
+    assert latest_record["approved"] is True
+    assert latest_record["denial_reason"] is None
+
+
+def test_denied_disclosure_is_written_to_audit_log() -> None:
+    credential = issue_test_credential()
+    generation_id = credential["payload"]["generation"]["generation_id"]
+
+    response = client.post(
+        "/disclosures/resolve",
+        json={
+            "generation_id": generation_id,
+            "authorisation": create_valid_authorisation(
+                provider_id="different-provider"
+            ),
+        },
+    )
+
+    assert response.status_code == 403
+
+    audit_response = client.get("/disclosures/audit")
+
+    assert audit_response.status_code == 200
+    assert len(audit_response.json()) >= 1
+
+    latest_record = audit_response.json()[-1]
+
+    assert latest_record["generation_id"] == generation_id
+    assert latest_record["approved"] is False
+    assert latest_record["denial_reason"] == (
+        "The authorisation does not apply to this provider."
+    )

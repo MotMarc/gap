@@ -9,6 +9,7 @@ from app.core.repositories import (
     disclosure_audit_repository,
 )
 from app.crypto.provider_keys import load_private_key, load_public_key
+from app.domain.disclosure_authorisation import DisclosureAuthorisation
 from app.schemas.protocol_api import (
     AttributionDisclosureResponse,
     DisclosureAuditResponse,
@@ -23,7 +24,10 @@ from app.services.attribution_repository import AttributionRecordNotFoundError
 from app.services.attribution_service import (
     create_provider_attribution_record,
 )
-from app.services.disclosure_service import disclose_attribution_record
+from app.services.disclosure_service import (
+    DisclosureDeniedError,
+    disclose_attribution_record,
+)
 from app.services.generation_credential_service import (
     create_credential_payload,
     issue_generation_credential,
@@ -219,17 +223,28 @@ def resolve_attribution_record(
     request: DisclosureRequest,
 ) -> AttributionDisclosureResponse:
     """
-    Simulate lawful resolution of a private Provider Attribution Record.
+    Resolve a private Provider Attribution Record using a structured
+    disclosure authorisation.
 
-    The current MVP accepts a non-empty investigator reference and
-    authorisation reference as a simulation of lawful authority.
+    This reference implementation validates structure, timing, provider scope,
+    and supported purpose. It does not verify genuine court orders or warrants.
     """
+
+    authorisation = DisclosureAuthorisation(
+        authorisation_id=request.authorisation.authorisation_id,
+        investigator_reference=request.authorisation.investigator_reference,
+        issuing_authority=request.authorisation.issuing_authority,
+        jurisdiction=request.authorisation.jurisdiction,
+        purpose=request.authorisation.purpose,
+        issued_at=request.authorisation.issued_at,
+        expires_at=request.authorisation.expires_at,
+        provider_id=request.authorisation.provider_id,
+    )
 
     try:
         record = disclose_attribution_record(
             generation_id=request.generation_id,
-            investigator_reference=request.investigator_reference,
-            authorisation_reference=request.authorisation_reference,
+            authorisation=authorisation,
             attribution_repository=attribution_repository,
             audit_repository=disclosure_audit_repository,
         )
@@ -238,10 +253,10 @@ def resolve_attribution_record(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(error),
         ) from error
-    except ValueError as error:
+    except DisclosureDeniedError as error:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(error),
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error.reason,
         ) from error
 
     return AttributionDisclosureResponse(
@@ -272,7 +287,12 @@ def read_disclosure_audit_log() -> list[DisclosureAuditResponse]:
             generation_id=record.generation_id,
             provider_id=record.provider_id,
             investigator_reference=record.investigator_reference,
-            authorisation_reference=record.authorisation_reference,
+            authorisation_id=record.authorisation_id,
+            issuing_authority=record.issuing_authority,
+            jurisdiction=record.jurisdiction,
+            purpose=record.purpose,
+            approved=record.approved,
+            denial_reason=record.denial_reason,
             disclosed_at=record.disclosed_at,
         )
         for record in disclosure_audit_repository.list_all()
