@@ -3,14 +3,27 @@ from binascii import Error as Base64DecodeError
 
 from fastapi import APIRouter, HTTPException, status
 
+from app.core.provider_config import provider_repository
+from app.core.repositories import (
+    attribution_repository,
+    disclosure_audit_repository,
+)
 from app.crypto.provider_keys import load_private_key, load_public_key
 from app.schemas.protocol_api import (
+    AttributionDisclosureResponse,
+    DisclosureAuditResponse,
+    DisclosureRequest,
     IssueCredentialRequest,
     VerificationResponse,
     VerifyCredentialRequest,
 )
 from app.schemas.provider_identity import ProviderIdentityDocument
 from app.services.artifact_service import create_artifact_descriptor
+from app.services.attribution_repository import AttributionRecordNotFoundError
+from app.services.attribution_service import (
+    create_provider_attribution_record,
+)
+from app.services.disclosure_service import disclose_attribution_record
 from app.services.generation_credential_service import (
     create_credential_payload,
     issue_generation_credential,
@@ -19,11 +32,8 @@ from app.services.generation_event_service import create_generation_event
 from app.services.provider_identity_service import (
     create_provider_identity_document,
 )
-from app.services.provider_repository import (
-    ProviderNotFoundError,
-)
+from app.services.provider_repository import ProviderNotFoundError
 from app.services.verification_service import verify_generation_credential
-from app.core.provider_config import provider_repository
 
 
 router = APIRouter(
@@ -34,6 +44,10 @@ router = APIRouter(
 def get_provider_document(
     provider_id: str,
 ) -> ProviderIdentityDocument:
+    """
+    Resolve a provider and construct its public GAP identity document.
+    """
+
     try:
         provider = provider_repository.get(provider_id)
     except ProviderNotFoundError as error:
@@ -59,7 +73,7 @@ def get_provider_document(
 )
 def list_providers() -> list[dict[str, str]]:
     """
-    List providers available in the reference implementation.
+    List providers available in the GAP reference implementation.
     """
 
     return [
@@ -79,7 +93,7 @@ def read_provider_identity(
     provider_id: str,
 ) -> ProviderIdentityDocument:
     """
-    Publish a provider's GAP identity and verification keys.
+    Publish a provider's GAP identity and public verification keys.
     """
 
     return get_provider_document(provider_id)
@@ -94,6 +108,11 @@ def issue_credential(
 ):
     """
     Issue a signed Generation Credential for a Base64-encoded artifact.
+
+    The public Generation Credential is returned to the caller.
+
+    A private Provider Attribution Record is also created and stored using
+    the Generation Identifier as its lookup key.
     """
 
     try:
@@ -128,6 +147,16 @@ def issue_credential(
         model_id=request.model_id,
     )
 
+    attribution_record = create_provider_attribution_record(
+        event=event,
+        account_reference=request.account_reference,
+        prompt=request.prompt,
+    )
+
+    attribution_repository.add(
+        attribution_record,
+    )
+
     artifact = create_artifact_descriptor(
         artifact=artifact_bytes,
         media_type=request.media_type,
@@ -157,7 +186,7 @@ def verify_credential(
     request: VerifyCredentialRequest,
 ) -> VerificationResponse:
     """
-    Verify a Generation Credential using its provider identity document.
+    Verify a Generation Credential using its provider's published identity.
     """
 
     credential = request.credential
@@ -180,3 +209,71 @@ def verify_credential(
         key_id=credential.proof.key_id,
         algorithm=credential.proof.type,
     )
+
+
+@router.post(
+    "/disclosures/resolve",
+    response_model=AttributionDisclosureResponse,
+)
+def resolve_attribution_record(
+    request: DisclosureRequest,
+) -> AttributionDisclosureResponse:
+    """
+    Simulate lawful resolution of a private Provider Attribution Record.
+
+    The current MVP accepts a non-empty investigator reference and
+    authorisation reference as a simulation of lawful authority.
+    """
+
+    try:
+        record = disclose_attribution_record(
+            generation_id=request.generation_id,
+            investigator_reference=request.investigator_reference,
+            authorisation_reference=request.authorisation_reference,
+            attribution_repository=attribution_repository,
+            audit_repository=disclosure_audit_repository,
+        )
+    except AttributionRecordNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+
+    return AttributionDisclosureResponse(
+        generation_id=record.generation_id,
+        provider_id=record.provider_id,
+        account_reference=record.account_reference,
+        prompt_hash=record.prompt_hash,
+        model_id=record.model_id,
+        created_at=record.created_at,
+        retention_status=record.retention_status,
+    )
+
+
+@router.get(
+    "/disclosures/audit",
+    response_model=list[DisclosureAuditResponse],
+)
+def read_disclosure_audit_log() -> list[DisclosureAuditResponse]:
+    """
+    Return the disclosure audit log.
+
+    This endpoint is exposed publicly only for demonstration purposes.
+    """
+
+    return [
+        DisclosureAuditResponse(
+            disclosure_id=record.disclosure_id,
+            generation_id=record.generation_id,
+            provider_id=record.provider_id,
+            investigator_reference=record.investigator_reference,
+            authorisation_reference=record.authorisation_reference,
+            disclosed_at=record.disclosed_at,
+        )
+        for record in disclosure_audit_repository.list_all()
+    ]

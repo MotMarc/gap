@@ -416,3 +416,41 @@ implementation.
 The repository abstraction allows the current in-memory implementation to be
 replaced by configuration files, databases, or remote provider discovery
 without changing the credential protocol.
+
+# Decision 013
+
+## Title
+
+Public credentials and private attribution records are separated
+
+## Status
+
+Accepted
+
+## Decision
+
+A Generation Credential SHALL NOT contain account references, prompts,
+investigator information, device identifiers, or other private attribution
+data.
+
+A participating provider MAY maintain a confidential Provider Attribution
+Record associated with the Generation Identifier.
+
+Resolution of a Provider Attribution Record SHALL be treated as a separate
+controlled-disclosure operation and SHALL produce an audit record.
+
+## Rationale
+
+Separating public provenance from private attribution provides verifiability
+without exposing user identity during ordinary use.
+
+This separation is the principal mechanism through which GAP implements
+privacy by default and accountability under due process.
+
+## MVP limitation
+
+The current reference implementation simulates lawful authority using an
+authorisation reference supplied by the caller.
+
+It does not validate genuine warrants, court orders, investigator identities,
+jurisdiction, or legal sufficiency.

@@ -4,7 +4,6 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-
 IMPLEMENTATION_DIRECTORY = Path(__file__).resolve().parents[1] / "implementation"
 
 sys.path.insert(0, str(IMPLEMENTATION_DIRECTORY))
@@ -27,6 +26,8 @@ def issue_test_credential() -> dict:
             "model_id": "demo-model-v1",
             "media_type": "text/plain",
             "artifact_base64": artifact,
+            "account_reference": "user-001",
+            "prompt": "Generate a GAP test artifact.",
         },
     )
 
@@ -86,6 +87,8 @@ def test_unknown_provider_cannot_issue_credential() -> None:
             "model_id": "demo-model-v1",
             "media_type": "text/plain",
             "artifact_base64": artifact,
+            "account_reference": "user-001",
+            "prompt": "Generate a GAP test artifact.",
         },
     )
 
@@ -130,7 +133,74 @@ def test_invalid_base64_is_rejected() -> None:
             "model_id": "demo-model-v1",
             "media_type": "text/plain",
             "artifact_base64": "not valid base64!",
+            "account_reference": "user-001",
+            "prompt": "Generate a GAP test artifact.",
         },
     )
 
     assert response.status_code == 422
+
+
+def test_private_attribution_record_can_be_disclosed() -> None:
+    credential = issue_test_credential()
+
+    generation_id = credential["payload"]["generation"]["generation_id"]
+
+    response = client.post(
+        "/disclosures/resolve",
+        json={
+            "generation_id": generation_id,
+            "investigator_reference": "investigator-001",
+            "authorisation_reference": "court-order-001",
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["generation_id"] == generation_id
+    assert body["provider_id"] == "gap-demo-provider"
+    assert body["account_reference"] == "user-001"
+    assert len(body["prompt_hash"]) == 64
+
+
+def test_unknown_generation_id_cannot_be_disclosed() -> None:
+    response = client.post(
+        "/disclosures/resolve",
+        json={
+            "generation_id": "gid_" + "f" * 64,
+            "investigator_reference": "investigator-001",
+            "authorisation_reference": "court-order-001",
+        },
+    )
+
+    assert response.status_code == 404
+
+
+def test_disclosure_is_written_to_audit_log() -> None:
+    credential = issue_test_credential()
+
+    generation_id = credential["payload"]["generation"]["generation_id"]
+
+    disclosure_response = client.post(
+        "/disclosures/resolve",
+        json={
+            "generation_id": generation_id,
+            "investigator_reference": "investigator-002",
+            "authorisation_reference": "court-order-002",
+        },
+    )
+
+    assert disclosure_response.status_code == 200
+
+    audit_response = client.get("/disclosures/audit")
+
+    assert audit_response.status_code == 200
+    assert len(audit_response.json()) >= 1
+
+    latest_record = audit_response.json()[-1]
+
+    assert latest_record["generation_id"] == generation_id
+    assert latest_record["investigator_reference"] == "investigator-002"
+    assert latest_record["authorisation_reference"] == "court-order-002"
