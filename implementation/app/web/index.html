@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="description"
+        content="Generation Attribution Protocol browser demonstrator."
+    >
+
+    <title>GAP Demonstrator</title>
+
+    <link
+        rel="stylesheet"
+        href="/static/styles.css"
+    >
+</head>
+
+<body>
+    <header class="site-header">
+        <div class="header-content">
+            <a
+                class="brand"
+                href="/"
+                aria-label="Generation Attribution Protocol"
+            >
+                <span class="brand-mark">GAP</span>
+
+                <span class="brand-copy">
+                    <strong>Generation Attribution Protocol</strong>
+                    <small>Reference Demonstrator v0.5.0</small>
+                </span>
+            </a>
+
+            <nav class="header-navigation">
+                <a href="/docs">API documentation</a>
+
+                <a
+                    href="https://github.com/MotMarc"
+                    target="_blank"
+                    rel="noreferrer"
+                >
+                    GitHub
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="page-shell">
+        <section class="hero">
+            <div class="hero-copy">
+                <span class="eyebrow">
+                    Privacy-preserving AI attribution
+                </span>
+
+                <h1>
+                    Generate, credential and verify an attributable artifact.
+                </h1>
+
+                <p>
+                    This demonstrator connects an artifact-generation adapter
+                    to a signed GAP Generation Credential while retaining
+                    private attribution information separately.
+                </p>
+            </div>
+
+            <div class="protocol-flow" aria-label="GAP protocol flow">
+                <div class="flow-stage">
+                    <span>1</span>
+                    <strong>Generate</strong>
+                    <small>Create an artifact</small>
+                </div>
+
+                <div class="flow-connector" aria-hidden="true">→</div>
+
+                <div class="flow-stage">
+                    <span>2</span>
+                    <strong>Credential</strong>
+                    <small>Sign its provenance</small>
+                </div>
+
+                <div class="flow-connector" aria-hidden="true">→</div>
+
+                <div class="flow-stage">
+                    <span>3</span>
+                    <strong>Verify</strong>
+                    <small>Validate authenticity</small>
+                </div>
+            </div>
+        </section>
+
+        <section class="workspace">
+            <article class="panel generation-panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="section-number">01</span>
+                        <h2>Generate an artifact</h2>
+                    </div>
+
+                    <span
+                        id="service-status"
+                        class="status-badge status-neutral"
+                    >
+                        Checking service
+                    </span>
+                </div>
+
+                <form id="generation-form">
+                    <div class="field">
+                        <label for="provider-id">
+                            Provider
+                        </label>
+
+                        <select
+                            id="provider-id"
+                            name="provider_id"
+                            required
+                        >
+                            <option value="gap-demo-provider">
+                                GAP Demo Provider
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="account-reference">
+                            Private account reference
+                        </label>
+
+                        <input
+                            id="account-reference"
+                            name="account_reference"
+                            type="text"
+                            value="demo-user-001"
+                            minlength="1"
+                            maxlength="200"
+                            autocomplete="off"
+                            required
+                        >
+
+                        <small>
+                            Stored privately by the provider and excluded from
+                            the public credential.
+                        </small>
+                    </div>
+
+                    <div class="field">
+                        <label for="prompt">
+                            Generation prompt
+                        </label>
+
+                        <textarea
+                            id="prompt"
+                            name="prompt"
+                            rows="7"
+                            minlength="1"
+                            maxlength="10000"
+                            required
+                        >A generated artifact demonstrating privacy-preserving attribution.</textarea>
+
+                        <div class="field-footer">
+                            <small>
+                                The demo adapter creates a deterministic PNG.
+                            </small>
+
+                            <small id="prompt-count">0 / 10,000</small>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="retention-days">
+                            Private record retention
+                        </label>
+
+                        <div class="input-with-suffix">
+                            <input
+                                id="retention-days"
+                                name="retention_days"
+                                type="number"
+                                value="365"
+                                min="1"
+                                max="3650"
+                                required
+                            >
+
+                            <span>days</span>
+                        </div>
+                    </div>
+
+                    <button
+                        id="generate-button"
+                        class="primary-button"
+                        type="submit"
+                    >
+                        <span class="button-label">
+                            Generate and issue credential
+                        </span>
+
+                        <span
+                            class="button-spinner"
+                            aria-hidden="true"
+                        ></span>
+                    </button>
+                </form>
+
+                <div
+                    id="generation-error"
+                    class="message message-error hidden"
+                    role="alert"
+                ></div>
+            </article>
+
+            <article class="panel result-panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="section-number">02</span>
+                        <h2>Generated result</h2>
+                    </div>
+
+                    <span
+                        id="generation-status"
+                        class="status-badge status-neutral"
+                    >
+                        Waiting
+                    </span>
+                </div>
+
+                <div id="empty-state" class="empty-state">
+                    <div class="empty-state-icon">◇</div>
+
+                    <h3>No artifact generated yet</h3>
+
+                    <p>
+                        Complete the generation form to create an artifact and
+                        its signed Generation Credential.
+                    </p>
+                </div>
+
+                <div id="result-content" class="hidden">
+                    <div class="artifact-preview">
+                        <img
+                            id="artifact-image"
+                            alt="Generated GAP artifact"
+                        >
+                    </div>
+
+                    <div class="artifact-metadata">
+                        <div class="metadata-item">
+                            <span>Filename</span>
+                            <strong id="artifact-filename">—</strong>
+                        </div>
+
+                        <div class="metadata-item">
+                            <span>Media type</span>
+                            <strong id="artifact-media-type">—</strong>
+                        </div>
+
+                        <div class="metadata-item">
+                            <span>Provider</span>
+                            <strong id="artifact-provider">—</strong>
+                        </div>
+
+                        <div class="metadata-item">
+                            <span>Model</span>
+                            <strong id="artifact-model">—</strong>
+                        </div>
+                    </div>
+
+                    <div class="action-row">
+                        <button
+                            id="download-artifact-button"
+                            class="secondary-button"
+                            type="button"
+                        >
+                            Download artifact
+                        </button>
+
+                        <button
+                            id="download-credential-button"
+                            class="secondary-button"
+                            type="button"
+                        >
+                            Download credential
+                        </button>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section
+            id="credential-section"
+            class="panel credential-panel hidden"
+        >
+            <div class="panel-heading">
+                <div>
+                    <span class="section-number">03</span>
+                    <h2>Generation Credential</h2>
+                </div>
+
+                <div class="credential-actions">
+                    <button
+                        id="copy-credential-button"
+                        class="text-button"
+                        type="button"
+                    >
+                        Copy JSON
+                    </button>
+
+                    <button
+                        id="verify-button"
+                        class="primary-button compact-button"
+                        type="button"
+                    >
+                        Verify credential
+                    </button>
+                </div>
+            </div>
+
+            <div class="credential-summary">
+                <div class="summary-item">
+                    <span>Generation ID</span>
+                    <code id="generation-id">—</code>
+                </div>
+
+                <div class="summary-item">
+                    <span>Credential ID</span>
+                    <code id="credential-id">—</code>
+                </div>
+
+                <div class="summary-item">
+                    <span>Signing algorithm</span>
+                    <code id="credential-algorithm">—</code>
+                </div>
+
+                <div class="summary-item">
+                    <span>Key ID</span>
+                    <code id="credential-key-id">—</code>
+                </div>
+            </div>
+
+            <div
+                id="verification-message"
+                class="message hidden"
+                role="status"
+            ></div>
+
+            <pre
+                id="credential-json"
+                class="credential-json"
+                tabindex="0"
+            ></pre>
+        </section>
+
+        <section class="privacy-explanation">
+            <div>
+                <span class="eyebrow">Separation of concerns</span>
+
+                <h2>
+                    Public proof without publishing private identity.
+                </h2>
+            </div>
+
+            <div class="privacy-grid">
+                <article>
+                    <span class="privacy-label public-label">Public</span>
+
+                    <h3>Generation Credential</h3>
+
+                    <p>
+                        Contains the provider, generation identifier, model,
+                        artifact descriptor and digital signature.
+                    </p>
+                </article>
+
+                <article>
+                    <span class="privacy-label private-label">Private</span>
+
+                    <h3>Provider Attribution Record</h3>
+
+                    <p>
+                        Contains the provider-side account reference and prompt
+                        hash under explicit retention controls.
+                    </p>
+                </article>
+
+                <article>
+                    <span class="privacy-label controlled-label">
+                        Controlled
+                    </span>
+
+                    <h3>Disclosure process</h3>
+
+                    <p>
+                        Private attribution is resolved only after structured
+                        authorisation checks and is recorded in an audit trail.
+                    </p>
+                </article>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <p>
+            GAP is a research reference implementation. It is not presented as
+            a production identity or evidence system.
+        </p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

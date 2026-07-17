@@ -649,3 +649,49 @@ with Pillow.
 
 This adapter exists to demonstrate the integration contract and is not
 presented as an artificial-intelligence image model.
+
+# Decision 017
+
+## Title
+
+The reference implementation includes a browser demonstrator
+
+## Status
+
+Accepted
+
+## Decision
+
+The GAP reference implementation SHALL include a browser-based demonstrator
+served by the protocol API.
+
+The demonstrator SHALL allow a user to:
+
+1. submit a generation prompt;
+2. generate an artifact through a registered provider adapter;
+3. receive and inspect the associated Generation Credential;
+4. verify the credential;
+5. download the generated artifact; and
+6. export the credential as JSON.
+
+The browser interface SHALL use the same public API endpoints available to
+other protocol clients.
+
+## Rationale
+
+A protocol reference implementation must be understandable and evaluable by
+people who are not familiar with its internal source code or command-line
+tools.
+
+Using the same API endpoints for the browser interface demonstrates that the
+interface is a client of the protocol implementation rather than a separate
+or privileged workflow.
+
+## Security consideration
+
+The reference browser interface is a demonstrator and does not implement
+authentication, authorisation, rate limiting, abuse prevention, persistent
+sessions or production deployment controls.
+
+Private Provider Attribution Records remain inaccessible through the browser
+demonstrator.
