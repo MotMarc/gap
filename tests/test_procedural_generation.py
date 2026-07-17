@@ -20,7 +20,7 @@ def test_same_prompt_produces_identical_artifact() -> None:
     second_artifact = adapter.generate("A blue geometric city beside an ocean.")
 
     assert first_artifact.content == second_artifact.content
-    assert first_artifact.model_id == "gap-procedural-image-v1"
+    assert first_artifact.model_id == "gap-semantic-procedural-image-v2"
 
 
 def test_different_prompts_produce_different_artifacts() -> None:

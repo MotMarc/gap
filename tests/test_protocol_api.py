@@ -90,8 +90,8 @@ def test_generate_artifact_and_issue_credential() -> None:
     assert body["filename"].endswith(".png")
     assert body["credential"]["proof"]["type"] == "Ed25519"
     assert body["credential"]["payload"]["model"]["model_id"] == (
-    "gap-procedural-image-v1"
-)
+        "gap-semantic-procedural-image-v2"
+    )
 
     image_bytes = base64.b64decode(
         body["artifact_base64"],

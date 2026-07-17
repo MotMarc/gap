@@ -23,7 +23,7 @@ def test_demo_adapter_generates_valid_png() -> None:
 
     assert artifact.media_type == "image/png"
     assert artifact.filename.endswith(".png")
-    assert artifact.model_id == "gap-procedural-image-v1"
+    assert artifact.model_id == "gap-semantic-procedural-image-v2"
     assert len(artifact.content) > 0
 
     image = Image.open(BytesIO(artifact.content))
