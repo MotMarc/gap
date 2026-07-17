@@ -533,3 +533,119 @@ The current reference implementation stores records in memory and performs
 logical lifecycle transitions only.
 
 It does not securely erase protected information from persistent storage.
+
+@'
+
+# Decision 016
+
+## Title
+
+Generative systems integrate through provider adapters
+
+## Status
+
+Accepted
+
+## Decision
+
+The GAP reference implementation SHALL separate generation systems from the
+credential and attribution protocol through provider generation adapters.
+
+A provider adapter SHALL return generated artifact bytes, a media type, a
+filename, and a model identifier.
+
+GAP SHALL NOT require a specific model architecture, generation library,
+hosting environment, or artifact modality.
+
+## Rationale
+
+The Generation Attribution Protocol is intended to operate independently of
+the underlying generative technology.
+
+An adapter boundary allows local models, hosted APIs, enterprise systems, and
+future generative technologies to participate without modifying the GAP
+credential, verification, or disclosure layers.
+
+## Current implementation
+
+The reference demonstrator includes a lightweight PNG generator implemented
+with Pillow.
+
+This adapter exists to demonstrate the integration contract and is not
+presented as an artificial-intelligence image model.
+'@ | Add-Content docs\DECISIONS.md
+# Decision 016
+
+## Title
+
+Generative systems integrate through provider adapters
+
+## Status
+
+Accepted
+
+## Decision
+
+The GAP reference implementation SHALL separate generation systems from the
+credential and attribution protocol through provider generation adapters.
+
+A provider adapter SHALL return generated artifact bytes, a media type, a
+filename, and a model identifier.
+
+GAP SHALL NOT require a specific model architecture, generation library,
+hosting environment, or artifact modality.
+
+## Rationale
+
+The Generation Attribution Protocol is intended to operate independently of
+the underlying generative technology.
+
+An adapter boundary allows local models, hosted APIs, enterprise systems, and
+future generative technologies to participate without modifying the GAP
+credential, verification, or disclosure layers.
+
+## Current implementation
+
+The reference demonstrator includes a lightweight PNG generator implemented
+with Pillow.
+
+This adapter exists to demonstrate the integration contract and is not
+presented as an artificial-intelligence image model.
+
+# Decision 016
+
+## Title
+
+Generative systems integrate through provider adapters
+
+## Status
+
+Accepted
+
+## Decision
+
+The GAP reference implementation SHALL separate generation systems from the
+credential and attribution protocol through provider generation adapters.
+
+A provider adapter SHALL return generated artifact bytes, a media type, a
+filename, and a model identifier.
+
+GAP SHALL NOT require a specific model architecture, generation library,
+hosting environment, or artifact modality.
+
+## Rationale
+
+The Generation Attribution Protocol is intended to operate independently of
+the underlying generative technology.
+
+An adapter boundary allows local models, hosted APIs, enterprise systems, and
+future generative technologies to participate without modifying the GAP
+credential, verification, or disclosure layers.
+
+## Current implementation
+
+The reference demonstrator includes a lightweight PNG generator implemented
+with Pillow.
+
+This adapter exists to demonstrate the integration contract and is not
+presented as an artificial-intelligence image model.

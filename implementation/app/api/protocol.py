@@ -3,6 +3,7 @@ from binascii import Error as Base64DecodeError
 
 from fastapi import APIRouter, HTTPException, status
 
+from app.core.provider_adapters import provider_adapter_repository
 from app.core.provider_config import provider_repository
 from app.core.repositories import (
     attribution_repository,
@@ -10,10 +11,14 @@ from app.core.repositories import (
 )
 from app.crypto.provider_keys import load_private_key, load_public_key
 from app.domain.disclosure_authorisation import DisclosureAuthorisation
+from app.domain.generated_artifact import GeneratedArtifact
+from app.schemas.generation_credential import GenerationCredential
 from app.schemas.protocol_api import (
     AttributionDisclosureResponse,
     DisclosureAuditResponse,
     DisclosureRequest,
+    GenerateArtifactRequest,
+    GenerateArtifactResponse,
     IssueCredentialRequest,
     VerificationResponse,
     VerifyCredentialRequest,
@@ -33,6 +38,9 @@ from app.services.generation_credential_service import (
     issue_generation_credential,
 )
 from app.services.generation_event_service import create_generation_event
+from app.services.provider_adapter_repository import (
+    ProviderAdapterNotFoundError,
+)
 from app.services.provider_identity_service import (
     create_provider_identity_document,
 )
@@ -68,6 +76,62 @@ def get_provider_document(
     )
 
 
+def issue_credential_for_artifact(
+    provider_id: str,
+    account_reference: str,
+    prompt: str,
+    retention_days: int,
+    artifact: GeneratedArtifact,
+) -> GenerationCredential:
+    try:
+        provider = provider_repository.get(provider_id)
+    except ProviderNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
+
+    event = create_generation_event(
+        provider_id=provider.provider_id,
+        model_id=artifact.model_id,
+    )
+
+    try:
+        attribution_record = create_provider_attribution_record(
+            event=event,
+            account_reference=account_reference,
+            prompt=prompt,
+            retention_days=retention_days,
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+
+    attribution_repository.add(attribution_record)
+
+    artifact_descriptor = create_artifact_descriptor(
+        artifact=artifact.content,
+        media_type=artifact.media_type,
+    )
+
+    payload = create_credential_payload(
+        event=event,
+        artifacts=[artifact_descriptor],
+    )
+
+    private_key = load_private_key(
+        provider.private_key_path,
+    )
+
+    return issue_generation_credential(
+        payload=payload,
+        key_id=provider.key_id,
+        private_key=private_key,
+    )
+
+
 @router.get("/providers")
 def list_providers() -> list[dict[str, str]]:
     return [
@@ -90,22 +154,59 @@ def read_provider_identity(
 
 
 @router.post(
-    "/credentials/issue",
+    "/generations/create",
+    response_model=GenerateArtifactResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def issue_credential(
-    request: IssueCredentialRequest,
-):
+def create_generated_artifact(
+    request: GenerateArtifactRequest,
+) -> GenerateArtifactResponse:
+    """
+    Generate an artifact through a registered provider adapter and issue its
+    GAP Generation Credential.
+    """
+
     try:
-        provider = provider_repository.get(
+        adapter = provider_adapter_repository.get(
             request.provider_id,
         )
-    except ProviderNotFoundError as error:
+    except ProviderAdapterNotFoundError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(error),
         ) from error
 
+    try:
+        artifact = adapter.generate(request.prompt)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+
+    credential = issue_credential_for_artifact(
+        provider_id=request.provider_id,
+        account_reference=request.account_reference,
+        prompt=request.prompt,
+        retention_days=request.retention_days,
+        artifact=artifact,
+    )
+
+    return GenerateArtifactResponse(
+        filename=artifact.filename,
+        media_type=artifact.media_type,
+        artifact_base64=base64.b64encode(artifact.content).decode("utf-8"),
+        credential=credential,
+    )
+
+
+@router.post(
+    "/credentials/issue",
+    status_code=status.HTTP_201_CREATED,
+)
+def issue_credential(
+    request: IssueCredentialRequest,
+) -> GenerationCredential:
     try:
         artifact_bytes = base64.b64decode(
             request.artifact_base64,
@@ -123,44 +224,19 @@ def issue_credential(
             detail="The decoded artifact cannot be empty.",
         )
 
-    event = create_generation_event(
-        provider_id=provider.provider_id,
+    artifact = GeneratedArtifact(
+        content=artifact_bytes,
+        media_type=request.media_type,
+        filename="externally-generated-artifact",
         model_id=request.model_id,
     )
 
-    try:
-        attribution_record = create_provider_attribution_record(
-            event=event,
-            account_reference=request.account_reference,
-            prompt=request.prompt,
-            retention_days=request.retention_days,
-        )
-    except ValueError as error:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(error),
-        ) from error
-
-    attribution_repository.add(attribution_record)
-
-    artifact = create_artifact_descriptor(
-        artifact=artifact_bytes,
-        media_type=request.media_type,
-    )
-
-    payload = create_credential_payload(
-        event=event,
-        artifacts=[artifact],
-    )
-
-    private_key = load_private_key(
-        provider.private_key_path,
-    )
-
-    return issue_generation_credential(
-        payload=payload,
-        key_id=provider.key_id,
-        private_key=private_key,
+    return issue_credential_for_artifact(
+        provider_id=request.provider_id,
+        account_reference=request.account_reference,
+        prompt=request.prompt,
+        retention_days=request.retention_days,
+        artifact=artifact,
     )
 
 

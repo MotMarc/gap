@@ -1,109 +1,97 @@
+import base64
+import json
 import sys
 from pathlib import Path
+
+from fastapi.testclient import TestClient
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 IMPLEMENTATION_DIRECTORY = PROJECT_ROOT / "implementation"
+OUTPUT_DIRECTORY = PROJECT_ROOT / "demo-output"
 
 sys.path.insert(0, str(IMPLEMENTATION_DIRECTORY))
 
-from app.core.provider_config import (  # noqa: E402
-    KEY_ID,
-    PRIVATE_KEY_PATH,
-    PROVIDER_ID,
-    PROVIDER_NAME,
-    PUBLIC_KEY_PATH,
-)
-from app.crypto.provider_keys import (  # noqa: E402
-    load_private_key,
-    load_public_key,
-)
-from app.services.artifact_service import (  # noqa: E402
-    create_artifact_descriptor,
-)
-from app.services.generation_credential_service import (  # noqa: E402
-    create_credential_payload,
-    issue_generation_credential,
-)
-from app.services.generation_event_service import (  # noqa: E402
-    create_generation_event,
-)
-from app.services.provider_identity_service import (  # noqa: E402
-    create_provider_identity_document,
-)
-from app.services.verification_service import (  # noqa: E402
-    verify_generation_credential,
-)
+from app.main import app  # noqa: E402
 
 
 def main() -> None:
+    client = TestClient(app)
+
     print()
     print("GAP Reference Demonstrator v0.0.1")
-    print("=" * 40)
+    print("=" * 50)
 
-    artifact_bytes = b"A generated artifact protected by GAP"
+    print("\nGenerating an artifact through the demo provider...")
 
-    print("\nCreating Generation Event...")
-    event = create_generation_event(
-        provider_id=PROVIDER_ID,
-        model_id="demo-model-v1",
-    )
-    print("OK")
-
-    print("\nHashing artifact...")
-    artifact = create_artifact_descriptor(
-        artifact=artifact_bytes,
-        media_type="text/plain",
-    )
-    print("OK")
-
-    print("\nCreating Generation Credential Payload...")
-    payload = create_credential_payload(
-        event=event,
-        artifacts=[artifact],
-    )
-    print("OK")
-
-    print("\nSigning Generation Credential...")
-    private_key = load_private_key(PRIVATE_KEY_PATH)
-
-    credential = issue_generation_credential(
-        payload=payload,
-        key_id=KEY_ID,
-        private_key=private_key,
-    )
-    print("OK")
-
-    print("\nLoading Provider Identity Document...")
-    public_key = load_public_key(PUBLIC_KEY_PATH)
-
-    provider_document = create_provider_identity_document(
-        provider_id=PROVIDER_ID,
-        provider_name=PROVIDER_NAME,
-        key_id=KEY_ID,
-        public_key=public_key,
-    )
-    print("OK")
-
-    print("\nVerifying Generation Credential...")
-    valid = verify_generation_credential(
-        credential=credential,
-        provider_document=provider_document,
+    generation_response = client.post(
+        "/generations/create",
+        json={
+            "provider_id": "gap-demo-provider",
+            "account_reference": "demo-user-001",
+            "prompt": (
+                "A generated artifact demonstrating privacy-preserving attribution."
+            ),
+            "retention_days": 365,
+        },
     )
 
-    print("VALID" if valid else "INVALID")
+    if generation_response.status_code != 201:
+        print(generation_response.text)
+        raise SystemExit(1)
+
+    generation_result = generation_response.json()
+    credential = generation_result["credential"]
+
+    OUTPUT_DIRECTORY.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    artifact_path = OUTPUT_DIRECTORY / generation_result["filename"]
+    credential_path = OUTPUT_DIRECTORY / "generation-credential.json"
+
+    artifact_path.write_bytes(
+        base64.b64decode(
+            generation_result["artifact_base64"],
+            validate=True,
+        )
+    )
+
+    credential_path.write_text(
+        json.dumps(
+            credential,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    print("Artifact generated.")
+    print(f"Artifact written to:   {artifact_path}")
+    print(f"Credential written to: {credential_path}")
+
+    print("\nVerifying the Generation Credential...")
+
+    verification_response = client.post(
+        "/credentials/verify",
+        json={
+            "credential": credential,
+        },
+    )
+
+    verification_result = verification_response.json()
+
+    print("Credential VALID" if verification_result["valid"] else "Credential INVALID")
 
     print("\nCredential summary")
-    print("-" * 40)
-    print(f"Provider:      {credential.payload.provider.provider_id}")
-    print(f"Generation ID: {credential.payload.generation.generation_id}")
-    print(f"Credential ID: {credential.payload.credential_id}")
-    print(f"Model:         {credential.payload.model.model_id}")
-    print(f"Algorithm:     {credential.proof.type}")
-    print(f"Key ID:        {credential.proof.key_id}")
-    print(f"Result:        {'VALID' if valid else 'INVALID'}")
+    print("-" * 50)
+    print(f"Provider:      {verification_result['provider_id']}")
+    print(f"Generation ID: {verification_result['generation_id']}")
+    print(f"Credential ID: {verification_result['credential_id']}")
+    print(f"Algorithm:     {verification_result['algorithm']}")
+    print(f"Key ID:        {verification_result['key_id']}")
 
-    if not valid:
+    if not verification_result["valid"]:
         raise SystemExit(1)
 
 

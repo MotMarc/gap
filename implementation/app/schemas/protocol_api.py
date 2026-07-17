@@ -46,10 +46,38 @@ class IssueCredentialRequest(BaseModel):
         default=365,
         ge=1,
         le=3650,
-        description=(
-            "Number of days for which the private attribution record remains active."
-        ),
     )
+
+
+class GenerateArtifactRequest(BaseModel):
+    provider_id: str = Field(
+        default="gap-demo-provider",
+        min_length=1,
+        max_length=100,
+    )
+
+    account_reference: str = Field(
+        min_length=1,
+        max_length=200,
+    )
+
+    prompt: str = Field(
+        min_length=1,
+        max_length=10000,
+    )
+
+    retention_days: int = Field(
+        default=365,
+        ge=1,
+        le=3650,
+    )
+
+
+class GenerateArtifactResponse(BaseModel):
+    filename: str
+    media_type: str
+    artifact_base64: str
+    credential: GenerationCredential
 
 
 class VerifyCredentialRequest(BaseModel):
