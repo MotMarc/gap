@@ -1,49 +1,95 @@
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
+
+import pytest
+
 
 IMPLEMENTATION_DIRECTORY = Path(__file__).resolve().parents[1] / "implementation"
 
 sys.path.insert(0, str(IMPLEMENTATION_DIRECTORY))
 
-from app.crypto.provider_keys import (  # noqa: E402
-    decode_public_key,
-    encode_public_key,
-    generate_provider_key_pair,
-)
-from app.services.provider_identity_service import (  # noqa: E402
-    create_provider_identity_document,
+from app.domain.provider import Provider, ProviderSigningKey  # noqa: E402
+from app.services.provider_repository import (  # noqa: E402
+    ProviderNotFoundError,
+    ProviderRepository,
 )
 
 
-def test_create_provider_identity_document() -> None:
-    _, public_key = generate_provider_key_pair()
+def create_provider(
+    provider_id: str = "test-provider",
+) -> Provider:
+    key_id = f"{provider_id}-active-key"
 
-    document = create_provider_identity_document(
-        provider_id="gap-demo-provider",
-        provider_name="GAP Demo Provider",
-        key_id="key-2026-01",
-        public_key=public_key,
+    return Provider(
+        provider_id=provider_id,
+        provider_name="Test Provider",
+        active_key_id=key_id,
+        signing_keys=(
+            ProviderSigningKey(
+                key_id=key_id,
+                status="active",
+                created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                private_key_path=Path("private.key"),
+                public_key_path=Path("public.key"),
+            ),
+        ),
     )
 
-    assert document.gap_version == "0.0.1"
-    assert document.provider_id == "gap-demo-provider"
-    assert document.provider_name == "GAP Demo Provider"
-    assert len(document.keys) == 1
 
-    key = document.keys[0]
+def test_provider_can_be_added_and_retrieved() -> None:
+    repository = ProviderRepository()
 
-    assert key.key_id == "key-2026-01"
-    assert key.algorithm == "Ed25519"
-    assert key.status == "active"
+    provider = create_provider()
+    repository.add(provider)
+
+    assert repository.get("test-provider") == provider
 
 
-def test_public_key_encoding_roundtrip() -> None:
-    private_key, public_key = generate_provider_key_pair()
+def test_unknown_provider_raises_error() -> None:
+    repository = ProviderRepository()
 
-    encoded_key = encode_public_key(public_key)
-    decoded_key = decode_public_key(encoded_key)
+    with pytest.raises(ProviderNotFoundError):
+        repository.get("unknown-provider")
 
-    message = b"GAP public key roundtrip"
-    signature = private_key.sign(message)
 
-    decoded_key.verify(signature, message)
+def test_duplicate_provider_is_rejected() -> None:
+    provider = create_provider()
+    repository = ProviderRepository([provider])
+
+    with pytest.raises(ValueError):
+        repository.add(provider)
+
+
+def test_multiple_providers_can_be_listed() -> None:
+    repository = ProviderRepository(
+        [
+            create_provider("provider-one"),
+            create_provider("provider-two"),
+        ]
+    )
+
+    provider_ids = {provider.provider_id for provider in repository.list_all()}
+
+    assert provider_ids == {
+        "provider-one",
+        "provider-two",
+    }
+
+
+def test_provider_requires_exactly_one_active_key() -> None:
+    with pytest.raises(ValueError):
+        Provider(
+            provider_id="invalid-provider",
+            provider_name="Invalid Provider",
+            active_key_id="missing-key",
+            signing_keys=(
+                ProviderSigningKey(
+                    key_id="retired-key",
+                    status="retired",
+                    created_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
+                    retired_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                    public_key_path=Path("public.key"),
+                ),
+            ),
+        )

@@ -34,7 +34,7 @@
 
                 <span class="brand-copy">
                     <strong>Generation Attribution Protocol</strong>
-                    <small>Reference Demonstrator v0.7.0</small>
+                    <small>Reference Demonstrator v0.8.0</small>
                 </span>
             </button>
 
@@ -221,6 +221,25 @@
                                     <code id="selected-provider-fingerprint">—</code>
                                 </div>
                             </div>
+
+                            <div class="provider-key-lifecycle-heading">
+                                <div>
+                                    <span>Published key history</span>
+                                    <strong id="selected-provider-key-count">—</strong>
+                                </div>
+
+                                <small>
+                                    Active keys issue credentials; retired keys
+                                    preserve historical verification; revoked keys
+                                    are explicitly rejected.
+                                </small>
+                            </div>
+
+                            <div
+                                id="selected-provider-key-history"
+                                class="provider-key-history"
+                                aria-live="polite"
+                            ></div>
 
                             <a
                                 id="selected-provider-identity-link"
@@ -555,7 +574,7 @@
                             <li id="trust-key-node">
                                 <span>3</span>
                                 <div>
-                                    <strong>Provider verification key</strong>
+                                    <strong>Provider verification key and lifecycle</strong>
                                     <small id="trust-key-id">
                                         Not resolved
                                     </small>
@@ -702,6 +721,14 @@
                         type="button"
                     >
                         Substitute provider identity
+                    </button>
+
+                    <button
+                        id="tamper-revoked-key-button"
+                        class="danger-button"
+                        type="button"
+                    >
+                        Reference revoked key
                     </button>
 
                     <button
@@ -1011,9 +1038,9 @@
 
                 <p>
                     Every participating provider publishes an independent identity
-                    document and verification key. A credential issued in one trust
-                    domain cannot be reassigned to another without invalidating its
-                    signature.
+                    document and its complete verification-key history. A credential
+                    issued in one trust domain cannot be reassigned to another, and
+                    a revoked key cannot be silently reused.
                 </p>
 
                 <div
@@ -1021,6 +1048,51 @@
                     class="provider-ecosystem-grid"
                     aria-live="polite"
                 ></div>
+            </section>
+
+            <section class="key-lifecycle-section">
+                <div class="provider-ecosystem-heading">
+                    <div>
+                        <span class="eyebrow">Cryptographic continuity</span>
+                        <h2>Signing-key lifecycle</h2>
+                    </div>
+                </div>
+
+                <p>
+                    GAP separates permission to issue new credentials from the
+                    ability to verify historical credentials. Identity documents
+                    retain lifecycle state so verifiers can make the correct
+                    decision for every referenced key ID.
+                </p>
+
+                <div class="key-lifecycle-grid">
+                    <article class="key-lifecycle-card key-lifecycle-active">
+                        <span class="key-status-pill key-status-active">Active</span>
+                        <h3>Issue and verify</h3>
+                        <p>
+                            The provider's single active key signs new credentials
+                            and validates credentials already issued with that key.
+                        </p>
+                    </article>
+
+                    <article class="key-lifecycle-card key-lifecycle-retired">
+                        <span class="key-status-pill key-status-retired">Retired</span>
+                        <h3>Verify history only</h3>
+                        <p>
+                            A retired key cannot issue new credentials, but authentic
+                            historical credentials remain verifiable.
+                        </p>
+                    </article>
+
+                    <article class="key-lifecycle-card key-lifecycle-revoked">
+                        <span class="key-status-pill key-status-revoked">Revoked</span>
+                        <h3>Reject explicitly</h3>
+                        <p>
+                            A revoked key stays published with revocation metadata so
+                            every credential that references it is rejected.
+                        </p>
+                    </article>
+                </div>
             </section>
 
             <section class="privacy-grid">

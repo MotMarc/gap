@@ -91,6 +91,8 @@ class VerificationResponse(BaseModel):
     credential_id: str
     key_id: str
     algorithm: str
+    key_status: Literal["active", "retired", "revoked"] | None = None
+    failure_reason: str | None = None
 
 
 class DisclosureAuthorisationRequest(BaseModel):

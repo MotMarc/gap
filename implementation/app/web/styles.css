@@ -1453,3 +1453,211 @@ select:focus {
     }
 }
 
+
+
+/* Sprint 8: provider signing-key lifecycle */
+.provider-key-lifecycle-heading {
+    margin-top: 18px;
+    padding-top: 18px;
+    display: grid;
+    gap: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.provider-key-lifecycle-heading > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.provider-key-lifecycle-heading span {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.provider-key-lifecycle-heading strong {
+    color: var(--accent);
+    font-family: Consolas, monospace;
+    font-size: 0.75rem;
+    font-weight: 650;
+}
+
+.provider-key-lifecycle-heading small {
+    color: var(--text-subtle);
+    font-size: 0.74rem;
+}
+
+.provider-key-history {
+    margin: 14px 0 18px;
+    display: grid;
+    gap: 10px;
+}
+
+.provider-key-history-item {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-medium);
+    background: rgba(8, 10, 14, 0.54);
+}
+
+.provider-key-history-item-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.provider-key-history-item-heading > div {
+    min-width: 0;
+    display: grid;
+    gap: 3px;
+}
+
+.provider-key-history-item-heading code {
+    overflow-wrap: anywhere;
+    color: var(--text);
+    font-size: 0.76rem;
+}
+
+.provider-key-history-item-heading small {
+    color: var(--text-subtle);
+    font-size: 0.7rem;
+}
+
+.key-status-pill {
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 750;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.key-status-active {
+    border-color: rgba(121, 242, 192, 0.34);
+    background: var(--success-background);
+    color: var(--success);
+}
+
+.key-status-retired {
+    border-color: rgba(155, 167, 181, 0.34);
+    background: var(--panel-soft);
+    color: var(--text-muted);
+}
+
+.key-status-revoked {
+    border-color: rgba(255, 139, 139, 0.38);
+    background: var(--danger-background);
+    color: var(--danger);
+}
+
+.key-status-unknown {
+    color: var(--text-subtle);
+}
+
+.provider-key-history-metadata {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.provider-key-history-metadata > div {
+    min-width: 0;
+    padding: 9px;
+    display: grid;
+    gap: 3px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-small);
+    background: var(--background-elevated);
+}
+
+.provider-key-history-metadata span {
+    color: var(--text-subtle);
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.provider-key-history-metadata code {
+    overflow-wrap: anywhere;
+    color: var(--text);
+    font-size: 0.69rem;
+}
+
+.key-lifecycle-section {
+    margin-top: 24px;
+    padding: 28px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-large);
+    background: rgba(18, 22, 29, 0.94);
+    box-shadow: var(--shadow);
+}
+
+.key-lifecycle-section > p {
+    max-width: 820px;
+    margin: 0 0 22px;
+    color: var(--text-muted);
+}
+
+.key-lifecycle-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.key-lifecycle-card {
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-medium);
+    background: var(--background-elevated);
+}
+
+.key-lifecycle-card h3 {
+    margin: 18px 0 8px;
+    font-size: 0.96rem;
+}
+
+.key-lifecycle-card p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+}
+
+.key-lifecycle-active {
+    border-top-color: var(--success);
+}
+
+.key-lifecycle-retired {
+    border-top-color: var(--text-muted);
+}
+
+.key-lifecycle-revoked {
+    border-top-color: var(--danger);
+}
+
+@media (max-width: 940px) {
+    .key-lifecycle-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .provider-key-lifecycle-heading > div,
+    .provider-key-history-item-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .provider-key-history-metadata {
+        grid-template-columns: 1fr;
+    }
+
+    .key-lifecycle-section {
+        padding: 20px;
+    }
+}

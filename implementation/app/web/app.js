@@ -14,6 +14,7 @@ const state = {
     providersReady: false,
     selectedProviderDocument: null,
     providerSubstitution: null,
+    revokedKeySubstitution: null,
     lastVerification: null,
 };
 
@@ -43,6 +44,12 @@ const elements = {
     ),
     selectedProviderFingerprint: document.querySelector(
         "#selected-provider-fingerprint"
+    ),
+    selectedProviderKeyCount: document.querySelector(
+        "#selected-provider-key-count"
+    ),
+    selectedProviderKeyHistory: document.querySelector(
+        "#selected-provider-key-history"
     ),
     selectedProviderIdentityLink: document.querySelector(
         "#selected-provider-identity-link"
@@ -130,6 +137,9 @@ const elements = {
     ),
     tamperProviderButton: document.querySelector(
         "#tamper-provider-button"
+    ),
+    tamperRevokedKeyButton: document.querySelector(
+        "#tamper-revoked-key-button"
     ),
     restoreVerificationButton: document.querySelector(
         "#restore-verification-button"
@@ -342,6 +352,9 @@ function readActiveProviderKey(providerDocument) {
     }
 
     return (
+        providerDocument.keys.find(
+            (key) => key.key_id === providerDocument.active_key_id
+        ) ||
         providerDocument.keys.find((key) => key.status === "active") ||
         providerDocument.keys[0] ||
         null
@@ -406,6 +419,150 @@ function abbreviateFingerprint(fingerprint) {
 }
 
 
+function formatLifecycleDate(value) {
+    if (!value) {
+        return "—";
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+
+    return date.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+    });
+}
+
+
+function keyStatusClass(status) {
+    if (["active", "retired", "revoked"].includes(status)) {
+        return `key-status-${status}`;
+    }
+
+    return "key-status-unknown";
+}
+
+
+function describeKeyInventory(providerDocument) {
+    const counts = {
+        active: 0,
+        retired: 0,
+        revoked: 0,
+    };
+
+    (providerDocument?.keys || []).forEach((key) => {
+        if (Object.hasOwn(counts, key.status)) {
+            counts[key.status] += 1;
+        }
+    });
+
+    return (
+        `${counts.active} active · ${counts.retired} retired · ` +
+        `${counts.revoked} revoked`
+    );
+}
+
+
+async function createProviderKeyHistoryItem(key, activeKeyId) {
+    const item = document.createElement("article");
+    const heading = document.createElement("div");
+    const headingCopy = document.createElement("div");
+    const keyId = document.createElement("code");
+    const role = document.createElement("small");
+    const status = document.createElement("span");
+    const metadata = document.createElement("div");
+    const fingerprint = await fingerprintPublicKey(key.public_key);
+
+    item.className = "provider-key-history-item";
+    heading.className = "provider-key-history-item-heading";
+    metadata.className = "provider-key-history-metadata";
+    status.className = `key-status-pill ${keyStatusClass(key.status)}`;
+
+    keyId.textContent = key.key_id;
+    role.textContent = key.key_id === activeKeyId
+        ? "Current issuance key"
+        : key.status === "retired"
+            ? "Historical verification key"
+            : key.status === "revoked"
+                ? "Rejected verification key"
+                : "Published verification key";
+    status.textContent = key.status || "unknown";
+
+    headingCopy.append(keyId, role);
+    heading.append(headingCopy, status);
+
+    appendProviderMetric(metadata, "Algorithm", key.algorithm || "Not declared");
+    appendProviderMetric(
+        metadata,
+        "Created",
+        formatLifecycleDate(key.created_at)
+    );
+
+    if (key.status === "retired") {
+        appendProviderMetric(
+            metadata,
+            "Retired",
+            formatLifecycleDate(key.retired_at)
+        );
+    }
+
+    if (key.status === "revoked") {
+        appendProviderMetric(
+            metadata,
+            "Revoked",
+            formatLifecycleDate(key.revoked_at)
+        );
+        appendProviderMetric(
+            metadata,
+            "Reason",
+            key.revocation_reason || "Not declared"
+        );
+    }
+
+    appendProviderMetric(
+        metadata,
+        "Fingerprint",
+        abbreviateFingerprint(fingerprint)
+    );
+
+    item.append(heading, metadata);
+
+    return item;
+}
+
+
+async function renderProviderKeyHistory(providerDocument) {
+    const keys = Array.isArray(providerDocument?.keys)
+        ? providerDocument.keys
+        : [];
+
+    elements.selectedProviderKeyCount.textContent = (
+        `${keys.length} key${keys.length === 1 ? "" : "s"} · ` +
+        describeKeyInventory(providerDocument)
+    );
+
+    if (keys.length === 0) {
+        elements.selectedProviderKeyHistory.textContent = (
+            "No verification keys were published."
+        );
+        return;
+    }
+
+    const items = await Promise.all(
+        keys.map((key) => createProviderKeyHistoryItem(
+            key,
+            providerDocument.active_key_id
+        ))
+    );
+
+    elements.selectedProviderKeyHistory.replaceChildren(...items);
+}
+
+
 async function renderSelectedProvider(providerId) {
     if (!providerId) {
         elements.providerIdentityCard.classList.add("hidden");
@@ -420,6 +577,8 @@ async function renderSelectedProvider(providerId) {
     elements.selectedProviderAlgorithm.textContent = "Resolving…";
     elements.selectedProviderKeyStatus.textContent = "Resolving…";
     elements.selectedProviderFingerprint.textContent = "Resolving…";
+    elements.selectedProviderKeyCount.textContent = "Resolving…";
+    elements.selectedProviderKeyHistory.textContent = "";
 
     setBadge(
         elements.selectedProviderStatus,
@@ -463,6 +622,8 @@ async function renderSelectedProvider(providerId) {
         );
         elements.selectedProviderFingerprint.title = fingerprint || "";
 
+        await renderProviderKeyHistory(providerDocument);
+
         setBadge(
             elements.selectedProviderStatus,
             "Identity resolved",
@@ -476,6 +637,8 @@ async function renderSelectedProvider(providerId) {
         elements.selectedProviderAlgorithm.textContent = "Unavailable";
         elements.selectedProviderKeyStatus.textContent = "Unavailable";
         elements.selectedProviderFingerprint.textContent = "Unavailable";
+        elements.selectedProviderKeyCount.textContent = "Unavailable";
+        elements.selectedProviderKeyHistory.textContent = "";
 
         setBadge(
             elements.selectedProviderStatus,
@@ -572,8 +735,15 @@ async function createProviderEcosystemCard(provider) {
         );
         appendProviderMetric(
             metrics,
-            "Key ID",
-            verificationKey?.key_id || "Not published"
+            "Active key",
+            providerDocument.active_key_id ||
+                verificationKey?.key_id ||
+                "Not published"
+        );
+        appendProviderMetric(
+            metrics,
+            "Key inventory",
+            describeKeyInventory(providerDocument)
         );
         appendProviderMetric(
             metrics,
@@ -976,6 +1146,7 @@ function renderGenerationResult(result) {
     state.originalArtifactBytes = new Uint8Array(artifactBytes);
     state.originalCredential = cloneValue(result.credential);
     state.providerSubstitution = null;
+    state.revokedKeySubstitution = null;
     state.lastVerification = null;
 
     const payload = result.credential.payload;
@@ -1248,23 +1419,28 @@ async function runCompleteVerification() {
 
             keyResolved = Boolean(
                 verificationKey &&
-                verificationKey.status === "active"
+                verificationKey.status !== "revoked"
             );
+
+            const keyLifecycleDetail = verificationKey
+                ? (
+                    `${verificationKey.key_id} · ` +
+                    `${verificationKey.algorithm} · ` +
+                    `${verificationKey.status}`
+                )
+                : null;
 
             setTrustNode(
                 elements.trustKeyNode,
                 elements.trustKeyId,
                 keyResolved ? "success" : "error",
                 keyResolved
-                    ? (
-                        `${verificationKey.key_id} · ` +
-                        `${verificationKey.algorithm} · active`
-                    )
-                    : (
-                        credentialKeyId
-                            ? `Key ${credentialKeyId} is not active here`
+                    ? keyLifecycleDetail
+                    : verificationKey?.status === "revoked"
+                        ? `${keyLifecycleDetail} · explicitly rejected`
+                        : credentialKeyId
+                            ? `Key ${credentialKeyId} is not published here`
                             : "No signing key ID was declared"
-                    )
             );
         } catch (error) {
             setTrustNode(
@@ -1377,8 +1553,8 @@ async function runCompleteVerification() {
             elements.providerCheckIcon,
             elements.providerCheckDetail,
             providerValid,
-            "Provider identity and active signing key were resolved.",
-            "Provider identity or signing key could not be trusted."
+            "Provider identity and an allowed signing-key state were resolved.",
+            "Provider identity or signing-key lifecycle state was rejected."
         );
 
         const completeResult = (
@@ -1431,6 +1607,17 @@ async function runCompleteVerification() {
                 `${substitution.presentedName} ` +
                 `(${substitution.presentedId}). The presented provider's ` +
                 `verification key cannot validate the original signature.`
+            );
+        } else if (
+            !completeResult &&
+            state.revokedKeySubstitution &&
+            verification?.failure_reason === "revoked-key"
+        ) {
+            elements.verificationResultDescription.textContent = (
+                `Revoked key rejected. ${state.revokedKeySubstitution.keyId} ` +
+                `remains published by ${state.revokedKeySubstitution.providerName} ` +
+                `with revocation metadata, so GAP refuses the credential before ` +
+                `accepting its signature.`
             );
         } else {
             elements.verificationResultDescription.textContent = (
@@ -1487,6 +1674,7 @@ async function readArtifactUpload(event) {
     state.artifactMediaType = file.type || "application/octet-stream";
     state.originalArtifactBytes = new Uint8Array(state.artifactBytes);
     state.providerSubstitution = null;
+    state.revokedKeySubstitution = null;
     state.lastVerification = null;
 
     elements.artifactUploadName.textContent = file.name;
@@ -1508,6 +1696,7 @@ async function readCredentialUpload(event) {
         state.credential = credential;
         state.originalCredential = cloneValue(credential);
         state.providerSubstitution = null;
+        state.revokedKeySubstitution = null;
         state.lastVerification = null;
 
         elements.credentialUploadName.textContent = file.name;
@@ -1542,6 +1731,7 @@ function useLatestGeneratedArtifact() {
     );
     state.credential = cloneValue(state.originalCredential);
     state.providerSubstitution = null;
+    state.revokedKeySubstitution = null;
     state.lastVerification = null;
 
     elements.artifactUploadName.textContent = (
@@ -1578,6 +1768,7 @@ function tamperArtifact() {
     modifiedBytes[index] ^= 1;
     state.artifactBytes = modifiedBytes;
     state.providerSubstitution = null;
+    state.revokedKeySubstitution = null;
     state.lastVerification = null;
 
     setMessage(
@@ -1615,6 +1806,7 @@ function tamperCredential() {
         `${currentModelId}-tampered`
     );
     state.providerSubstitution = null;
+    state.revokedKeySubstitution = null;
     state.lastVerification = null;
 
     renderExplorer();
@@ -1687,6 +1879,7 @@ function tamperProviderIdentity() {
         presentedId: replacement.provider_id,
         presentedName: replacement.provider_name,
     };
+    state.revokedKeySubstitution = null;
     state.lastVerification = null;
 
     renderExplorer();
@@ -1708,6 +1901,79 @@ function tamperProviderIdentity() {
 }
 
 
+async function tamperRevokedKey() {
+    if (!state.credential) {
+        setMessage(
+            elements.tamperMessage,
+            "Load a credential before referencing a revoked key.",
+            "warning"
+        );
+        return;
+    }
+
+    const providerId = state.credential.payload?.provider?.provider_id;
+
+    if (!providerId) {
+        setMessage(
+            elements.tamperMessage,
+            "The credential does not declare a provider identity.",
+            "warning"
+        );
+        return;
+    }
+
+    try {
+        const providerDocument = await readProviderDocument(providerId);
+        const revokedKey = providerDocument.keys?.find(
+            (key) => key.status === "revoked"
+        );
+
+        if (!revokedKey) {
+            setMessage(
+                elements.tamperMessage,
+                (
+                    `${providerDocument.provider_name} does not publish a ` +
+                    `revoked key. Select GAP Demo Provider for this demonstration.`
+                ),
+                "warning"
+            );
+            return;
+        }
+
+        state.credential = cloneValue(state.credential);
+        state.credential.proof.key_id = revokedKey.key_id;
+        state.providerSubstitution = null;
+        state.revokedKeySubstitution = {
+            keyId: revokedKey.key_id,
+            providerId,
+            providerName: providerDocument.provider_name,
+            reason: revokedKey.revocation_reason,
+        };
+        state.lastVerification = null;
+
+        renderExplorer();
+
+        setMessage(
+            elements.tamperMessage,
+            (
+                `The credential now references revoked key ${revokedKey.key_id}. ` +
+                `Run verification again: GAP should reject it with the ` +
+                `revoked-key decision before signature acceptance.`
+            ),
+            "warning"
+        );
+
+        resetVerificationDisplay();
+    } catch (error) {
+        setMessage(
+            elements.tamperMessage,
+            error.message || "The provider key history could not be resolved.",
+            "warning"
+        );
+    }
+}
+
+
 function restoreVerificationInputs() {
     if (state.originalArtifactBytes) {
         state.artifactBytes = new Uint8Array(
@@ -1720,6 +1986,7 @@ function restoreVerificationInputs() {
     }
 
     state.providerSubstitution = null;
+    state.revokedKeySubstitution = null;
     state.lastVerification = null;
 
     hideMessage(elements.tamperMessage);
@@ -1928,6 +2195,11 @@ elements.tamperCredentialButton.addEventListener(
 elements.tamperProviderButton.addEventListener(
     "click",
     tamperProviderIdentity
+);
+
+elements.tamperRevokedKeyButton.addEventListener(
+    "click",
+    tamperRevokedKey
 );
 
 elements.restoreVerificationButton.addEventListener(

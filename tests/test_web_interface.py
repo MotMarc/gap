@@ -31,6 +31,7 @@ def test_verification_interface_is_present() -> None:
     assert "Run complete verification" in response.text
     assert "Modify artifact bytes" in response.text
     assert "Modify credential model ID" in response.text
+    assert "Reference revoked key" in response.text
 
 
 def test_credential_explorer_is_present() -> None:
@@ -48,6 +49,7 @@ def test_protocol_explanation_is_present() -> None:
     assert response.status_code == 200
     assert "How GAP works" in response.text
     assert "Controlled disclosure" in response.text
+    assert "Signing-key lifecycle" in response.text
 
 
 def test_stylesheet_is_served() -> None:
@@ -58,6 +60,7 @@ def test_stylesheet_is_served() -> None:
     assert "--accent:" in response.text
     assert ".verification-timeline" in response.text
     assert ".credential-card" in response.text
+    assert ".provider-key-history" in response.text
 
 
 def test_javascript_is_served() -> None:
@@ -69,6 +72,8 @@ def test_javascript_is_served() -> None:
     assert "calculateSha256" in response.text
     assert "tamperArtifact" in response.text
     assert "tamperCredential" in response.text
+    assert "tamperRevokedKey" in response.text
+    assert "renderProviderKeyHistory" in response.text
     assert "/generations/create" in response.text
     assert "/credentials/verify" in response.text
 
@@ -81,5 +86,5 @@ def test_health_endpoint() -> None:
     assert response.json() == {
         "status": "healthy",
         "service": "gap-reference-implementation",
-        "version": "0.7.0",
+        "version": "0.8.0",
     }

@@ -1,0 +1,1710 @@
+
+============================================================
+FILE: implementation\app\api\protocol.py
+============================================================
+
+import base64
+from binascii import Error as Base64DecodeError
+
+from fastapi import APIRouter, HTTPException, status
+
+from app.core.provider_adapters import provider_adapter_repository
+from app.core.provider_config import provider_repository
+from app.core.repositories import (
+    attribution_repository,
+    disclosure_audit_repository,
+)
+from app.crypto.provider_keys import load_private_key, load_public_key
+from app.domain.disclosure_authorisation import DisclosureAuthorisation
+from app.domain.generated_artifact import GeneratedArtifact
+from app.schemas.generation_credential import GenerationCredential
+from app.schemas.protocol_api import (
+    AttributionDisclosureResponse,
+    DisclosureAuditResponse,
+    DisclosureRequest,
+    GenerateArtifactRequest,
+    GenerateArtifactResponse,
+    IssueCredentialRequest,
+    VerificationResponse,
+    VerifyCredentialRequest,
+)
+from app.schemas.provider_identity import ProviderIdentityDocument
+from app.services.artifact_service import create_artifact_descriptor
+from app.services.attribution_repository import AttributionRecordNotFoundError
+from app.services.attribution_service import (
+    create_provider_attribution_record,
+)
+from app.services.disclosure_service import (
+    DisclosureDeniedError,
+    disclose_attribution_record,
+)
+from app.services.generation_credential_service import (
+    create_credential_payload,
+    issue_generation_credential,
+)
+from app.services.generation_event_service import create_generation_event
+from app.services.provider_adapter_repository import (
+    ProviderAdapterNotFoundError,
+)
+from app.services.provider_identity_service import (
+    create_provider_identity_document,
+)
+from app.services.provider_repository import ProviderNotFoundError
+from app.services.verification_service import verify_generation_credential
+
+
+router = APIRouter(
+    tags=["GAP Protocol"],
+)
+
+
+def get_provider_document(
+    provider_id: str,
+) -> ProviderIdentityDocument:
+    try:
+        provider = provider_repository.get(provider_id)
+    except ProviderNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
+
+    public_key = load_public_key(
+        provider.public_key_path,
+    )
+
+    return create_provider_identity_document(
+        provider_id=provider.provider_id,
+        provider_name=provider.provider_name,
+        key_id=provider.key_id,
+        public_key=public_key,
+    )
+
+
+def issue_credential_for_artifact(
+    provider_id: str,
+    account_reference: str,
+    prompt: str,
+    retention_days: int,
+    artifact: GeneratedArtifact,
+) -> GenerationCredential:
+    try:
+        provider = provider_repository.get(provider_id)
+    except ProviderNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
+
+    event = create_generation_event(
+        provider_id=provider.provider_id,
+        model_id=artifact.model_id,
+    )
+
+    try:
+        attribution_record = create_provider_attribution_record(
+            event=event,
+            account_reference=account_reference,
+            prompt=prompt,
+            retention_days=retention_days,
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+
+    attribution_repository.add(attribution_record)
+
+    artifact_descriptor = create_artifact_descriptor(
+        artifact=artifact.content,
+        media_type=artifact.media_type,
+    )
+
+    payload = create_credential_payload(
+        event=event,
+        artifacts=[artifact_descriptor],
+    )
+
+    private_key = load_private_key(
+        provider.private_key_path,
+    )
+
+    return issue_generation_credential(
+        payload=payload,
+        key_id=provider.key_id,
+        private_key=private_key,
+    )
+
+
+@router.get("/providers")
+def list_providers() -> list[dict[str, str]]:
+    return [
+        {
+            "provider_id": provider.provider_id,
+            "provider_name": provider.provider_name,
+        }
+        for provider in provider_repository.list_all()
+    ]
+
+
+@router.get(
+    "/providers/{provider_id}/.well-known/gap.json",
+    response_model=ProviderIdentityDocument,
+)
+def read_provider_identity(
+    provider_id: str,
+) -> ProviderIdentityDocument:
+    return get_provider_document(provider_id)
+
+
+@router.post(
+    "/generations/create",
+    response_model=GenerateArtifactResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_generated_artifact(
+    request: GenerateArtifactRequest,
+) -> GenerateArtifactResponse:
+    """
+    Generate an artifact through a registered provider adapter and issue its
+    GAP Generation Credential.
+    """
+
+    try:
+        adapter = provider_adapter_repository.get(
+            request.provider_id,
+        )
+    except ProviderAdapterNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
+
+    try:
+        artifact = adapter.generate(request.prompt)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+
+    credential = issue_credential_for_artifact(
+        provider_id=request.provider_id,
+        account_reference=request.account_reference,
+        prompt=request.prompt,
+        retention_days=request.retention_days,
+        artifact=artifact,
+    )
+
+    return GenerateArtifactResponse(
+        filename=artifact.filename,
+        media_type=artifact.media_type,
+        artifact_base64=base64.b64encode(artifact.content).decode("utf-8"),
+        credential=credential,
+    )
+
+
+@router.post(
+    "/credentials/issue",
+    status_code=status.HTTP_201_CREATED,
+)
+def issue_credential(
+    request: IssueCredentialRequest,
+) -> GenerationCredential:
+    try:
+        artifact_bytes = base64.b64decode(
+            request.artifact_base64,
+            validate=True,
+        )
+    except (ValueError, Base64DecodeError) as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="artifact_base64 is not valid Base64.",
+        ) from error
+
+    if not artifact_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The decoded artifact cannot be empty.",
+        )
+
+    artifact = GeneratedArtifact(
+        content=artifact_bytes,
+        media_type=request.media_type,
+        filename="externally-generated-artifact",
+        model_id=request.model_id,
+    )
+
+    return issue_credential_for_artifact(
+        provider_id=request.provider_id,
+        account_reference=request.account_reference,
+        prompt=request.prompt,
+        retention_days=request.retention_days,
+        artifact=artifact,
+    )
+
+
+@router.post(
+    "/credentials/verify",
+    response_model=VerificationResponse,
+)
+def verify_credential(
+    request: VerifyCredentialRequest,
+) -> VerificationResponse:
+    credential = request.credential
+    provider_id = credential.payload.provider.provider_id
+
+    provider_document = get_provider_document(provider_id)
+
+    valid = verify_generation_credential(
+        credential=credential,
+        provider_document=provider_document,
+    )
+
+    return VerificationResponse(
+        valid=valid,
+        provider_id=provider_id,
+        generation_id=credential.payload.generation.generation_id,
+        credential_id=credential.payload.credential_id,
+        key_id=credential.proof.key_id,
+        algorithm=credential.proof.type,
+    )
+
+
+@router.post(
+    "/disclosures/resolve",
+    response_model=AttributionDisclosureResponse,
+)
+def resolve_attribution_record(
+    request: DisclosureRequest,
+) -> AttributionDisclosureResponse:
+    authorisation = DisclosureAuthorisation(
+        authorisation_id=request.authorisation.authorisation_id,
+        investigator_reference=request.authorisation.investigator_reference,
+        issuing_authority=request.authorisation.issuing_authority,
+        jurisdiction=request.authorisation.jurisdiction,
+        purpose=request.authorisation.purpose,
+        issued_at=request.authorisation.issued_at,
+        expires_at=request.authorisation.expires_at,
+        provider_id=request.authorisation.provider_id,
+    )
+
+    try:
+        record = disclose_attribution_record(
+            generation_id=request.generation_id,
+            authorisation=authorisation,
+            attribution_repository=attribution_repository,
+            audit_repository=disclosure_audit_repository,
+        )
+    except AttributionRecordNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
+    except DisclosureDeniedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error.reason,
+        ) from error
+
+    return AttributionDisclosureResponse(
+        generation_id=record.generation_id,
+        provider_id=record.provider_id,
+        account_reference=record.account_reference,
+        prompt_hash=record.prompt_hash,
+        model_id=record.model_id,
+        created_at=record.created_at,
+        retained_until=record.retained_until,
+        retention_status=record.retention_status,
+    )
+
+
+@router.get(
+    "/disclosures/audit",
+    response_model=list[DisclosureAuditResponse],
+)
+def read_disclosure_audit_log() -> list[DisclosureAuditResponse]:
+    return [
+        DisclosureAuditResponse(
+            disclosure_id=record.disclosure_id,
+            generation_id=record.generation_id,
+            provider_id=record.provider_id,
+            investigator_reference=record.investigator_reference,
+            authorisation_id=record.authorisation_id,
+            issuing_authority=record.issuing_authority,
+            jurisdiction=record.jurisdiction,
+            purpose=record.purpose,
+            approved=record.approved,
+            denial_reason=record.denial_reason,
+            disclosed_at=record.disclosed_at,
+        )
+        for record in disclosure_audit_repository.list_all()
+    ]
+
+============================================================
+FILE: implementation\app\core\provider_config.py
+============================================================
+
+from pathlib import Path
+
+from app.domain.provider import Provider
+from app.services.provider_repository import ProviderRepository
+
+
+IMPLEMENTATION_ROOT = Path(__file__).resolve().parents[2]
+KEY_DIRECTORY = IMPLEMENTATION_ROOT / "keys"
+
+
+DEMO_PROVIDER = Provider(
+    provider_id="gap-demo-provider",
+    provider_name="GAP Demo Provider",
+    key_id="demo-key-2026-01",
+    private_key_path=KEY_DIRECTORY / "provider_private.key",
+    public_key_path=KEY_DIRECTORY / "provider_public.key",
+)
+
+AURORA_PROVIDER = Provider(
+    provider_id="aurora-ai",
+    provider_name="Aurora AI",
+    key_id="aurora-key-2026-01",
+    private_key_path=KEY_DIRECTORY / "aurora_private.key",
+    public_key_path=KEY_DIRECTORY / "aurora_public.key",
+)
+
+MERIDIAN_PROVIDER = Provider(
+    provider_id="meridian-ai",
+    provider_name="Meridian AI",
+    key_id="meridian-key-2026-01",
+    private_key_path=KEY_DIRECTORY / "meridian_private.key",
+    public_key_path=KEY_DIRECTORY / "meridian_public.key",
+)
+
+
+PROVIDERS = [
+    DEMO_PROVIDER,
+    AURORA_PROVIDER,
+    MERIDIAN_PROVIDER,
+]
+
+
+provider_repository = ProviderRepository(
+    providers=PROVIDERS,
+)
+
+============================================================
+FILE: implementation\app\crypto\provider_keys.py
+============================================================
+
+import base64
+from pathlib import Path
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey,
+)
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    NoEncryption,
+    PrivateFormat,
+    PublicFormat,
+)
+
+
+def generate_provider_key_pair() -> tuple[Ed25519PrivateKey, Ed25519PublicKey]:
+    """
+    Generate a new Ed25519 provider signing key pair.
+    """
+
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+
+    return private_key, public_key
+
+
+def save_private_key(
+    private_key: Ed25519PrivateKey,
+    path: Path,
+) -> None:
+    """
+    Save an Ed25519 private key as Base64 text.
+    """
+
+    raw_private_key = private_key.private_bytes(
+        encoding=Encoding.Raw,
+        format=PrivateFormat.Raw,
+        encryption_algorithm=NoEncryption(),
+    )
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        base64.b64encode(raw_private_key).decode("utf-8"),
+        encoding="utf-8",
+    )
+
+
+def save_public_key(
+    public_key: Ed25519PublicKey,
+    path: Path,
+) -> None:
+    """
+    Save an Ed25519 public key as Base64 text.
+    """
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        encode_public_key(public_key),
+        encoding="utf-8",
+    )
+
+
+def load_private_key(path: Path) -> Ed25519PrivateKey:
+    """
+    Load an Ed25519 private key from Base64 text.
+    """
+
+    encoded_key = path.read_text(encoding="utf-8")
+    raw_key = base64.b64decode(
+        encoded_key,
+        validate=True,
+    )
+
+    return Ed25519PrivateKey.from_private_bytes(raw_key)
+
+
+def load_public_key(path: Path) -> Ed25519PublicKey:
+    """
+    Load an Ed25519 public key from Base64 text.
+    """
+
+    encoded_key = path.read_text(encoding="utf-8")
+    return decode_public_key(encoded_key)
+
+
+def encode_public_key(
+    public_key: Ed25519PublicKey,
+) -> str:
+    """
+    Encode an Ed25519 public key as Base64 text.
+    """
+
+    raw_public_key = public_key.public_bytes(
+        encoding=Encoding.Raw,
+        format=PublicFormat.Raw,
+    )
+
+    return base64.b64encode(raw_public_key).decode("utf-8")
+
+
+def decode_public_key(
+    encoded_public_key: str,
+) -> Ed25519PublicKey:
+    """
+    Decode a Base64-encoded Ed25519 public key.
+    """
+
+    raw_public_key = base64.b64decode(
+        encoded_public_key,
+        validate=True,
+    )
+
+    return Ed25519PublicKey.from_public_bytes(raw_public_key)
+
+============================================================
+FILE: implementation\app\domain\provider.py
+============================================================
+
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass(frozen=True, slots=True)
+class Provider:
+    """
+    Represents a participating GAP provider.
+
+    A Provider owns its signing keys and issues Generation Credentials
+    under a stable provider identifier.
+    """
+
+    provider_id: str
+    provider_name: str
+    key_id: str
+    private_key_path: Path
+    public_key_path: Path
+
+============================================================
+FILE: implementation\app\schemas\generation_credential.py
+============================================================
+
+from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+from app.schemas.artifact import ArtifactDescriptor
+
+
+class CredentialProvider(BaseModel):
+    provider_id: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+
+class CredentialGeneration(BaseModel):
+    generation_id: str
+    created_at: datetime
+
+
+class CredentialModel(BaseModel):
+    model_id: str = Field(
+        min_length=1,
+        max_length=200,
+    )
+
+
+class GenerationCredentialPayload(BaseModel):
+    version: str = "0.0.1"
+    credential_id: str
+    generation: CredentialGeneration
+    provider: CredentialProvider
+    model: CredentialModel
+    artifacts: list[ArtifactDescriptor] = Field(min_length=1)
+
+
+class GenerationCredentialProof(BaseModel):
+    type: Literal["Ed25519"] = "Ed25519"
+
+    key_id: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    signature: str = Field(
+        min_length=1,
+    )
+
+
+class GenerationCredential(BaseModel):
+    payload: GenerationCredentialPayload
+    proof: GenerationCredentialProof
+
+============================================================
+FILE: implementation\app\schemas\protocol_api.py
+============================================================
+
+from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+from app.schemas.generation_credential import GenerationCredential
+
+
+class IssueCredentialRequest(BaseModel):
+    provider_id: str = Field(
+        default="gap-demo-provider",
+        min_length=1,
+        max_length=100,
+    )
+
+    model_id: str = Field(
+        min_length=1,
+        max_length=200,
+        examples=["demo-model-v1"],
+    )
+
+    media_type: str = Field(
+        min_length=1,
+        max_length=255,
+        examples=["text/plain"],
+    )
+
+    artifact_base64: str = Field(
+        min_length=1,
+        description="Base64-encoded generated artifact bytes.",
+    )
+
+    account_reference: str = Field(
+        min_length=1,
+        max_length=200,
+        description="Private provider-side account reference.",
+    )
+
+    prompt: str = Field(
+        min_length=1,
+        max_length=10000,
+        description="Prompt retained privately by the provider.",
+    )
+
+    retention_days: int = Field(
+        default=365,
+        ge=1,
+        le=3650,
+    )
+
+
+class GenerateArtifactRequest(BaseModel):
+    provider_id: str = Field(
+        default="gap-demo-provider",
+        min_length=1,
+        max_length=100,
+    )
+
+    account_reference: str = Field(
+        min_length=1,
+        max_length=200,
+    )
+
+    prompt: str = Field(
+        min_length=1,
+        max_length=10000,
+    )
+
+    retention_days: int = Field(
+        default=365,
+        ge=1,
+        le=3650,
+    )
+
+
+class GenerateArtifactResponse(BaseModel):
+    filename: str
+    media_type: str
+    artifact_base64: str
+    credential: GenerationCredential
+
+
+class VerifyCredentialRequest(BaseModel):
+    credential: GenerationCredential
+
+
+class VerificationResponse(BaseModel):
+    valid: bool
+    provider_id: str
+    generation_id: str
+    credential_id: str
+    key_id: str
+    algorithm: str
+
+
+class DisclosureAuthorisationRequest(BaseModel):
+    authorisation_id: str = Field(
+        min_length=1,
+        max_length=200,
+        examples=["court-order-001"],
+    )
+
+    investigator_reference: str = Field(
+        min_length=1,
+        max_length=200,
+        examples=["investigator-001"],
+    )
+
+    issuing_authority: str = Field(
+        min_length=1,
+        max_length=300,
+        examples=["Crown Court"],
+    )
+
+    jurisdiction: str = Field(
+        min_length=1,
+        max_length=100,
+        examples=["GB"],
+    )
+
+    purpose: Literal[
+        "criminal-investigation",
+        "civil-proceedings",
+        "regulatory-investigation",
+        "national-security-investigation",
+    ]
+
+    issued_at: datetime
+    expires_at: datetime
+
+    provider_id: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+
+class DisclosureRequest(BaseModel):
+    generation_id: str = Field(min_length=1)
+    authorisation: DisclosureAuthorisationRequest
+
+
+class AttributionDisclosureResponse(BaseModel):
+    generation_id: str
+    provider_id: str
+    account_reference: str
+    prompt_hash: str
+    model_id: str
+    created_at: datetime
+    retained_until: datetime
+    retention_status: str
+
+
+class DisclosureAuditResponse(BaseModel):
+    disclosure_id: str
+    generation_id: str
+    provider_id: str
+    investigator_reference: str
+    authorisation_id: str
+    issuing_authority: str
+    jurisdiction: str
+    purpose: str
+    approved: bool
+    denial_reason: str | None
+    disclosed_at: datetime
+
+============================================================
+FILE: implementation\app\schemas\provider_identity.py
+============================================================
+
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+
+class ProviderVerificationKey(BaseModel):
+    key_id: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    algorithm: Literal["Ed25519"] = "Ed25519"
+
+    public_key: str = Field(
+        min_length=1,
+    )
+
+    status: Literal["active", "retired", "revoked"] = "active"
+
+
+class ProviderIdentityDocument(BaseModel):
+    gap_version: str = "0.0.1"
+
+    provider_id: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    provider_name: str = Field(
+        min_length=1,
+        max_length=200,
+    )
+
+    keys: list[ProviderVerificationKey] = Field(
+        min_length=1,
+    )
+
+============================================================
+FILE: implementation\app\services\generation_credential_service.py
+============================================================
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+from app.crypto.canonical_json import canonicalise_model
+from app.crypto.credential_id import generate_credential_id
+from app.crypto.signatures import sign_payload
+from app.domain.generation_event import GenerationEvent
+from app.schemas.artifact import ArtifactDescriptor
+from app.schemas.generation_credential import (
+    CredentialGeneration,
+    CredentialModel,
+    CredentialProvider,
+    GenerationCredential,
+    GenerationCredentialPayload,
+    GenerationCredentialProof,
+)
+
+
+CURRENT_CREDENTIAL_VERSION = "0.0.1"
+
+
+def create_credential_payload(
+    event: GenerationEvent,
+    artifacts: list[ArtifactDescriptor],
+) -> GenerationCredentialPayload:
+    """
+    Create an unsigned Generation Credential Payload.
+    """
+
+    return GenerationCredentialPayload(
+        version=CURRENT_CREDENTIAL_VERSION,
+        credential_id=generate_credential_id(),
+        generation=CredentialGeneration(
+            generation_id=event.generation_id,
+            created_at=event.created_at,
+        ),
+        provider=CredentialProvider(
+            provider_id=event.provider_id,
+        ),
+        model=CredentialModel(
+            model_id=event.model_id,
+        ),
+        artifacts=artifacts,
+    )
+
+
+def issue_generation_credential(
+    payload: GenerationCredentialPayload,
+    key_id: str,
+    private_key: Ed25519PrivateKey,
+) -> GenerationCredential:
+    """
+    Sign a Generation Credential Payload and return a complete credential.
+    """
+
+    canonical_payload = canonicalise_model(payload)
+    signature = sign_payload(
+        payload=canonical_payload,
+        private_key=private_key,
+    )
+
+    return GenerationCredential(
+        payload=payload,
+        proof=GenerationCredentialProof(
+            type="Ed25519",
+            key_id=key_id,
+            signature=signature,
+        ),
+    )
+
+============================================================
+FILE: implementation\app\services\provider_identity_service.py
+============================================================
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+from app.crypto.provider_keys import encode_public_key
+from app.schemas.provider_identity import (
+    ProviderIdentityDocument,
+    ProviderVerificationKey,
+)
+
+
+CURRENT_GAP_VERSION = "0.0.1"
+
+
+def create_provider_identity_document(
+    provider_id: str,
+    provider_name: str,
+    key_id: str,
+    public_key: Ed25519PublicKey,
+) -> ProviderIdentityDocument:
+    """
+    Create a public GAP Provider Identity Document.
+    """
+
+    return ProviderIdentityDocument(
+        gap_version=CURRENT_GAP_VERSION,
+        provider_id=provider_id,
+        provider_name=provider_name,
+        keys=[
+            ProviderVerificationKey(
+                key_id=key_id,
+                algorithm="Ed25519",
+                public_key=encode_public_key(public_key),
+                status="active",
+            )
+        ],
+    )
+
+============================================================
+FILE: implementation\app\services\verification_service.py
+============================================================
+
+from binascii import Error as Base64DecodeError
+
+from app.crypto.canonical_json import canonicalise_model
+from app.crypto.provider_keys import decode_public_key
+from app.crypto.signatures import verify_payload
+from app.schemas.generation_credential import GenerationCredential
+from app.schemas.provider_identity import ProviderIdentityDocument
+
+
+def verify_generation_credential(
+    credential: GenerationCredential,
+    provider_document: ProviderIdentityDocument,
+) -> bool:
+    """
+    Verify a Generation Credential against a Provider Identity Document.
+    """
+
+    if credential.payload.provider.provider_id != provider_document.provider_id:
+        return False
+
+    matching_key = next(
+        (
+            key
+            for key in provider_document.keys
+            if key.key_id == credential.proof.key_id
+        ),
+        None,
+    )
+
+    if matching_key is None:
+        return False
+
+    if credential.proof.type != matching_key.algorithm:
+        return False
+
+    if matching_key.status == "revoked":
+        return False
+
+    try:
+        public_key = decode_public_key(matching_key.public_key)
+    except (ValueError, Base64DecodeError):
+        return False
+
+    canonical_payload = canonicalise_model(
+        credential.payload,
+    )
+
+    return verify_payload(
+        payload=canonical_payload,
+        signature=credential.proof.signature,
+        public_key=public_key,
+    )
+
+============================================================
+FILE: tests\test_generation_credential_signing.py
+============================================================
+
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+IMPLEMENTATION_DIRECTORY = Path(__file__).resolve().parents[1] / "implementation"
+
+sys.path.insert(0, str(IMPLEMENTATION_DIRECTORY))
+
+from app.crypto.provider_keys import generate_provider_key_pair  # noqa: E402
+from app.domain.generation_event import GenerationEvent  # noqa: E402
+from app.services.artifact_service import (  # noqa: E402
+    create_artifact_descriptor,
+)
+from app.services.generation_credential_service import (  # noqa: E402
+    create_credential_payload,
+    issue_generation_credential,
+)
+from app.services.provider_identity_service import (  # noqa: E402
+    create_provider_identity_document,
+)
+from app.services.verification_service import (  # noqa: E402
+    verify_generation_credential,
+)
+
+
+def create_test_event() -> GenerationEvent:
+    return GenerationEvent(
+        generation_id="gid_" + "a" * 64,
+        provider_id="gap-demo-provider",
+        model_id="demo-model-v1",
+        created_at=datetime.now(timezone.utc),
+        gap_version="0.1",
+    )
+
+
+def create_test_credential_and_document():
+    private_key, public_key = generate_provider_key_pair()
+
+    artifact = create_artifact_descriptor(
+        artifact=b"generated artifact",
+        media_type="text/plain",
+    )
+
+    payload = create_credential_payload(
+        event=create_test_event(),
+        artifacts=[artifact],
+    )
+
+    credential = issue_generation_credential(
+        payload=payload,
+        key_id="key-2026-01",
+        private_key=private_key,
+    )
+
+    provider_document = create_provider_identity_document(
+        provider_id="gap-demo-provider",
+        provider_name="GAP Demo Provider",
+        key_id="key-2026-01",
+        public_key=public_key,
+    )
+
+    return credential, provider_document
+
+
+def test_generation_credential_signature_is_valid() -> None:
+    credential, provider_document = create_test_credential_and_document()
+
+    assert verify_generation_credential(
+        credential=credential,
+        provider_document=provider_document,
+    )
+
+
+def test_modified_payload_fails_verification() -> None:
+    credential, provider_document = create_test_credential_and_document()
+
+    credential.payload.model.model_id = "tampered-model"
+
+    assert not verify_generation_credential(
+        credential=credential,
+        provider_document=provider_document,
+    )
+
+
+def test_unknown_key_id_fails_verification() -> None:
+    credential, provider_document = create_test_credential_and_document()
+
+    credential.proof.key_id = "unknown-key"
+
+    assert not verify_generation_credential(
+        credential=credential,
+        provider_document=provider_document,
+    )
+
+
+def test_wrong_provider_fails_verification() -> None:
+    credential, provider_document = create_test_credential_and_document()
+
+    provider_document.provider_id = "different-provider"
+
+    assert not verify_generation_credential(
+        credential=credential,
+        provider_document=provider_document,
+    )
+
+
+def test_revoked_key_fails_verification() -> None:
+    credential, provider_document = create_test_credential_and_document()
+
+    provider_document.keys[0].status = "revoked"
+
+    assert not verify_generation_credential(
+        credential=credential,
+        provider_document=provider_document,
+    )
+
+
+def test_tampered_public_key_fails_verification() -> None:
+    credential, provider_document = create_test_credential_and_document()
+
+    provider_document.keys[0].public_key = "not-valid-base64"
+
+    assert not verify_generation_credential(
+        credential=credential,
+        provider_document=provider_document,
+    )
+
+============================================================
+FILE: tests\test_protocol_api.py
+============================================================
+
+import base64
+import sys
+from datetime import datetime, timedelta, timezone
+from io import BytesIO
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+from PIL import Image
+
+IMPLEMENTATION_DIRECTORY = Path(__file__).resolve().parents[1] / "implementation"
+
+sys.path.insert(0, str(IMPLEMENTATION_DIRECTORY))
+
+from app.main import app  # noqa: E402
+
+
+client = TestClient(app)
+
+
+def issue_test_credential() -> dict:
+    artifact = base64.b64encode(
+        b"GAP generated artifact",
+    ).decode("utf-8")
+
+    response = client.post(
+        "/credentials/issue",
+        json={
+            "provider_id": "gap-demo-provider",
+            "model_id": "demo-model-v1",
+            "media_type": "text/plain",
+            "artifact_base64": artifact,
+            "account_reference": "user-001",
+            "prompt": "Generate a GAP test artifact.",
+            "retention_days": 365,
+        },
+    )
+
+    assert response.status_code == 201
+
+    return response.json()
+
+
+def create_valid_authorisation(
+    provider_id: str = "gap-demo-provider",
+) -> dict:
+    current_time = datetime.now(timezone.utc)
+
+    return {
+        "authorisation_id": "court-order-001",
+        "investigator_reference": "investigator-001",
+        "issuing_authority": "Crown Court",
+        "jurisdiction": "GB",
+        "purpose": "criminal-investigation",
+        "issued_at": (current_time - timedelta(minutes=5)).isoformat(),
+        "expires_at": (current_time + timedelta(hours=1)).isoformat(),
+        "provider_id": provider_id,
+    }
+
+
+def test_list_providers() -> None:
+    response = client.get("/providers")
+
+    assert response.status_code == 200
+
+    providers = {
+        provider["provider_id"]: provider["provider_name"]
+        for provider in response.json()
+    }
+
+    assert providers == {
+        "gap-demo-provider": "GAP Demo Provider",
+        "aurora-ai": "Aurora AI",
+        "meridian-ai": "Meridian AI",
+    }
+
+
+def test_provider_identity_endpoint() -> None:
+    response = client.get("/providers/gap-demo-provider/.well-known/gap.json")
+
+    assert response.status_code == 200
+    assert response.json()["provider_id"] == "gap-demo-provider"
+
+
+def test_every_provider_exposes_an_identity_document() -> None:
+    provider_ids = [
+        "gap-demo-provider",
+        "aurora-ai",
+        "meridian-ai",
+    ]
+
+    documents = {}
+
+    for provider_id in provider_ids:
+        response = client.get(
+            f"/providers/{provider_id}/.well-known/gap.json",
+        )
+
+        assert response.status_code == 200
+
+        document = response.json()
+        documents[provider_id] = document
+
+        assert document["provider_id"] == provider_id
+        assert document["keys"][0]["algorithm"] == "Ed25519"
+        assert document["keys"][0]["status"] == "active"
+
+    public_keys = {document["keys"][0]["public_key"] for document in documents.values()}
+
+    assert len(public_keys) == len(provider_ids)
+
+
+def test_aurora_generates_and_signs_artifact() -> None:
+    response = client.post(
+        "/generations/create",
+        json={
+            "provider_id": "aurora-ai",
+            "account_reference": "aurora-user-001",
+            "prompt": "A luminous abstract research landscape.",
+            "retention_days": 365,
+        },
+    )
+
+    assert response.status_code == 201
+
+    body = response.json()
+    credential = body["credential"]
+
+    assert body["media_type"] == "image/svg+xml"
+    assert body["filename"].endswith(".svg")
+    assert credential["payload"]["provider"]["provider_id"] == "aurora-ai"
+    assert credential["payload"]["model"]["model_id"] == "aurora-spectrum-v1"
+    assert credential["proof"]["key_id"] == "aurora-key-2026-01"
+
+    verification = client.post(
+        "/credentials/verify",
+        json={"credential": credential},
+    )
+
+    assert verification.status_code == 200
+    assert verification.json()["valid"] is True
+    assert verification.json()["provider_id"] == "aurora-ai"
+
+
+def test_meridian_generates_and_signs_artifact() -> None:
+    response = client.post(
+        "/generations/create",
+        json={
+            "provider_id": "meridian-ai",
+            "account_reference": "meridian-user-001",
+            "prompt": "A structured geometric research composition.",
+            "retention_days": 365,
+        },
+    )
+
+    assert response.status_code == 201
+
+    body = response.json()
+    credential = body["credential"]
+
+    assert body["media_type"] == "image/svg+xml"
+    assert body["filename"].endswith(".svg")
+    assert credential["payload"]["provider"]["provider_id"] == "meridian-ai"
+    assert credential["payload"]["model"]["model_id"] == ("meridian-geometry-v1")
+    assert credential["proof"]["key_id"] == "meridian-key-2026-01"
+
+    verification = client.post(
+        "/credentials/verify",
+        json={"credential": credential},
+    )
+
+    assert verification.status_code == 200
+    assert verification.json()["valid"] is True
+    assert verification.json()["provider_id"] == "meridian-ai"
+
+
+def test_provider_substitution_invalidates_credential() -> None:
+    generation_response = client.post(
+        "/generations/create",
+        json={
+            "provider_id": "aurora-ai",
+            "account_reference": "user-001",
+            "prompt": "A provider substitution test.",
+            "retention_days": 365,
+        },
+    )
+
+    assert generation_response.status_code == 201
+
+    credential = generation_response.json()["credential"]
+
+    credential["payload"]["provider"]["provider_id"] = "meridian-ai"
+    credential["payload"]["provider"]["provider_name"] = "Meridian AI"
+
+    verification_response = client.post(
+        "/credentials/verify",
+        json={"credential": credential},
+    )
+
+    assert verification_response.status_code == 200
+    assert verification_response.json()["valid"] is False
+
+
+def test_key_identifier_substitution_invalidates_credential() -> None:
+    generation_response = client.post(
+        "/generations/create",
+        json={
+            "provider_id": "aurora-ai",
+            "account_reference": "user-001",
+            "prompt": "A signing key substitution test.",
+            "retention_days": 365,
+        },
+    )
+
+    assert generation_response.status_code == 201
+
+    credential = generation_response.json()["credential"]
+    credential["proof"]["key_id"] = "meridian-key-2026-01"
+
+    verification_response = client.post(
+        "/credentials/verify",
+        json={"credential": credential},
+    )
+
+    assert verification_response.status_code == 200
+    assert verification_response.json()["valid"] is False
+
+
+def test_generate_artifact_and_issue_credential() -> None:
+    response = client.post(
+        "/generations/create",
+        json={
+            "provider_id": "gap-demo-provider",
+            "account_reference": "user-001",
+            "prompt": "A red geometric object on a neutral background.",
+            "retention_days": 365,
+        },
+    )
+
+    assert response.status_code == 201
+
+    body = response.json()
+
+    assert body["media_type"] == "image/png"
+    assert body["filename"].endswith(".png")
+    assert body["credential"]["proof"]["type"] == "Ed25519"
+    assert body["credential"]["payload"]["model"]["model_id"] == (
+        "gap-semantic-procedural-image-v2"
+    )
+
+    image_bytes = base64.b64decode(
+        body["artifact_base64"],
+        validate=True,
+    )
+
+    image = Image.open(BytesIO(image_bytes))
+
+    assert image.format == "PNG"
+
+
+def test_generated_artifact_credential_verifies() -> None:
+    generation_response = client.post(
+        "/generations/create",
+        json={
+            "provider_id": "gap-demo-provider",
+            "account_reference": "user-001",
+            "prompt": "A generated GAP verification artifact.",
+            "retention_days": 365,
+        },
+    )
+
+    credential = generation_response.json()["credential"]
+
+    verification_response = client.post(
+        "/credentials/verify",
+        json={
+            "credential": credential,
+        },
+    )
+
+    assert verification_response.status_code == 200
+    assert verification_response.json()["valid"] is True
+
+
+def test_unknown_generation_adapter_returns_404() -> None:
+    response = client.post(
+        "/generations/create",
+        json={
+            "provider_id": "unknown-provider",
+            "account_reference": "user-001",
+            "prompt": "Generate an artifact.",
+            "retention_days": 365,
+        },
+    )
+
+    assert response.status_code == 404
+
+
+def test_issue_generation_credential() -> None:
+    credential = issue_test_credential()
+
+    assert credential["payload"]["provider"]["provider_id"] == ("gap-demo-provider")
+    assert credential["proof"]["type"] == "Ed25519"
+
+
+def test_verify_generation_credential() -> None:
+    credential = issue_test_credential()
+
+    response = client.post(
+        "/credentials/verify",
+        json={"credential": credential},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["valid"] is True
+
+
+def test_tampered_credential_is_invalid() -> None:
+    credential = issue_test_credential()
+    credential["payload"]["model"]["model_id"] = "tampered-model"
+
+    response = client.post(
+        "/credentials/verify",
+        json={"credential": credential},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["valid"] is False
+
+
+def test_private_attribution_record_can_be_disclosed() -> None:
+    credential = issue_test_credential()
+    generation_id = credential["payload"]["generation"]["generation_id"]
+
+    response = client.post(
+        "/disclosures/resolve",
+        json={
+            "generation_id": generation_id,
+            "authorisation": create_valid_authorisation(),
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["generation_id"] == generation_id
+    assert body["account_reference"] == "user-001"
+    assert body["retention_status"] == "active"
+
+
+def test_wrong_provider_authorisation_is_denied() -> None:
+    credential = issue_test_credential()
+    generation_id = credential["payload"]["generation"]["generation_id"]
+
+    response = client.post(
+        "/disclosures/resolve",
+        json={
+            "generation_id": generation_id,
+            "authorisation": create_valid_authorisation(
+                provider_id="different-provider"
+            ),
+        },
+    )
+
+    assert response.status_code == 403
+
+
+def test_successful_disclosure_is_audited() -> None:
+    credential = issue_test_credential()
+    generation_id = credential["payload"]["generation"]["generation_id"]
+
+    response = client.post(
+        "/disclosures/resolve",
+        json={
+            "generation_id": generation_id,
+            "authorisation": create_valid_authorisation(),
+        },
+    )
+
+    assert response.status_code == 200
+
+    audit_response = client.get("/disclosures/audit")
+    latest_record = audit_response.json()[-1]
+
+    assert latest_record["generation_id"] == generation_id
+    assert latest_record["approved"] is True
+    assert latest_record["denial_reason"] is None
+
+============================================================
+FILE: tests\test_provider_identity.py
+============================================================
+
+import sys
+from pathlib import Path
+
+IMPLEMENTATION_DIRECTORY = Path(__file__).resolve().parents[1] / "implementation"
+
+sys.path.insert(0, str(IMPLEMENTATION_DIRECTORY))
+
+from app.crypto.provider_keys import (  # noqa: E402
+    decode_public_key,
+    encode_public_key,
+    generate_provider_key_pair,
+)
+from app.services.provider_identity_service import (  # noqa: E402
+    create_provider_identity_document,
+)
+
+
+def test_create_provider_identity_document() -> None:
+    _, public_key = generate_provider_key_pair()
+
+    document = create_provider_identity_document(
+        provider_id="gap-demo-provider",
+        provider_name="GAP Demo Provider",
+        key_id="key-2026-01",
+        public_key=public_key,
+    )
+
+    assert document.gap_version == "0.0.1"
+    assert document.provider_id == "gap-demo-provider"
+    assert document.provider_name == "GAP Demo Provider"
+    assert len(document.keys) == 1
+
+    key = document.keys[0]
+
+    assert key.key_id == "key-2026-01"
+    assert key.algorithm == "Ed25519"
+    assert key.status == "active"
+
+
+def test_public_key_encoding_roundtrip() -> None:
+    private_key, public_key = generate_provider_key_pair()
+
+    encoded_key = encode_public_key(public_key)
+    decoded_key = decode_public_key(encoded_key)
+
+    message = b"GAP public key roundtrip"
+    signature = private_key.sign(message)
+
+    decoded_key.verify(signature, message)
+
+============================================================
+FILE: tests\test_provider_repository.py
+============================================================
+
+import sys
+from pathlib import Path
+
+import pytest
+
+
+IMPLEMENTATION_DIRECTORY = Path(__file__).resolve().parents[1] / "implementation"
+
+sys.path.insert(0, str(IMPLEMENTATION_DIRECTORY))
+
+from app.domain.provider import Provider  # noqa: E402
+from app.services.provider_repository import (  # noqa: E402
+    ProviderNotFoundError,
+    ProviderRepository,
+)
+
+
+def create_provider(
+    provider_id: str = "test-provider",
+) -> Provider:
+    return Provider(
+        provider_id=provider_id,
+        provider_name="Test Provider",
+        key_id="test-key",
+        private_key_path=Path("private.key"),
+        public_key_path=Path("public.key"),
+    )
+
+
+def test_provider_can_be_added_and_retrieved() -> None:
+    repository = ProviderRepository()
+
+    provider = create_provider()
+    repository.add(provider)
+
+    assert repository.get("test-provider") == provider
+
+
+def test_unknown_provider_raises_error() -> None:
+    repository = ProviderRepository()
+
+    with pytest.raises(ProviderNotFoundError):
+        repository.get("unknown-provider")
+
+
+def test_duplicate_provider_is_rejected() -> None:
+    provider = create_provider()
+    repository = ProviderRepository([provider])
+
+    with pytest.raises(ValueError):
+        repository.add(provider)
+
+
+def test_multiple_providers_can_be_listed() -> None:
+    repository = ProviderRepository(
+        [
+            create_provider("provider-one"),
+            create_provider("provider-two"),
+        ]
+    )
+
+    provider_ids = {provider.provider_id for provider in repository.list_all()}
+
+    assert provider_ids == {
+        "provider-one",
+        "provider-two",
+    }
+
+============================================================
+FILE: tests\test_web_interface.py
+============================================================
+
+import sys
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+
+IMPLEMENTATION_DIRECTORY = Path(__file__).resolve().parents[1] / "implementation"
+
+sys.path.insert(0, str(IMPLEMENTATION_DIRECTORY))
+
+from app.main import app  # noqa: E402
+
+
+client = TestClient(app)
+
+
+def test_browser_demonstrator_is_served() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "Generation Attribution Protocol" in response.text
+    assert "Generate and issue credential" in response.text
+
+
+def test_verification_interface_is_present() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Verify an artifact against its credential" in response.text
+    assert "Run complete verification" in response.text
+    assert "Modify artifact bytes" in response.text
+    assert "Modify credential model ID" in response.text
+
+
+def test_credential_explorer_is_present() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Credential Explorer" in response.text
+    assert "Artifact descriptor" in response.text
+    assert "Digital signature" in response.text
+
+
+def test_protocol_explanation_is_present() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "How GAP works" in response.text
+    assert "Controlled disclosure" in response.text
+
+
+def test_stylesheet_is_served() -> None:
+    response = client.get("/static/styles.css")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/css")
+    assert "--accent:" in response.text
+    assert ".verification-timeline" in response.text
+    assert ".credential-card" in response.text
+
+
+def test_javascript_is_served() -> None:
+    response = client.get("/static/app.js")
+
+    assert response.status_code == 200
+    assert "generateArtifact" in response.text
+    assert "runCompleteVerification" in response.text
+    assert "calculateSha256" in response.text
+    assert "tamperArtifact" in response.text
+    assert "tamperCredential" in response.text
+    assert "/generations/create" in response.text
+    assert "/credentials/verify" in response.text
+
+
+def test_health_endpoint() -> None:
+    response = client.get("/health")
+
+    assert response.status_code == 200
+
+    assert response.json() == {
+        "status": "healthy",
+        "service": "gap-reference-implementation",
+        "version": "0.7.0",
+    }

@@ -9,7 +9,7 @@ from app.core.repositories import (
     attribution_repository,
     disclosure_audit_repository,
 )
-from app.crypto.provider_keys import load_private_key, load_public_key
+from app.crypto.provider_keys import load_private_key
 from app.domain.disclosure_authorisation import DisclosureAuthorisation
 from app.domain.generated_artifact import GeneratedArtifact
 from app.schemas.generation_credential import GenerationCredential
@@ -45,7 +45,9 @@ from app.services.provider_identity_service import (
     create_provider_identity_document,
 )
 from app.services.provider_repository import ProviderNotFoundError
-from app.services.verification_service import verify_generation_credential
+from app.services.verification_service import (
+    verify_generation_credential_details,
+)
 
 
 router = APIRouter(
@@ -64,15 +66,8 @@ def get_provider_document(
             detail=str(error),
         ) from error
 
-    public_key = load_public_key(
-        provider.public_key_path,
-    )
-
     return create_provider_identity_document(
-        provider_id=provider.provider_id,
-        provider_name=provider.provider_name,
-        key_id=provider.key_id,
-        public_key=public_key,
+        provider=provider,
     )
 
 
@@ -90,6 +85,14 @@ def issue_credential_for_artifact(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(error),
         ) from error
+
+    signing_key = provider.active_signing_key
+
+    if signing_key.private_key_path is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="The provider active signing key is unavailable.",
+        )
 
     event = create_generation_event(
         provider_id=provider.provider_id,
@@ -122,22 +125,24 @@ def issue_credential_for_artifact(
     )
 
     private_key = load_private_key(
-        provider.private_key_path,
+        signing_key.private_key_path,
     )
 
     return issue_generation_credential(
         payload=payload,
-        key_id=provider.key_id,
+        key_id=signing_key.key_id,
         private_key=private_key,
     )
 
 
 @router.get("/providers")
-def list_providers() -> list[dict[str, str]]:
+def list_providers() -> list[dict[str, str | int]]:
     return [
         {
             "provider_id": provider.provider_id,
             "provider_name": provider.provider_name,
+            "active_key_id": provider.active_key_id,
+            "published_key_count": len(provider.signing_keys),
         }
         for provider in provider_repository.list_all()
     ]
@@ -252,18 +257,20 @@ def verify_credential(
 
     provider_document = get_provider_document(provider_id)
 
-    valid = verify_generation_credential(
+    verification = verify_generation_credential_details(
         credential=credential,
         provider_document=provider_document,
     )
 
     return VerificationResponse(
-        valid=valid,
+        valid=verification.valid,
         provider_id=provider_id,
         generation_id=credential.payload.generation.generation_id,
         credential_id=credential.payload.credential_id,
         key_id=credential.proof.key_id,
         algorithm=credential.proof.type,
+        key_status=verification.key_status,
+        failure_reason=verification.failure_reason,
     )
 
 

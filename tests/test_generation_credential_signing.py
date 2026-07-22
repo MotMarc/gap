@@ -6,8 +6,15 @@ IMPLEMENTATION_DIRECTORY = Path(__file__).resolve().parents[1] / "implementation
 
 sys.path.insert(0, str(IMPLEMENTATION_DIRECTORY))
 
-from app.crypto.provider_keys import generate_provider_key_pair  # noqa: E402
+from app.crypto.provider_keys import (  # noqa: E402
+    encode_public_key,
+    generate_provider_key_pair,
+)
 from app.domain.generation_event import GenerationEvent  # noqa: E402
+from app.schemas.provider_identity import (  # noqa: E402
+    ProviderIdentityDocument,
+    ProviderVerificationKey,
+)
 from app.services.artifact_service import (  # noqa: E402
     create_artifact_descriptor,
 )
@@ -15,11 +22,9 @@ from app.services.generation_credential_service import (  # noqa: E402
     create_credential_payload,
     issue_generation_credential,
 )
-from app.services.provider_identity_service import (  # noqa: E402
-    create_provider_identity_document,
-)
 from app.services.verification_service import (  # noqa: E402
     verify_generation_credential,
+    verify_generation_credential_details,
 )
 
 
@@ -33,7 +38,9 @@ def create_test_event() -> GenerationEvent:
     )
 
 
-def create_test_credential_and_document():
+def create_test_credential_and_document(
+    key_status: str = "active",
+):
     private_key, public_key = generate_provider_key_pair()
 
     artifact = create_artifact_descriptor(
@@ -52,23 +59,64 @@ def create_test_credential_and_document():
         private_key=private_key,
     )
 
-    provider_document = create_provider_identity_document(
+    provider_document = ProviderIdentityDocument(
         provider_id="gap-demo-provider",
         provider_name="GAP Demo Provider",
-        key_id="key-2026-01",
-        public_key=public_key,
+        active_key_id=(
+            "key-2026-01" if key_status == "active" else "different-active-key"
+        ),
+        keys=[
+            ProviderVerificationKey(
+                key_id="key-2026-01",
+                public_key=encode_public_key(public_key),
+                status=key_status,
+                created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                retired_at=(
+                    datetime(2026, 7, 1, tzinfo=timezone.utc)
+                    if key_status == "retired"
+                    else None
+                ),
+                revoked_at=(
+                    datetime(2026, 7, 1, tzinfo=timezone.utc)
+                    if key_status == "revoked"
+                    else None
+                ),
+                revocation_reason=(
+                    "Test compromise" if key_status == "revoked" else None
+                ),
+            )
+        ],
     )
 
     return credential, provider_document
 
 
-def test_generation_credential_signature_is_valid() -> None:
+def test_active_key_credential_signature_is_valid() -> None:
     credential, provider_document = create_test_credential_and_document()
 
-    assert verify_generation_credential(
+    result = verify_generation_credential_details(
         credential=credential,
         provider_document=provider_document,
     )
+
+    assert result.valid is True
+    assert result.key_status == "active"
+    assert result.failure_reason is None
+
+
+def test_retired_key_credential_remains_valid() -> None:
+    credential, provider_document = create_test_credential_and_document(
+        key_status="retired"
+    )
+
+    result = verify_generation_credential_details(
+        credential=credential,
+        provider_document=provider_document,
+    )
+
+    assert result.valid is True
+    assert result.key_status == "retired"
+    assert result.failure_reason is None
 
 
 def test_modified_payload_fails_verification() -> None:
@@ -76,10 +124,13 @@ def test_modified_payload_fails_verification() -> None:
 
     credential.payload.model.model_id = "tampered-model"
 
-    assert not verify_generation_credential(
+    result = verify_generation_credential_details(
         credential=credential,
         provider_document=provider_document,
     )
+
+    assert result.valid is False
+    assert result.failure_reason == "invalid-signature"
 
 
 def test_unknown_key_id_fails_verification() -> None:
@@ -87,10 +138,14 @@ def test_unknown_key_id_fails_verification() -> None:
 
     credential.proof.key_id = "unknown-key"
 
-    assert not verify_generation_credential(
+    result = verify_generation_credential_details(
         credential=credential,
         provider_document=provider_document,
     )
+
+    assert result.valid is False
+    assert result.key_status is None
+    assert result.failure_reason == "unknown-key"
 
 
 def test_wrong_provider_fails_verification() -> None:
@@ -98,21 +153,28 @@ def test_wrong_provider_fails_verification() -> None:
 
     provider_document.provider_id = "different-provider"
 
-    assert not verify_generation_credential(
+    result = verify_generation_credential_details(
         credential=credential,
         provider_document=provider_document,
     )
+
+    assert result.valid is False
+    assert result.failure_reason == "provider-mismatch"
 
 
 def test_revoked_key_fails_verification() -> None:
-    credential, provider_document = create_test_credential_and_document()
+    credential, provider_document = create_test_credential_and_document(
+        key_status="revoked"
+    )
 
-    provider_document.keys[0].status = "revoked"
-
-    assert not verify_generation_credential(
+    result = verify_generation_credential_details(
         credential=credential,
         provider_document=provider_document,
     )
+
+    assert result.valid is False
+    assert result.key_status == "revoked"
+    assert result.failure_reason == "revoked-key"
 
 
 def test_tampered_public_key_fails_verification() -> None:
@@ -120,7 +182,19 @@ def test_tampered_public_key_fails_verification() -> None:
 
     provider_document.keys[0].public_key = "not-valid-base64"
 
-    assert not verify_generation_credential(
+    result = verify_generation_credential_details(
+        credential=credential,
+        provider_document=provider_document,
+    )
+
+    assert result.valid is False
+    assert result.failure_reason == "invalid-public-key"
+
+
+def test_boolean_verification_wrapper_is_preserved() -> None:
+    credential, provider_document = create_test_credential_and_document()
+
+    assert verify_generation_credential(
         credential=credential,
         provider_document=provider_document,
     )
