@@ -1,0 +1,738 @@
+
+============================================================
+FILE: implementation\app\core\provider_config.py
+============================================================
+
+from pathlib import Path
+
+from app.domain.provider import Provider
+from app.services.provider_repository import ProviderRepository
+
+
+IMPLEMENTATION_ROOT = Path(__file__).resolve().parents[2]
+KEY_DIRECTORY = IMPLEMENTATION_ROOT / "keys"
+
+DEMO_PROVIDER = Provider(
+    provider_id="gap-demo-provider",
+    provider_name="GAP Demo Provider",
+    key_id="key-2026-01",
+    private_key_path=KEY_DIRECTORY / "provider_private.key",
+    public_key_path=KEY_DIRECTORY / "provider_public.key",
+)
+
+provider_repository = ProviderRepository(
+    providers=[DEMO_PROVIDER],
+)
+
+============================================================
+FILE: implementation\app\core\provider_adapters.py
+============================================================
+
+from app.adapters.demo_image_adapter import DemoImageAdapter
+from app.services.provider_adapter_repository import (
+    ProviderAdapterRepository,
+)
+
+
+provider_adapter_repository = ProviderAdapterRepository(
+    adapters=[
+        DemoImageAdapter(),
+    ]
+)
+
+============================================================
+FILE: implementation\app\services\provider_repository.py
+============================================================
+
+from app.domain.provider import Provider
+
+
+class ProviderNotFoundError(LookupError):
+    """
+    Raised when a requested provider does not exist.
+    """
+
+
+class ProviderRepository:
+    """
+    In-memory repository of participating GAP providers.
+
+    A persistent repository can replace this implementation later without
+    changing the protocol services that depend on it.
+    """
+
+    def __init__(self, providers: list[Provider] | None = None) -> None:
+        self._providers: dict[str, Provider] = {}
+
+        for provider in providers or []:
+            self.add(provider)
+
+    def add(self, provider: Provider) -> None:
+        if provider.provider_id in self._providers:
+            raise ValueError(f"Provider already exists: {provider.provider_id}")
+
+        self._providers[provider.provider_id] = provider
+
+    def get(self, provider_id: str) -> Provider:
+        provider = self._providers.get(provider_id)
+
+        if provider is None:
+            raise ProviderNotFoundError(f"Unknown provider: {provider_id}")
+
+        return provider
+
+    def list_all(self) -> list[Provider]:
+        return list(self._providers.values())
+
+============================================================
+FILE: implementation\app\services\provider_adapter_repository.py
+============================================================
+
+from app.services.provider_adapter import ProviderGenerationAdapter
+
+
+class ProviderAdapterNotFoundError(LookupError):
+    """
+    Raised when no generation adapter is registered for a provider.
+    """
+
+
+class ProviderAdapterRepository:
+    """
+    In-memory repository for provider generation adapters.
+    """
+
+    def __init__(
+        self,
+        adapters: list[ProviderGenerationAdapter] | None = None,
+    ) -> None:
+        self._adapters: dict[str, ProviderGenerationAdapter] = {}
+
+        for adapter in adapters or []:
+            self.add(adapter)
+
+    def add(
+        self,
+        adapter: ProviderGenerationAdapter,
+    ) -> None:
+        provider_id = adapter.provider_id
+
+        if provider_id in self._adapters:
+            raise ValueError(f"An adapter already exists for provider: {provider_id}")
+
+        self._adapters[provider_id] = adapter
+
+    def get(
+        self,
+        provider_id: str,
+    ) -> ProviderGenerationAdapter:
+        adapter = self._adapters.get(provider_id)
+
+        if adapter is None:
+            raise ProviderAdapterNotFoundError(
+                f"No generation adapter exists for provider: {provider_id}"
+            )
+
+        return adapter
+
+    def list_provider_ids(self) -> list[str]:
+        return list(self._adapters.keys())
+
+============================================================
+FILE: implementation\app\domain\provider.py
+============================================================
+
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass(frozen=True, slots=True)
+class Provider:
+    """
+    Represents a participating GAP provider.
+
+    A Provider owns its signing keys and issues Generation Credentials
+    under a stable provider identifier.
+    """
+
+    provider_id: str
+    provider_name: str
+    key_id: str
+    private_key_path: Path
+    public_key_path: Path
+
+============================================================
+FILE: implementation\app\domain\provider_adapter.py
+============================================================
+
+[FILE NOT FOUND]
+
+============================================================
+FILE: implementation\app\adapters\demo_provider.py
+============================================================
+
+[FILE NOT FOUND]
+
+============================================================
+FILE: implementation\app\adapters\semantic_procedural_provider.py
+============================================================
+
+[FILE NOT FOUND]
+
+============================================================
+FILE: implementation\app\crypto\provider_keys.py
+============================================================
+
+import base64
+from pathlib import Path
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey,
+)
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    NoEncryption,
+    PrivateFormat,
+    PublicFormat,
+)
+
+
+def generate_provider_key_pair() -> tuple[Ed25519PrivateKey, Ed25519PublicKey]:
+    """
+    Generate a new Ed25519 provider signing key pair.
+    """
+
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+
+    return private_key, public_key
+
+
+def save_private_key(
+    private_key: Ed25519PrivateKey,
+    path: Path,
+) -> None:
+    """
+    Save an Ed25519 private key as Base64 text.
+    """
+
+    raw_private_key = private_key.private_bytes(
+        encoding=Encoding.Raw,
+        format=PrivateFormat.Raw,
+        encryption_algorithm=NoEncryption(),
+    )
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        base64.b64encode(raw_private_key).decode("utf-8"),
+        encoding="utf-8",
+    )
+
+
+def save_public_key(
+    public_key: Ed25519PublicKey,
+    path: Path,
+) -> None:
+    """
+    Save an Ed25519 public key as Base64 text.
+    """
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        encode_public_key(public_key),
+        encoding="utf-8",
+    )
+
+
+def load_private_key(path: Path) -> Ed25519PrivateKey:
+    """
+    Load an Ed25519 private key from Base64 text.
+    """
+
+    encoded_key = path.read_text(encoding="utf-8")
+    raw_key = base64.b64decode(
+        encoded_key,
+        validate=True,
+    )
+
+    return Ed25519PrivateKey.from_private_bytes(raw_key)
+
+
+def load_public_key(path: Path) -> Ed25519PublicKey:
+    """
+    Load an Ed25519 public key from Base64 text.
+    """
+
+    encoded_key = path.read_text(encoding="utf-8")
+    return decode_public_key(encoded_key)
+
+
+def encode_public_key(
+    public_key: Ed25519PublicKey,
+) -> str:
+    """
+    Encode an Ed25519 public key as Base64 text.
+    """
+
+    raw_public_key = public_key.public_bytes(
+        encoding=Encoding.Raw,
+        format=PublicFormat.Raw,
+    )
+
+    return base64.b64encode(raw_public_key).decode("utf-8")
+
+
+def decode_public_key(
+    encoded_public_key: str,
+) -> Ed25519PublicKey:
+    """
+    Decode a Base64-encoded Ed25519 public key.
+    """
+
+    raw_public_key = base64.b64decode(
+        encoded_public_key,
+        validate=True,
+    )
+
+    return Ed25519PublicKey.from_public_bytes(raw_public_key)
+
+============================================================
+FILE: implementation\app\schemas\provider_identity.py
+============================================================
+
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+
+class ProviderVerificationKey(BaseModel):
+    key_id: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    algorithm: Literal["Ed25519"] = "Ed25519"
+
+    public_key: str = Field(
+        min_length=1,
+    )
+
+    status: Literal["active", "retired", "revoked"] = "active"
+
+
+class ProviderIdentityDocument(BaseModel):
+    gap_version: str = "0.0.1"
+
+    provider_id: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    provider_name: str = Field(
+        min_length=1,
+        max_length=200,
+    )
+
+    keys: list[ProviderVerificationKey] = Field(
+        min_length=1,
+    )
+
+============================================================
+FILE: implementation\app\services\provider_identity_service.py
+============================================================
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+from app.crypto.provider_keys import encode_public_key
+from app.schemas.provider_identity import (
+    ProviderIdentityDocument,
+    ProviderVerificationKey,
+)
+
+
+CURRENT_GAP_VERSION = "0.0.1"
+
+
+def create_provider_identity_document(
+    provider_id: str,
+    provider_name: str,
+    key_id: str,
+    public_key: Ed25519PublicKey,
+) -> ProviderIdentityDocument:
+    """
+    Create a public GAP Provider Identity Document.
+    """
+
+    return ProviderIdentityDocument(
+        gap_version=CURRENT_GAP_VERSION,
+        provider_id=provider_id,
+        provider_name=provider_name,
+        keys=[
+            ProviderVerificationKey(
+                key_id=key_id,
+                algorithm="Ed25519",
+                public_key=encode_public_key(public_key),
+                status="active",
+            )
+        ],
+    )
+
+============================================================
+FILE: scripts\generate_provider_keys.py
+============================================================
+
+import sys
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+IMPLEMENTATION_DIRECTORY = PROJECT_ROOT / "implementation"
+
+sys.path.insert(0, str(IMPLEMENTATION_DIRECTORY))
+
+from app.crypto.provider_keys import (  # noqa: E402
+    generate_provider_key_pair,
+    save_private_key,
+    save_public_key,
+)
+
+
+PRIVATE_KEY_PATH = IMPLEMENTATION_DIRECTORY / "keys" / "provider_private.key"
+PUBLIC_KEY_PATH = IMPLEMENTATION_DIRECTORY / "keys" / "provider_public.key"
+
+
+def main() -> None:
+    if PRIVATE_KEY_PATH.exists() or PUBLIC_KEY_PATH.exists():
+        raise RuntimeError(
+            "Provider keys already exist. Delete them manually before "
+            "generating a replacement key pair."
+        )
+
+    private_key, public_key = generate_provider_key_pair()
+
+    save_private_key(private_key, PRIVATE_KEY_PATH)
+    save_public_key(public_key, PUBLIC_KEY_PATH)
+
+    print(f"Private key created: {PRIVATE_KEY_PATH}")
+    print(f"Public key created: {PUBLIC_KEY_PATH}")
+
+
+if __name__ == "__main__":
+    main()
+
+============================================================
+FILE: tests\test_provider_repository.py
+============================================================
+
+import sys
+from pathlib import Path
+
+import pytest
+
+
+IMPLEMENTATION_DIRECTORY = Path(__file__).resolve().parents[1] / "implementation"
+
+sys.path.insert(0, str(IMPLEMENTATION_DIRECTORY))
+
+from app.domain.provider import Provider  # noqa: E402
+from app.services.provider_repository import (  # noqa: E402
+    ProviderNotFoundError,
+    ProviderRepository,
+)
+
+
+def create_provider(
+    provider_id: str = "test-provider",
+) -> Provider:
+    return Provider(
+        provider_id=provider_id,
+        provider_name="Test Provider",
+        key_id="test-key",
+        private_key_path=Path("private.key"),
+        public_key_path=Path("public.key"),
+    )
+
+
+def test_provider_can_be_added_and_retrieved() -> None:
+    repository = ProviderRepository()
+
+    provider = create_provider()
+    repository.add(provider)
+
+    assert repository.get("test-provider") == provider
+
+
+def test_unknown_provider_raises_error() -> None:
+    repository = ProviderRepository()
+
+    with pytest.raises(ProviderNotFoundError):
+        repository.get("unknown-provider")
+
+
+def test_duplicate_provider_is_rejected() -> None:
+    provider = create_provider()
+    repository = ProviderRepository([provider])
+
+    with pytest.raises(ValueError):
+        repository.add(provider)
+
+
+def test_multiple_providers_can_be_listed() -> None:
+    repository = ProviderRepository(
+        [
+            create_provider("provider-one"),
+            create_provider("provider-two"),
+        ]
+    )
+
+    provider_ids = {provider.provider_id for provider in repository.list_all()}
+
+    assert provider_ids == {
+        "provider-one",
+        "provider-two",
+    }
+
+============================================================
+FILE: tests\test_provider_adapter_repository.py
+============================================================
+
+[FILE NOT FOUND]
+
+============================================================
+FILE: tests\test_protocol_api.py
+============================================================
+
+import base64
+import sys
+from datetime import datetime, timedelta, timezone
+from io import BytesIO
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+from PIL import Image
+
+IMPLEMENTATION_DIRECTORY = Path(__file__).resolve().parents[1] / "implementation"
+
+sys.path.insert(0, str(IMPLEMENTATION_DIRECTORY))
+
+from app.main import app  # noqa: E402
+
+
+client = TestClient(app)
+
+
+def issue_test_credential() -> dict:
+    artifact = base64.b64encode(
+        b"GAP generated artifact",
+    ).decode("utf-8")
+
+    response = client.post(
+        "/credentials/issue",
+        json={
+            "provider_id": "gap-demo-provider",
+            "model_id": "demo-model-v1",
+            "media_type": "text/plain",
+            "artifact_base64": artifact,
+            "account_reference": "user-001",
+            "prompt": "Generate a GAP test artifact.",
+            "retention_days": 365,
+        },
+    )
+
+    assert response.status_code == 201
+
+    return response.json()
+
+
+def create_valid_authorisation(
+    provider_id: str = "gap-demo-provider",
+) -> dict:
+    current_time = datetime.now(timezone.utc)
+
+    return {
+        "authorisation_id": "court-order-001",
+        "investigator_reference": "investigator-001",
+        "issuing_authority": "Crown Court",
+        "jurisdiction": "GB",
+        "purpose": "criminal-investigation",
+        "issued_at": (current_time - timedelta(minutes=5)).isoformat(),
+        "expires_at": (current_time + timedelta(hours=1)).isoformat(),
+        "provider_id": provider_id,
+    }
+
+
+def test_list_providers() -> None:
+    response = client.get("/providers")
+
+    assert response.status_code == 200
+    assert response.json()[0]["provider_id"] == "gap-demo-provider"
+
+
+def test_provider_identity_endpoint() -> None:
+    response = client.get("/providers/gap-demo-provider/.well-known/gap.json")
+
+    assert response.status_code == 200
+    assert response.json()["provider_id"] == "gap-demo-provider"
+
+
+def test_generate_artifact_and_issue_credential() -> None:
+    response = client.post(
+        "/generations/create",
+        json={
+            "provider_id": "gap-demo-provider",
+            "account_reference": "user-001",
+            "prompt": "A red geometric object on a neutral background.",
+            "retention_days": 365,
+        },
+    )
+
+    assert response.status_code == 201
+
+    body = response.json()
+
+    assert body["media_type"] == "image/png"
+    assert body["filename"].endswith(".png")
+    assert body["credential"]["proof"]["type"] == "Ed25519"
+    assert body["credential"]["payload"]["model"]["model_id"] == (
+        "gap-semantic-procedural-image-v2"
+    )
+
+    image_bytes = base64.b64decode(
+        body["artifact_base64"],
+        validate=True,
+    )
+
+    image = Image.open(BytesIO(image_bytes))
+
+    assert image.format == "PNG"
+
+
+def test_generated_artifact_credential_verifies() -> None:
+    generation_response = client.post(
+        "/generations/create",
+        json={
+            "provider_id": "gap-demo-provider",
+            "account_reference": "user-001",
+            "prompt": "A generated GAP verification artifact.",
+            "retention_days": 365,
+        },
+    )
+
+    credential = generation_response.json()["credential"]
+
+    verification_response = client.post(
+        "/credentials/verify",
+        json={
+            "credential": credential,
+        },
+    )
+
+    assert verification_response.status_code == 200
+    assert verification_response.json()["valid"] is True
+
+
+def test_unknown_generation_adapter_returns_404() -> None:
+    response = client.post(
+        "/generations/create",
+        json={
+            "provider_id": "unknown-provider",
+            "account_reference": "user-001",
+            "prompt": "Generate an artifact.",
+            "retention_days": 365,
+        },
+    )
+
+    assert response.status_code == 404
+
+
+def test_issue_generation_credential() -> None:
+    credential = issue_test_credential()
+
+    assert credential["payload"]["provider"]["provider_id"] == ("gap-demo-provider")
+    assert credential["proof"]["type"] == "Ed25519"
+
+
+def test_verify_generation_credential() -> None:
+    credential = issue_test_credential()
+
+    response = client.post(
+        "/credentials/verify",
+        json={"credential": credential},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["valid"] is True
+
+
+def test_tampered_credential_is_invalid() -> None:
+    credential = issue_test_credential()
+    credential["payload"]["model"]["model_id"] = "tampered-model"
+
+    response = client.post(
+        "/credentials/verify",
+        json={"credential": credential},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["valid"] is False
+
+
+def test_private_attribution_record_can_be_disclosed() -> None:
+    credential = issue_test_credential()
+    generation_id = credential["payload"]["generation"]["generation_id"]
+
+    response = client.post(
+        "/disclosures/resolve",
+        json={
+            "generation_id": generation_id,
+            "authorisation": create_valid_authorisation(),
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["generation_id"] == generation_id
+    assert body["account_reference"] == "user-001"
+    assert body["retention_status"] == "active"
+
+
+def test_wrong_provider_authorisation_is_denied() -> None:
+    credential = issue_test_credential()
+    generation_id = credential["payload"]["generation"]["generation_id"]
+
+    response = client.post(
+        "/disclosures/resolve",
+        json={
+            "generation_id": generation_id,
+            "authorisation": create_valid_authorisation(
+                provider_id="different-provider"
+            ),
+        },
+    )
+
+    assert response.status_code == 403
+
+
+def test_successful_disclosure_is_audited() -> None:
+    credential = issue_test_credential()
+    generation_id = credential["payload"]["generation"]["generation_id"]
+
+    response = client.post(
+        "/disclosures/resolve",
+        json={
+            "generation_id": generation_id,
+            "authorisation": create_valid_authorisation(),
+        },
+    )
+
+    assert response.status_code == 200
+
+    audit_response = client.get("/disclosures/audit")
+    latest_record = audit_response.json()[-1]
+
+    assert latest_record["generation_id"] == generation_id
+    assert latest_record["approved"] is True
+    assert latest_record["denial_reason"] is None

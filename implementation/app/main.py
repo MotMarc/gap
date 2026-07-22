@@ -9,6 +9,7 @@ from app.api.protocol import router as protocol_router
 
 APPLICATION_DIRECTORY = Path(__file__).resolve().parent
 WEB_DIRECTORY = APPLICATION_DIRECTORY / "web"
+APPLICATION_VERSION = "0.6.0"
 
 
 app = FastAPI(
@@ -17,7 +18,7 @@ app = FastAPI(
         "Reference implementation and browser demonstrator for the "
         "Generation Attribution Protocol."
     ),
-    version="0.5.0",
+    version=APPLICATION_VERSION,
 )
 
 
@@ -59,5 +60,5 @@ def read_health() -> dict[str, str]:
     return {
         "status": "healthy",
         "service": "gap-reference-implementation",
-        "version": "0.5.0",
+        "version": APPLICATION_VERSION,
     }
