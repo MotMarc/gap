@@ -61,7 +61,17 @@ def test_list_providers() -> None:
     response = client.get("/providers")
 
     assert response.status_code == 200
-    assert response.json()[0]["provider_id"] == "gap-demo-provider"
+
+    providers = {
+        provider["provider_id"]: provider["provider_name"]
+        for provider in response.json()
+    }
+
+    assert providers == {
+        "gap-demo-provider": "GAP Demo Provider",
+        "aurora-ai": "Aurora AI",
+        "meridian-ai": "Meridian AI",
+    }
 
 
 def test_provider_identity_endpoint() -> None:
@@ -69,6 +79,150 @@ def test_provider_identity_endpoint() -> None:
 
     assert response.status_code == 200
     assert response.json()["provider_id"] == "gap-demo-provider"
+
+
+def test_every_provider_exposes_an_identity_document() -> None:
+    provider_ids = [
+        "gap-demo-provider",
+        "aurora-ai",
+        "meridian-ai",
+    ]
+
+    documents = {}
+
+    for provider_id in provider_ids:
+        response = client.get(
+            f"/providers/{provider_id}/.well-known/gap.json",
+        )
+
+        assert response.status_code == 200
+
+        document = response.json()
+        documents[provider_id] = document
+
+        assert document["provider_id"] == provider_id
+        assert document["keys"][0]["algorithm"] == "Ed25519"
+        assert document["keys"][0]["status"] == "active"
+
+    public_keys = {document["keys"][0]["public_key"] for document in documents.values()}
+
+    assert len(public_keys) == len(provider_ids)
+
+
+def test_aurora_generates_and_signs_artifact() -> None:
+    response = client.post(
+        "/generations/create",
+        json={
+            "provider_id": "aurora-ai",
+            "account_reference": "aurora-user-001",
+            "prompt": "A luminous abstract research landscape.",
+            "retention_days": 365,
+        },
+    )
+
+    assert response.status_code == 201
+
+    body = response.json()
+    credential = body["credential"]
+
+    assert body["media_type"] == "image/svg+xml"
+    assert body["filename"].endswith(".svg")
+    assert credential["payload"]["provider"]["provider_id"] == "aurora-ai"
+    assert credential["payload"]["model"]["model_id"] == "aurora-spectrum-v1"
+    assert credential["proof"]["key_id"] == "aurora-key-2026-01"
+
+    verification = client.post(
+        "/credentials/verify",
+        json={"credential": credential},
+    )
+
+    assert verification.status_code == 200
+    assert verification.json()["valid"] is True
+    assert verification.json()["provider_id"] == "aurora-ai"
+
+
+def test_meridian_generates_and_signs_artifact() -> None:
+    response = client.post(
+        "/generations/create",
+        json={
+            "provider_id": "meridian-ai",
+            "account_reference": "meridian-user-001",
+            "prompt": "A structured geometric research composition.",
+            "retention_days": 365,
+        },
+    )
+
+    assert response.status_code == 201
+
+    body = response.json()
+    credential = body["credential"]
+
+    assert body["media_type"] == "image/svg+xml"
+    assert body["filename"].endswith(".svg")
+    assert credential["payload"]["provider"]["provider_id"] == "meridian-ai"
+    assert credential["payload"]["model"]["model_id"] == ("meridian-geometry-v1")
+    assert credential["proof"]["key_id"] == "meridian-key-2026-01"
+
+    verification = client.post(
+        "/credentials/verify",
+        json={"credential": credential},
+    )
+
+    assert verification.status_code == 200
+    assert verification.json()["valid"] is True
+    assert verification.json()["provider_id"] == "meridian-ai"
+
+
+def test_provider_substitution_invalidates_credential() -> None:
+    generation_response = client.post(
+        "/generations/create",
+        json={
+            "provider_id": "aurora-ai",
+            "account_reference": "user-001",
+            "prompt": "A provider substitution test.",
+            "retention_days": 365,
+        },
+    )
+
+    assert generation_response.status_code == 201
+
+    credential = generation_response.json()["credential"]
+
+    credential["payload"]["provider"]["provider_id"] = "meridian-ai"
+    credential["payload"]["provider"]["provider_name"] = "Meridian AI"
+
+    verification_response = client.post(
+        "/credentials/verify",
+        json={"credential": credential},
+    )
+
+    assert verification_response.status_code == 200
+    assert verification_response.json()["valid"] is False
+
+
+def test_key_identifier_substitution_invalidates_credential() -> None:
+    generation_response = client.post(
+        "/generations/create",
+        json={
+            "provider_id": "aurora-ai",
+            "account_reference": "user-001",
+            "prompt": "A signing key substitution test.",
+            "retention_days": 365,
+        },
+    )
+
+    assert generation_response.status_code == 201
+
+    credential = generation_response.json()["credential"]
+    credential["proof"]["key_id"] = "meridian-key-2026-01"
+
+    verification_response = client.post(
+        "/credentials/verify",
+        json={"credential": credential},
+    )
+
+    assert verification_response.status_code == 200
+    assert verification_response.json()["valid"] is False
 
 
 def test_generate_artifact_and_issue_credential() -> None:

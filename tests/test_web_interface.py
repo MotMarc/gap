@@ -81,5 +81,5 @@ def test_health_endpoint() -> None:
     assert response.json() == {
         "status": "healthy",
         "service": "gap-reference-implementation",
-        "version": "0.6.0",
+        "version": "0.7.0",
     }

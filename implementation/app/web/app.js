@@ -9,6 +9,12 @@ const state = {
     credential: null,
     originalArtifactBytes: null,
     originalCredential: null,
+    providers: [],
+    providerDocuments: {},
+    providersReady: false,
+    selectedProviderDocument: null,
+    providerSubstitution: null,
+    lastVerification: null,
 };
 
 
@@ -17,6 +23,30 @@ const elements = {
     tabPages: document.querySelectorAll("[data-tab-page]"),
     generationForm: document.querySelector("#generation-form"),
     providerId: document.querySelector("#provider-id"),
+    providerIdentityCard: document.querySelector("#provider-identity-card"),
+    selectedProviderName: document.querySelector("#selected-provider-name"),
+    selectedProviderStatus: document.querySelector(
+        "#selected-provider-status"
+    ),
+    selectedProviderId: document.querySelector("#selected-provider-id"),
+    selectedProviderGapVersion: document.querySelector(
+        "#selected-provider-gap-version"
+    ),
+    selectedProviderKeyId: document.querySelector(
+        "#selected-provider-key-id"
+    ),
+    selectedProviderAlgorithm: document.querySelector(
+        "#selected-provider-algorithm"
+    ),
+    selectedProviderKeyStatus: document.querySelector(
+        "#selected-provider-key-status"
+    ),
+    selectedProviderFingerprint: document.querySelector(
+        "#selected-provider-fingerprint"
+    ),
+    selectedProviderIdentityLink: document.querySelector(
+        "#selected-provider-identity-link"
+    ),
     accountReference: document.querySelector("#account-reference"),
     prompt: document.querySelector("#prompt"),
     promptCount: document.querySelector("#prompt-count"),
@@ -62,6 +92,21 @@ const elements = {
     verificationResultDescription: document.querySelector(
         "#verification-result-description"
     ),
+    trustChainStatus: document.querySelector("#trust-chain-status"),
+    trustCredentialNode: document.querySelector("#trust-credential-node"),
+    trustIdentityNode: document.querySelector("#trust-identity-node"),
+    trustKeyNode: document.querySelector("#trust-key-node"),
+    trustSignatureNode: document.querySelector("#trust-signature-node"),
+    trustCredentialProvider: document.querySelector(
+        "#trust-credential-provider"
+    ),
+    trustIdentityDocument: document.querySelector(
+        "#trust-identity-document"
+    ),
+    trustKeyId: document.querySelector("#trust-key-id"),
+    trustSignatureResult: document.querySelector(
+        "#trust-signature-result"
+    ),
     signatureCheckIcon: document.querySelector("#signature-check-icon"),
     signatureCheckDetail: document.querySelector(
         "#signature-check-detail"
@@ -82,6 +127,9 @@ const elements = {
     ),
     tamperCredentialButton: document.querySelector(
         "#tamper-credential-button"
+    ),
+    tamperProviderButton: document.querySelector(
+        "#tamper-provider-button"
     ),
     restoreVerificationButton: document.querySelector(
         "#restore-verification-button"
@@ -113,6 +161,12 @@ const elements = {
     explorerAlgorithm: document.querySelector("#explorer-algorithm"),
     explorerKeyId: document.querySelector("#explorer-key-id"),
     credentialJson: document.querySelector("#credential-json"),
+    providerEcosystemGrid: document.querySelector(
+        "#provider-ecosystem-grid"
+    ),
+    providerEcosystemStatus: document.querySelector(
+        "#provider-ecosystem-status"
+    ),
     copyCredentialButton: document.querySelector(
         "#copy-credential-button"
     ),
@@ -176,10 +230,18 @@ function activateTab(tabName) {
 
 
 function setLoading(isLoading) {
-    elements.generateButton.disabled = isLoading;
+    elements.generateButton.disabled = (
+        isLoading ||
+        !state.providersReady
+    );
     elements.generateButton.classList.toggle("is-loading", isLoading);
 
     const label = elements.generateButton.querySelector(".button-label");
+
+    if (!state.providersReady) {
+        label.textContent = "Discovering providers";
+        return;
+    }
 
     label.textContent = isLoading
         ? "Generating artifact"
@@ -253,6 +315,416 @@ async function calculateSha256(bytes) {
     );
 
     return bytesToHex(new Uint8Array(digest));
+}
+
+
+
+function providerNameFor(providerId) {
+    const provider = state.providers.find(
+        (candidate) => candidate.provider_id === providerId
+    );
+
+    return provider?.provider_name || providerId || "Unknown provider";
+}
+
+
+function providerIdentityUrl(providerId) {
+    return (
+        `/providers/${encodeURIComponent(providerId)}` +
+        "/.well-known/gap.json"
+    );
+}
+
+
+function readActiveProviderKey(providerDocument) {
+    if (!Array.isArray(providerDocument?.keys)) {
+        return null;
+    }
+
+    return (
+        providerDocument.keys.find((key) => key.status === "active") ||
+        providerDocument.keys[0] ||
+        null
+    );
+}
+
+
+async function readProviderDocument(providerId) {
+    if (!providerId) {
+        throw new Error("No provider was selected.");
+    }
+
+    if (state.providerDocuments[providerId]) {
+        return state.providerDocuments[providerId];
+    }
+
+    const response = await fetch(providerIdentityUrl(providerId));
+
+    if (!response.ok) {
+        throw new Error(
+            `Identity document resolution failed for ${providerId}.`
+        );
+    }
+
+    const providerDocument = await response.json();
+
+    if (providerDocument.provider_id !== providerId) {
+        throw new Error(
+            "The resolved identity document declared a different provider ID."
+        );
+    }
+
+    state.providerDocuments[providerId] = providerDocument;
+
+    return providerDocument;
+}
+
+
+async function fingerprintPublicKey(encodedPublicKey) {
+    if (!encodedPublicKey) {
+        return null;
+    }
+
+    try {
+        const normalizedKey = encodedPublicKey.replace(/\s+/g, "");
+        return await calculateSha256(base64ToBytes(normalizedKey));
+    } catch {
+        return null;
+    }
+}
+
+
+function abbreviateFingerprint(fingerprint) {
+    if (!fingerprint) {
+        return "Unavailable";
+    }
+
+    return (
+        `${fingerprint.slice(0, 16)}…` +
+        fingerprint.slice(-16)
+    );
+}
+
+
+async function renderSelectedProvider(providerId) {
+    if (!providerId) {
+        elements.providerIdentityCard.classList.add("hidden");
+        return;
+    }
+
+    elements.providerIdentityCard.classList.remove("hidden");
+    elements.selectedProviderName.textContent = providerNameFor(providerId);
+    elements.selectedProviderId.textContent = providerId;
+    elements.selectedProviderGapVersion.textContent = "Resolving…";
+    elements.selectedProviderKeyId.textContent = "Resolving…";
+    elements.selectedProviderAlgorithm.textContent = "Resolving…";
+    elements.selectedProviderKeyStatus.textContent = "Resolving…";
+    elements.selectedProviderFingerprint.textContent = "Resolving…";
+
+    setBadge(
+        elements.selectedProviderStatus,
+        "Resolving identity",
+        "neutral"
+    );
+
+    elements.selectedProviderIdentityLink.href = (
+        providerIdentityUrl(providerId)
+    );
+
+    try {
+        const providerDocument = await readProviderDocument(providerId);
+        const verificationKey = readActiveProviderKey(providerDocument);
+        const fingerprint = await fingerprintPublicKey(
+            verificationKey?.public_key
+        );
+
+        state.selectedProviderDocument = providerDocument;
+
+        elements.selectedProviderName.textContent = (
+            providerDocument.provider_name
+        );
+        elements.selectedProviderId.textContent = (
+            providerDocument.provider_id
+        );
+        elements.selectedProviderGapVersion.textContent = (
+            providerDocument.gap_version
+        );
+        elements.selectedProviderKeyId.textContent = (
+            verificationKey?.key_id || "No key published"
+        );
+        elements.selectedProviderAlgorithm.textContent = (
+            verificationKey?.algorithm || "Not declared"
+        );
+        elements.selectedProviderKeyStatus.textContent = (
+            verificationKey?.status || "Not declared"
+        );
+        elements.selectedProviderFingerprint.textContent = (
+            abbreviateFingerprint(fingerprint)
+        );
+        elements.selectedProviderFingerprint.title = fingerprint || "";
+
+        setBadge(
+            elements.selectedProviderStatus,
+            "Identity resolved",
+            "success"
+        );
+    } catch (error) {
+        state.selectedProviderDocument = null;
+
+        elements.selectedProviderGapVersion.textContent = "Unavailable";
+        elements.selectedProviderKeyId.textContent = "Unavailable";
+        elements.selectedProviderAlgorithm.textContent = "Unavailable";
+        elements.selectedProviderKeyStatus.textContent = "Unavailable";
+        elements.selectedProviderFingerprint.textContent = "Unavailable";
+
+        setBadge(
+            elements.selectedProviderStatus,
+            "Resolution failed",
+            "error"
+        );
+
+        setMessage(
+            elements.generationError,
+            error.message || "Provider identity could not be resolved.",
+            "warning"
+        );
+    }
+}
+
+
+function appendProviderMetric(container, label, value) {
+    const metric = document.createElement("div");
+    const metricLabel = document.createElement("span");
+    const metricValue = document.createElement("code");
+
+    metricLabel.textContent = label;
+    metricValue.textContent = value;
+
+    metric.append(metricLabel, metricValue);
+    container.append(metric);
+}
+
+
+async function createProviderEcosystemCard(provider) {
+    const card = document.createElement("article");
+    const heading = document.createElement("div");
+    const marker = document.createElement("span");
+    const headingCopy = document.createElement("div");
+    const name = document.createElement("h3");
+    const identifier = document.createElement("code");
+    const metrics = document.createElement("div");
+    const actionRow = document.createElement("div");
+    const identityLink = document.createElement("a");
+    const selectButton = document.createElement("button");
+
+    card.className = "provider-ecosystem-card";
+    heading.className = "provider-ecosystem-card-heading";
+    marker.className = "provider-domain-marker";
+    metrics.className = "provider-ecosystem-metrics";
+    actionRow.className = "provider-ecosystem-actions";
+    identityLink.className = "provider-identity-link";
+    selectButton.className = "secondary-button compact-button";
+
+    marker.textContent = provider.provider_name
+        .split(/\s+/)
+        .map((word) => word[0])
+        .join("")
+        .slice(0, 3)
+        .toUpperCase();
+    name.textContent = provider.provider_name;
+    identifier.textContent = provider.provider_id;
+
+    headingCopy.append(name, identifier);
+    heading.append(marker, headingCopy);
+
+    identityLink.href = providerIdentityUrl(provider.provider_id);
+    identityLink.target = "_blank";
+    identityLink.rel = "noreferrer";
+    identityLink.textContent = "Identity document";
+
+    selectButton.type = "button";
+    selectButton.textContent = "Use this provider";
+    selectButton.addEventListener(
+        "click",
+        async () => {
+            elements.providerId.value = provider.provider_id;
+            await renderSelectedProvider(provider.provider_id);
+            activateTab("generate");
+            elements.providerId.focus();
+        }
+    );
+
+    actionRow.append(identityLink, selectButton);
+
+    try {
+        const providerDocument = await readProviderDocument(
+            provider.provider_id
+        );
+        const verificationKey = readActiveProviderKey(providerDocument);
+        const fingerprint = await fingerprintPublicKey(
+            verificationKey?.public_key
+        );
+
+        appendProviderMetric(
+            metrics,
+            "GAP version",
+            providerDocument.gap_version
+        );
+        appendProviderMetric(
+            metrics,
+            "Key ID",
+            verificationKey?.key_id || "Not published"
+        );
+        appendProviderMetric(
+            metrics,
+            "Algorithm",
+            verificationKey?.algorithm || "Not declared"
+        );
+        appendProviderMetric(
+            metrics,
+            "Fingerprint",
+            abbreviateFingerprint(fingerprint)
+        );
+
+        card.classList.add("provider-ecosystem-card-resolved");
+    } catch {
+        appendProviderMetric(
+            metrics,
+            "Identity document",
+            "Resolution failed"
+        );
+
+        card.classList.add("provider-ecosystem-card-error");
+    }
+
+    card.append(heading, metrics, actionRow);
+
+    return card;
+}
+
+
+async function renderProviderEcosystem() {
+    elements.providerEcosystemGrid.replaceChildren();
+
+    if (state.providers.length === 0) {
+        setBadge(
+            elements.providerEcosystemStatus,
+            "No providers",
+            "error"
+        );
+        return;
+    }
+
+    setBadge(
+        elements.providerEcosystemStatus,
+        "Resolving identities",
+        "neutral"
+    );
+
+    const cards = await Promise.all(
+        state.providers.map(createProviderEcosystemCard)
+    );
+
+    elements.providerEcosystemGrid.append(...cards);
+
+    setBadge(
+        elements.providerEcosystemStatus,
+        `${cards.length} providers discovered`,
+        "success"
+    );
+}
+
+
+async function loadProviders() {
+    state.providersReady = false;
+    elements.providerId.disabled = true;
+    setLoading(false);
+
+    setBadge(
+        elements.providerEcosystemStatus,
+        "Discovering providers",
+        "neutral"
+    );
+
+    try {
+        const response = await fetch("/providers");
+
+        if (!response.ok) {
+            throw new Error(await readError(response));
+        }
+
+        const providers = await response.json();
+
+        if (!Array.isArray(providers) || providers.length === 0) {
+            throw new Error(
+                "The GAP provider registry did not return any providers."
+            );
+        }
+
+        state.providers = providers.filter(
+            (provider) => (
+                typeof provider.provider_id === "string" &&
+                typeof provider.provider_name === "string"
+            )
+        );
+
+        if (state.providers.length === 0) {
+            throw new Error(
+                "The GAP provider registry returned no usable providers."
+            );
+        }
+
+        const options = state.providers.map((provider) => {
+            const option = document.createElement("option");
+
+            option.value = provider.provider_id;
+            option.textContent = (
+                `${provider.provider_name} · ${provider.provider_id}`
+            );
+
+            return option;
+        });
+
+        elements.providerId.replaceChildren(...options);
+        elements.providerId.disabled = false;
+
+        state.providersReady = true;
+        setLoading(false);
+
+        const selectedProviderId = elements.providerId.value;
+
+        await Promise.all([
+            renderSelectedProvider(selectedProviderId),
+            renderProviderEcosystem(),
+        ]);
+    } catch (error) {
+        state.providers = [];
+        state.providersReady = false;
+
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = "Provider discovery failed";
+
+        elements.providerId.replaceChildren(option);
+        elements.providerId.disabled = true;
+
+        setLoading(false);
+
+        setBadge(
+            elements.providerEcosystemStatus,
+            "Registry unavailable",
+            "error"
+        );
+
+        setMessage(
+            elements.generationError,
+            (
+                error.message ||
+                "Participating providers could not be discovered."
+            ),
+            "error"
+        );
+    }
 }
 
 
@@ -341,6 +813,62 @@ function setTimelineState(element, status, detail) {
 }
 
 
+function setTrustNode(element, detailElement, status, detail) {
+    element.classList.remove(
+        "trust-success",
+        "trust-error",
+        "trust-active"
+    );
+
+    if (status) {
+        element.classList.add(`trust-${status}`);
+    }
+
+    detailElement.textContent = detail;
+}
+
+
+function resetTrustChain() {
+    const providerId = (
+        state.credential?.payload?.provider?.provider_id ||
+        null
+    );
+
+    setBadge(
+        elements.trustChainStatus,
+        "Awaiting verification",
+        "neutral"
+    );
+
+    setTrustNode(
+        elements.trustCredentialNode,
+        elements.trustCredentialProvider,
+        null,
+        providerId
+            ? `${providerNameFor(providerId)} · ${providerId}`
+            : "Awaiting credential"
+    );
+    setTrustNode(
+        elements.trustIdentityNode,
+        elements.trustIdentityDocument,
+        null,
+        "Not resolved"
+    );
+    setTrustNode(
+        elements.trustKeyNode,
+        elements.trustKeyId,
+        null,
+        "Not resolved"
+    );
+    setTrustNode(
+        elements.trustSignatureNode,
+        elements.trustSignatureResult,
+        null,
+        "Not checked"
+    );
+}
+
+
 function resetVerificationDisplay() {
     setBadge(
         elements.completeVerificationStatus,
@@ -379,6 +907,8 @@ function resetVerificationDisplay() {
         item.className = "";
         item.querySelector("small").textContent = "Awaiting input";
     });
+
+    resetTrustChain();
 }
 
 
@@ -445,6 +975,8 @@ function renderGenerationResult(result) {
     state.credential = result.credential;
     state.originalArtifactBytes = new Uint8Array(artifactBytes);
     state.originalCredential = cloneValue(result.credential);
+    state.providerSubstitution = null;
+    state.lastVerification = null;
 
     const payload = result.credential.payload;
 
@@ -456,7 +988,10 @@ function renderGenerationResult(result) {
     );
     elements.artifactFilename.textContent = result.filename;
     elements.artifactMediaType.textContent = result.media_type;
-    elements.artifactProvider.textContent = payload.provider.provider_id;
+    elements.artifactProvider.textContent = (
+        payload.provider.provider_name ||
+        providerNameFor(payload.provider.provider_id)
+    );
     elements.artifactModel.textContent = payload.model.model_id;
 
     setBadge(
@@ -650,13 +1185,116 @@ async function runCompleteVerification() {
                 : "No supported artifact digest was found."
         );
 
+        const credentialProviderId = (
+            state.credential.payload?.provider?.provider_id ||
+            null
+        );
+        const credentialKeyId = (
+            state.credential.proof?.key_id ||
+            null
+        );
+        const credentialAlgorithm = (
+            state.credential.proof?.type ||
+            "Not declared"
+        );
+
+        setTrustNode(
+            elements.trustCredentialNode,
+            elements.trustCredentialProvider,
+            credentialProviderId ? "success" : "error",
+            credentialProviderId
+                ? (
+                    `${providerNameFor(credentialProviderId)} · ` +
+                    credentialProviderId
+                )
+                : "No provider ID was declared"
+        );
+
+        setTrustNode(
+            elements.trustIdentityNode,
+            elements.trustIdentityDocument,
+            "active",
+            "Resolving public identity document"
+        );
+
+        let providerDocument = null;
+        let verificationKey = null;
+        let identityResolved = false;
+        let keyResolved = false;
+
+        try {
+            providerDocument = await readProviderDocument(
+                credentialProviderId
+            );
+            identityResolved = (
+                providerDocument.provider_id === credentialProviderId
+            );
+
+            setTrustNode(
+                elements.trustIdentityNode,
+                elements.trustIdentityDocument,
+                identityResolved ? "success" : "error",
+                identityResolved
+                    ? (
+                        `${providerDocument.provider_name} · ` +
+                        providerIdentityUrl(credentialProviderId)
+                    )
+                    : "Identity document provider mismatch"
+            );
+
+            verificationKey = providerDocument.keys?.find(
+                (key) => key.key_id === credentialKeyId
+            ) || null;
+
+            keyResolved = Boolean(
+                verificationKey &&
+                verificationKey.status === "active"
+            );
+
+            setTrustNode(
+                elements.trustKeyNode,
+                elements.trustKeyId,
+                keyResolved ? "success" : "error",
+                keyResolved
+                    ? (
+                        `${verificationKey.key_id} · ` +
+                        `${verificationKey.algorithm} · active`
+                    )
+                    : (
+                        credentialKeyId
+                            ? `Key ${credentialKeyId} is not active here`
+                            : "No signing key ID was declared"
+                    )
+            );
+        } catch (error) {
+            setTrustNode(
+                elements.trustIdentityNode,
+                elements.trustIdentityDocument,
+                "error",
+                error.message || "Identity document resolution failed"
+            );
+            setTrustNode(
+                elements.trustKeyNode,
+                elements.trustKeyId,
+                "error",
+                "Verification key could not be resolved"
+            );
+        }
+
         setTimelineState(
             elements.timelineSignature,
             "active",
             "Verifying signed credential payload"
         );
 
-        let verification;
+        setTrustNode(
+            elements.trustSignatureNode,
+            elements.trustSignatureResult,
+            "active",
+            `Checking ${credentialAlgorithm} signature`
+        );
+
+        let verification = null;
         let signatureValid = false;
         let providerValid = false;
 
@@ -665,14 +1303,26 @@ async function runCompleteVerification() {
                 state.credential
             );
 
+            state.lastVerification = verification;
+
             signatureValid = verification.valid === true;
-            providerValid = Boolean(verification.provider_id);
+            providerValid = Boolean(
+                verification.provider_id &&
+                identityResolved &&
+                keyResolved
+            );
+
+            const resolvedAlgorithm = (
+                verification.algorithm ||
+                verificationKey?.algorithm ||
+                credentialAlgorithm
+            );
 
             setTimelineState(
                 elements.timelineSignature,
                 signatureValid ? "success" : "error",
                 signatureValid
-                    ? `${verification.algorithm} signature valid`
+                    ? `${resolvedAlgorithm} signature valid`
                     : "Credential signature invalid"
             );
 
@@ -681,9 +1331,20 @@ async function runCompleteVerification() {
                 providerValid ? "success" : "error",
                 providerValid
                     ? `Resolved ${verification.provider_id}`
-                    : "Provider identity could not be resolved"
+                    : "Provider identity or signing key was rejected"
+            );
+
+            setTrustNode(
+                elements.trustSignatureNode,
+                elements.trustSignatureResult,
+                signatureValid ? "success" : "error",
+                signatureValid
+                    ? `${resolvedAlgorithm} signature accepted`
+                    : `${resolvedAlgorithm} signature rejected`
             );
         } catch (error) {
+            state.lastVerification = null;
+
             setTimelineState(
                 elements.timelineSignature,
                 "error",
@@ -694,6 +1355,13 @@ async function runCompleteVerification() {
                 elements.timelineProvider,
                 "error",
                 error.message
+            );
+
+            setTrustNode(
+                elements.trustSignatureNode,
+                elements.trustSignatureResult,
+                "error",
+                error.message || "Verification request failed"
             );
         }
 
@@ -709,14 +1377,24 @@ async function runCompleteVerification() {
             elements.providerCheckIcon,
             elements.providerCheckDetail,
             providerValid,
-            "Provider identity and signing key were resolved.",
-            "Provider identity could not be trusted."
+            "Provider identity and active signing key were resolved.",
+            "Provider identity or signing key could not be trusted."
         );
 
         const completeResult = (
             artifactMatches &&
             signatureValid &&
             providerValid
+        );
+
+        setBadge(
+            elements.trustChainStatus,
+            signatureValid && providerValid
+                ? "Trust established"
+                : "Trust rejected",
+            signatureValid && providerValid
+                ? "success"
+                : "error"
         );
 
         setBadge(
@@ -743,21 +1421,32 @@ async function runCompleteVerification() {
                 : "Verification failed"
         );
 
-        elements.verificationResultDescription.textContent = (
-            completeResult
-                ? (
-                    "The artifact digest, credential signature and provider " +
-                    "identity are all valid."
-                )
-                : (
-                    "One or more GAP verification controls detected an " +
-                    "invalid or modified input."
-                )
-        );
+        if (!completeResult && state.providerSubstitution) {
+            const substitution = state.providerSubstitution;
 
-        if (state.credential === state.originalCredential) {
-            renderExplorer();
+            elements.verificationResultDescription.textContent = (
+                `Provider substitution detected. The credential was issued ` +
+                `by ${substitution.expectedName} ` +
+                `(${substitution.expectedId}) but now presents ` +
+                `${substitution.presentedName} ` +
+                `(${substitution.presentedId}). The presented provider's ` +
+                `verification key cannot validate the original signature.`
+            );
+        } else {
+            elements.verificationResultDescription.textContent = (
+                completeResult
+                    ? (
+                        "The artifact digest, credential signature and provider " +
+                        "identity are all valid."
+                    )
+                    : (
+                        "One or more GAP verification controls detected an " +
+                        "invalid or modified input."
+                    )
+            );
         }
+
+        renderExplorer();
 
         setBadge(
             elements.explorerSignatureStatus,
@@ -765,6 +1454,12 @@ async function runCompleteVerification() {
             signatureValid ? "success" : "error"
         );
     } catch (error) {
+        setBadge(
+            elements.trustChainStatus,
+            "Verification failed",
+            "error"
+        );
+
         setMessage(
             elements.verificationError,
             error.message || "Verification could not be completed.",
@@ -779,6 +1474,7 @@ async function runCompleteVerification() {
 }
 
 
+
 async function readArtifactUpload(event) {
     const file = event.target.files[0];
 
@@ -790,6 +1486,8 @@ async function readArtifactUpload(event) {
     state.artifactFilename = file.name;
     state.artifactMediaType = file.type || "application/octet-stream";
     state.originalArtifactBytes = new Uint8Array(state.artifactBytes);
+    state.providerSubstitution = null;
+    state.lastVerification = null;
 
     elements.artifactUploadName.textContent = file.name;
 
@@ -809,6 +1507,8 @@ async function readCredentialUpload(event) {
 
         state.credential = credential;
         state.originalCredential = cloneValue(credential);
+        state.providerSubstitution = null;
+        state.lastVerification = null;
 
         elements.credentialUploadName.textContent = file.name;
 
@@ -841,6 +1541,8 @@ function useLatestGeneratedArtifact() {
         state.originalArtifactBytes
     );
     state.credential = cloneValue(state.originalCredential);
+    state.providerSubstitution = null;
+    state.lastVerification = null;
 
     elements.artifactUploadName.textContent = (
         state.artifactFilename || "Generated artifact"
@@ -875,6 +1577,8 @@ function tamperArtifact() {
 
     modifiedBytes[index] ^= 1;
     state.artifactBytes = modifiedBytes;
+    state.providerSubstitution = null;
+    state.lastVerification = null;
 
     setMessage(
         elements.tamperMessage,
@@ -910,6 +1614,8 @@ function tamperCredential() {
     state.credential.payload.model.model_id = (
         `${currentModelId}-tampered`
     );
+    state.providerSubstitution = null;
+    state.lastVerification = null;
 
     renderExplorer();
 
@@ -918,6 +1624,82 @@ function tamperCredential() {
         (
             "The signed model ID has been changed. Run verification again: " +
             "the credential signature should fail."
+        ),
+        "warning"
+    );
+
+    resetVerificationDisplay();
+}
+
+
+function tamperProviderIdentity() {
+    if (!state.credential) {
+        setMessage(
+            elements.tamperMessage,
+            "Load a credential before substituting its provider identity.",
+            "warning"
+        );
+        return;
+    }
+
+    const currentProvider = (
+        state.credential.payload?.provider ||
+        null
+    );
+
+    if (!currentProvider?.provider_id) {
+        setMessage(
+            elements.tamperMessage,
+            "The credential does not declare a provider identity.",
+            "warning"
+        );
+        return;
+    }
+
+    const replacement = state.providers.find(
+        (provider) => provider.provider_id !== currentProvider.provider_id
+    );
+
+    if (!replacement) {
+        setMessage(
+            elements.tamperMessage,
+            "At least two participating providers are required for this demo.",
+            "warning"
+        );
+        return;
+    }
+
+    const originalProvider = (
+        state.originalCredential?.payload?.provider ||
+        currentProvider
+    );
+
+    state.credential = cloneValue(state.credential);
+    state.credential.payload.provider.provider_id = replacement.provider_id;
+    state.credential.payload.provider.provider_name = replacement.provider_name;
+
+    state.providerSubstitution = {
+        expectedId: originalProvider.provider_id,
+        expectedName: (
+            originalProvider.provider_name ||
+            providerNameFor(originalProvider.provider_id)
+        ),
+        presentedId: replacement.provider_id,
+        presentedName: replacement.provider_name,
+    };
+    state.lastVerification = null;
+
+    renderExplorer();
+
+    setMessage(
+        elements.tamperMessage,
+        (
+            `The credential now presents ${replacement.provider_name} ` +
+            `(${replacement.provider_id}) instead of ` +
+            `${state.providerSubstitution.expectedName} ` +
+            `(${state.providerSubstitution.expectedId}). The signed payload ` +
+            `was not re-signed. Run verification to demonstrate provider ` +
+            `isolation.`
         ),
         "warning"
     );
@@ -936,6 +1718,9 @@ function restoreVerificationInputs() {
     if (state.originalCredential) {
         state.credential = cloneValue(state.originalCredential);
     }
+
+    state.providerSubstitution = null;
+    state.lastVerification = null;
 
     hideMessage(elements.tamperMessage);
     renderExplorer();
@@ -1076,6 +1861,15 @@ elements.tabButtons.forEach((button) => {
     );
 });
 
+elements.providerId.addEventListener(
+    "change",
+    async () => {
+        hideMessage(elements.generationError);
+        await renderSelectedProvider(elements.providerId.value);
+    }
+);
+
+
 elements.generationForm.addEventListener(
     "submit",
     generateArtifact
@@ -1131,6 +1925,11 @@ elements.tamperCredentialButton.addEventListener(
     tamperCredential
 );
 
+elements.tamperProviderButton.addEventListener(
+    "click",
+    tamperProviderIdentity
+);
+
 elements.restoreVerificationButton.addEventListener(
     "click",
     restoreVerificationInputs
@@ -1150,4 +1949,6 @@ elements.explorerVerifyButton.addEventListener(
 updatePromptCount();
 resetVerificationDisplay();
 renderExplorer();
+setLoading(false);
 checkServiceHealth();
+loadProviders();

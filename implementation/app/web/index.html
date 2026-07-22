@@ -34,7 +34,7 @@
 
                 <span class="brand-copy">
                     <strong>Generation Attribution Protocol</strong>
-                    <small>Reference Demonstrator v0.6.0</small>
+                    <small>Reference Demonstrator v0.7.0</small>
                 </span>
             </button>
 
@@ -149,18 +149,89 @@
 
                     <form id="generation-form">
                         <div class="field">
-                            <label for="provider-id">Provider</label>
+                            <label for="provider-id">
+                                Participating provider
+                            </label>
 
                             <select
                                 id="provider-id"
                                 name="provider_id"
                                 required
+                                disabled
                             >
-                                <option value="gap-demo-provider">
-                                    GAP Demo Provider
+                                <option value="" selected>
+                                    Discovering providers…
                                 </option>
                             </select>
+
+                            <small>
+                                Loaded dynamically from the GAP provider registry.
+                            </small>
                         </div>
+
+                        <section
+                            id="provider-identity-card"
+                            class="provider-identity-card hidden"
+                            aria-live="polite"
+                        >
+                            <div class="provider-identity-heading">
+                                <div>
+                                    <span class="provider-card-label">
+                                        Resolved identity
+                                    </span>
+                                    <h3 id="selected-provider-name">—</h3>
+                                </div>
+
+                                <span
+                                    id="selected-provider-status"
+                                    class="status-badge status-neutral"
+                                >
+                                    Resolving
+                                </span>
+                            </div>
+
+                            <div class="provider-identity-grid">
+                                <div>
+                                    <span>Provider ID</span>
+                                    <code id="selected-provider-id">—</code>
+                                </div>
+
+                                <div>
+                                    <span>GAP version</span>
+                                    <code id="selected-provider-gap-version">—</code>
+                                </div>
+
+                                <div>
+                                    <span>Signing key</span>
+                                    <code id="selected-provider-key-id">—</code>
+                                </div>
+
+                                <div>
+                                    <span>Algorithm</span>
+                                    <code id="selected-provider-algorithm">—</code>
+                                </div>
+
+                                <div>
+                                    <span>Key status</span>
+                                    <code id="selected-provider-key-status">—</code>
+                                </div>
+
+                                <div>
+                                    <span>Public-key fingerprint</span>
+                                    <code id="selected-provider-fingerprint">—</code>
+                                </div>
+                            </div>
+
+                            <a
+                                id="selected-provider-identity-link"
+                                class="provider-identity-link"
+                                href="#"
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                Open public identity document
+                            </a>
+                        </section>
 
                         <div class="field">
                             <label for="account-reference">
@@ -227,6 +298,7 @@
                             id="generate-button"
                             class="primary-button"
                             type="submit"
+                            disabled
                         >
                             <span class="button-label">
                                 Generate and issue credential
@@ -355,13 +427,13 @@
                             <span class="upload-icon">◇</span>
                             <strong>Artifact file</strong>
                             <small id="artifact-upload-name">
-                                Select a generated PNG
+                                Select a generated artifact
                             </small>
 
                             <input
                                 id="artifact-file-input"
                                 type="file"
-                                accept="image/png,image/jpeg,image/webp"
+                                accept="image/png,image/jpeg,image/webp,image/svg+xml"
                             >
                         </label>
 
@@ -436,6 +508,71 @@
                             </p>
                         </div>
                     </div>
+
+                    <section
+                        class="provider-trust-chain"
+                        aria-labelledby="provider-trust-chain-title"
+                    >
+                        <div class="provider-trust-chain-heading">
+                            <div>
+                                <span class="provider-card-label">
+                                    Multi-provider verification
+                                </span>
+                                <h3 id="provider-trust-chain-title">
+                                    Provider trust chain
+                                </h3>
+                            </div>
+
+                            <span
+                                id="trust-chain-status"
+                                class="status-badge status-neutral"
+                            >
+                                Awaiting verification
+                            </span>
+                        </div>
+
+                        <ol>
+                            <li id="trust-credential-node">
+                                <span>1</span>
+                                <div>
+                                    <strong>Credential issuer</strong>
+                                    <small id="trust-credential-provider">
+                                        Awaiting credential
+                                    </small>
+                                </div>
+                            </li>
+
+                            <li id="trust-identity-node">
+                                <span>2</span>
+                                <div>
+                                    <strong>Identity document</strong>
+                                    <small id="trust-identity-document">
+                                        Not resolved
+                                    </small>
+                                </div>
+                            </li>
+
+                            <li id="trust-key-node">
+                                <span>3</span>
+                                <div>
+                                    <strong>Provider verification key</strong>
+                                    <small id="trust-key-id">
+                                        Not resolved
+                                    </small>
+                                </div>
+                            </li>
+
+                            <li id="trust-signature-node">
+                                <span>4</span>
+                                <div>
+                                    <strong>Ed25519 verification</strong>
+                                    <small id="trust-signature-result">
+                                        Not checked
+                                    </small>
+                                </div>
+                            </li>
+                        </ol>
+                    </section>
 
                     <div class="verification-checks">
                         <article class="verification-check">
@@ -557,6 +694,14 @@
                         type="button"
                     >
                         Modify credential model ID
+                    </button>
+
+                    <button
+                        id="tamper-provider-button"
+                        class="danger-button"
+                        type="button"
+                    >
+                        Substitute provider identity
                     </button>
 
                     <button
@@ -847,6 +992,35 @@
                         authorisation checks and audit logging.
                     </p>
                 </article>
+            </section>
+
+            <section class="provider-ecosystem-section">
+                <div class="provider-ecosystem-heading">
+                    <div>
+                        <span class="eyebrow">Participating trust domains</span>
+                        <h2>Multi-provider ecosystem</h2>
+                    </div>
+
+                    <span
+                        id="provider-ecosystem-status"
+                        class="status-badge status-neutral"
+                    >
+                        Discovering providers
+                    </span>
+                </div>
+
+                <p>
+                    Every participating provider publishes an independent identity
+                    document and verification key. A credential issued in one trust
+                    domain cannot be reassigned to another without invalidating its
+                    signature.
+                </p>
+
+                <div
+                    id="provider-ecosystem-grid"
+                    class="provider-ecosystem-grid"
+                    aria-live="polite"
+                ></div>
             </section>
 
             <section class="privacy-grid">
