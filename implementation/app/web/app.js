@@ -1,6 +1,17 @@
 "use strict";
 
 
+function requireElement(id) {
+    const element = document.getElementById(id);
+
+    if (!element) {
+        throw new Error(`Required DOM element is missing: ${id}`);
+    }
+
+    return element;
+}
+
+
 const state = {
     artifactBase64: null,
     artifactBytes: null,
@@ -12,6 +23,7 @@ const state = {
     providers: [],
     providerDocuments: {},
     providerTrustDocuments: {},
+    registryAuthorityDocuments: {},
     trustRegistry: [],
     providersReady: false,
     trustRegistryReady: false,
@@ -138,12 +150,22 @@ const elements = {
     ),
     registryCheckIcon: document.querySelector("#registry-check-icon"),
     registryCheckDetail: document.querySelector("#registry-check-detail"),
+    attestationCheckIcon: requireElement("attestation-check-icon"),
+    attestationCheckDetail: requireElement("attestation-check-detail"),
+    authorityCheckIcon: requireElement("authority-check-icon"),
+    authorityCheckDetail: requireElement("authority-check-detail"),
+    overallCheckIcon: requireElement("overall-check-icon"),
+    overallCheckDetail: requireElement("overall-check-detail"),
     timelineArtifact: document.querySelector("#timeline-artifact"),
     timelineHash: document.querySelector("#timeline-hash"),
     timelineCompare: document.querySelector("#timeline-compare"),
     timelineSignature: document.querySelector("#timeline-signature"),
     timelineProvider: document.querySelector("#timeline-provider"),
     timelineRegistry: document.querySelector("#timeline-registry"),
+    timelineAuthorityIdentity: requireElement("timeline-authority-identity"),
+    timelineAuthorityKey: requireElement("timeline-authority-key"),
+    timelineAttestation: requireElement("timeline-attestation"),
+    timelineOverall: requireElement("timeline-overall"),
     tamperArtifactButton: document.querySelector(
         "#tamper-artifact-button"
     ),
@@ -194,6 +216,8 @@ const elements = {
     ),
     trustRegistryGrid: document.querySelector("#trust-registry-grid"),
     trustRegistryStatus: document.querySelector("#trust-registry-status"),
+    registryAuthorityGrid: document.querySelector("#registry-authority-grid"),
+    trustAttestationGrid: document.querySelector("#trust-attestation-grid"),
     copyCredentialButton: document.querySelector(
         "#copy-credential-button"
     ),
@@ -380,6 +404,14 @@ function providerTrustUrl(providerId) {
 }
 
 
+function registryAuthorityIdentityUrl(authorityId) {
+    return (
+        `/registry-authorities/${encodeURIComponent(authorityId)}` +
+        "/.well-known/gap-registry.json"
+    );
+}
+
+
 function trustStatusLabel(status) {
     const labels = {
         "self-declared": "Self-declared",
@@ -517,6 +549,35 @@ async function readProviderDocument(providerId) {
     state.providerDocuments[providerId] = providerDocument;
 
     return providerDocument;
+}
+
+
+async function readRegistryAuthorityDocument(authorityId) {
+    if (!authorityId) {
+        throw new Error("Registry authority was not declared.");
+    }
+
+    if (state.registryAuthorityDocuments[authorityId]) {
+        return state.registryAuthorityDocuments[authorityId];
+    }
+
+    const response = await fetch(registryAuthorityIdentityUrl(authorityId));
+
+    if (!response.ok) {
+        if (response.status === 404) {
+            throw new Error(`Unknown registry authority: ${authorityId}`);
+        }
+        throw new Error("Registry authority identity could not be resolved.");
+    }
+
+    const document = await response.json();
+
+    if (document.authority_id !== authorityId) {
+        throw new Error("Registry authority identity mismatch.");
+    }
+
+    state.registryAuthorityDocuments[authorityId] = document;
+    return document;
 }
 
 
@@ -1225,6 +1286,212 @@ async function renderTrustRegistry() {
 }
 
 
+function createRegistryDetail(label, value) {
+    const detail = document.createElement("p");
+    const title = document.createElement("strong");
+    const text = document.createElement("span");
+
+    title.textContent = `${label}: `;
+    text.textContent = value ?? "Unavailable";
+    detail.append(title, text);
+
+    return detail;
+}
+
+
+function createRegistryAuthorityCard(authority, identityDocument) {
+    const card = document.createElement("article");
+    const name = document.createElement("h3");
+    const identifier = document.createElement("code");
+    const identityLink = document.createElement("a");
+    const trusted = authority.trusted_by_local_registry === true;
+    const keys = Array.isArray(identityDocument?.keys)
+        ? identityDocument.keys
+        : [];
+    const lifecycle = keys.length > 0
+        ? keys.map((key) => `${key.key_id}: ${key.status}`).join(", ")
+        : "Unavailable";
+
+    card.className = (
+        `${trusted ? "authority-trusted" : "authority-untrusted"} credential-card`
+    );
+    name.textContent = authority.authority_name;
+    identifier.textContent = authority.authority_id;
+    identityLink.href = (
+        `/registry-authorities/${encodeURIComponent(authority.authority_id)}` +
+        "/.well-known/gap-registry.json"
+    );
+    identityLink.textContent = "Registry authority identity";
+
+    card.append(
+        name,
+        identifier,
+        createRegistryDetail("Active authority key", authority.active_key_id),
+        createRegistryDetail(
+            "Published key count",
+            String(authority.published_key_count)
+        ),
+        createRegistryDetail(
+            "Trusted local authority",
+            trusted ? "Yes" : "No"
+        ),
+        createRegistryDetail("Authority key lifecycle", lifecycle),
+        identityLink
+    );
+
+    return card;
+}
+
+
+function createTrustAttestationCard(attestation, trustEntries, authorities) {
+    const card = document.createElement("article");
+    const heading = document.createElement("h3");
+    const payload = attestation.payload ?? {};
+    const proof = attestation.proof ?? {};
+    const trustEntry = trustEntries.find(
+        (entry) => entry.latest_decision_id === payload.decision_id
+    );
+    const authority = authorities.find(
+        (entry) => entry.authority_id === payload.registry_authority_id
+    );
+    const isCurrent = trustEntry?.trust_attestation_id === payload.attestation_id;
+    const attestationValid = (
+        isCurrent && trustEntry?.trust_attestation_valid === true
+    );
+    const authorityTrusted = authority?.trusted_by_local_registry === true;
+
+    card.className = (
+        `${attestationValid ? "attestation-valid" : "attestation-historical"} ` +
+        "credential-card"
+    );
+    heading.textContent = payload.attestation_id ?? "Unknown attestation";
+
+    card.append(
+        heading,
+        createRegistryDetail("Decision ID", payload.decision_id),
+        createRegistryDetail("Provider ID", payload.provider_id),
+        createRegistryDetail("Provider status", payload.status),
+        createRegistryDetail(
+            "Registry authority ID",
+            payload.registry_authority_id
+        ),
+        createRegistryDetail("Authority signing key", proof.key_id),
+        createRegistryDetail(
+            "Authority key status",
+            isCurrent ? trustEntry?.authority_key_status : "Historical"
+        ),
+        createRegistryDetail("Issued", payload.issued_at),
+        createRegistryDetail(
+            "Attestation validity",
+            isCurrent
+                ? (attestationValid ? "Valid" : "Invalid")
+                : "Historical — not the current provider decision"
+        ),
+        createRegistryDetail(
+            "Registry-authority trust",
+            authorityTrusted ? "Trusted locally" : "Not trusted locally"
+        )
+    );
+
+    return card;
+}
+
+
+async function readJsonCollection(url, panel, failureLabel) {
+    let response;
+    try {
+        response = await fetch(url);
+    } catch {
+        panel.textContent = `${failureLabel} network request failed.`;
+        return null;
+    }
+
+    if (!response.ok) {
+        panel.textContent = `${failureLabel} request failed (${response.status}).`;
+        return null;
+    }
+
+    let data;
+    try {
+        data = await response.json();
+    } catch {
+        panel.textContent = `${failureLabel} returned invalid JSON.`;
+        return null;
+    }
+
+    if (!Array.isArray(data)) {
+        panel.textContent = `${failureLabel} returned an invalid response.`;
+        return null;
+    }
+
+    return data;
+}
+
+
+async function renderRegistryAuthorities() {
+    const authorities = await readJsonCollection(
+        "/registry-authorities",
+        elements.registryAuthorityGrid,
+        "Registry authority"
+    );
+    if (authorities === null) return;
+
+    const identityDocuments = await Promise.all(
+        authorities.map(async (authority) => {
+            const url = (
+                `/registry-authorities/${encodeURIComponent(authority.authority_id)}` +
+                "/.well-known/gap-registry.json"
+            );
+            try {
+                const response = await fetch(url);
+                return response.ok ? await response.json() : null;
+            } catch {
+                return null;
+            }
+        })
+    );
+    const cards = authorities.map(
+        (authority, index) => createRegistryAuthorityCard(
+            authority,
+            identityDocuments[index]
+        )
+    );
+    elements.registryAuthorityGrid.replaceChildren(...cards);
+}
+
+
+async function renderTrustAttestations() {
+    const results = await Promise.all([
+        readJsonCollection(
+            "/trust-attestations",
+            elements.trustAttestationGrid,
+            "Trust attestation"
+        ),
+        readJsonCollection(
+            "/trust-registry",
+            elements.trustAttestationGrid,
+            "Trust registry"
+        ),
+        readJsonCollection(
+            "/registry-authorities",
+            elements.trustAttestationGrid,
+            "Registry authority"
+        )
+    ]);
+    if (results.some((result) => result === null)) return;
+
+    const [attestations, trustEntries, authorities] = results;
+    const cards = attestations.map(
+        (attestation) => createTrustAttestationCard(
+            attestation,
+            trustEntries,
+            authorities
+        )
+    );
+    elements.trustAttestationGrid.replaceChildren(...cards);
+}
+
+
 async function loadProviders() {
     state.providersReady = false;
     state.selectedProviderTrust = null;
@@ -1507,6 +1774,9 @@ function resetVerificationDisplay() {
         [elements.artifactCheckIcon, elements.artifactCheckDetail],
         [elements.providerCheckIcon, elements.providerCheckDetail],
         [elements.registryCheckIcon, elements.registryCheckDetail],
+        [elements.attestationCheckIcon, elements.attestationCheckDetail],
+        [elements.authorityCheckIcon, elements.authorityCheckDetail],
+        [elements.overallCheckIcon, elements.overallCheckDetail],
     ].forEach(([icon, detail]) => {
         icon.textContent = "○";
         icon.className = "check-icon";
@@ -1520,6 +1790,10 @@ function resetVerificationDisplay() {
         elements.timelineSignature,
         elements.timelineProvider,
         elements.timelineRegistry,
+        elements.timelineAuthorityIdentity,
+        elements.timelineAuthorityKey,
+        elements.timelineAttestation,
+        elements.timelineOverall,
     ].forEach((item) => {
         item.className = "";
         item.querySelector("small").textContent = "Awaiting input";
@@ -1922,6 +2196,26 @@ async function runCompleteVerification() {
             "active",
             "Resolving independent provider trust"
         );
+        setTimelineState(
+            elements.timelineAuthorityIdentity,
+            "active",
+            "Resolving registry-authority identity"
+        );
+        setTimelineState(
+            elements.timelineAuthorityKey,
+            "active",
+            "Resolving authority signing-key lifecycle"
+        );
+        setTimelineState(
+            elements.timelineAttestation,
+            "active",
+            "Verifying signed trust attestation"
+        );
+        setTimelineState(
+            elements.timelineOverall,
+            "active",
+            "Calculating overall GAP validity"
+        );
 
         setTrustNode(
             elements.trustRegistryNode,
@@ -1935,6 +2229,13 @@ async function runCompleteVerification() {
         let providerValid = false;
         let registryTrusted = false;
         let registryStatus = "self-declared";
+        let attestationPresent = false;
+        let attestationValid = false;
+        let authorityTrusted = false;
+        let authorityIdentityResolved = false;
+        let authorityKeyAllowed = false;
+        let authorityKeyStatus = null;
+        let backendOverallValid = false;
 
         try {
             verification = await verifyCredentialSignature(
@@ -1954,6 +2255,20 @@ async function runCompleteVerification() {
                 verification.provider_trust_status ||
                 "self-declared"
             );
+            attestationPresent = (
+                verification.trust_attestation_present === true
+            );
+            attestationValid = (
+                verification.trust_attestation_valid === true
+            );
+            authorityTrusted = (
+                verification.registry_authority_trusted === true
+            );
+            authorityKeyStatus = (
+                verification.registry_authority_key_status ||
+                null
+            );
+            backendOverallValid = verification.valid === true;
 
             const resolvedAlgorithm = (
                 verification.algorithm ||
@@ -1991,6 +2306,121 @@ async function runCompleteVerification() {
                     : (
                         `${trustStatusLabel(registryStatus)} · ` +
                         "provider is not currently trusted"
+                    )
+            );
+
+            let authorityDocument = null;
+
+            if (
+                attestationPresent &&
+                verification.registry_authority_id
+            ) {
+                try {
+                    authorityDocument = await readRegistryAuthorityDocument(
+                        verification.registry_authority_id
+                    );
+                    authorityIdentityResolved = Boolean(
+                        authorityTrusted &&
+                        authorityDocument.authority_id === (
+                            verification.registry_authority_id
+                        )
+                    );
+                    setTimelineState(
+                        elements.timelineAuthorityIdentity,
+                        authorityIdentityResolved ? "success" : "error",
+                        authorityIdentityResolved
+                            ? (
+                                `${authorityDocument.authority_name} · ` +
+                                authorityDocument.authority_id
+                            )
+                            : (
+                                `Unknown registry authority: ` +
+                                verification.registry_authority_id
+                            )
+                    );
+                } catch (error) {
+                    setTimelineState(
+                        elements.timelineAuthorityIdentity,
+                        "error",
+                        error.message ||
+                            "Registry authority identity could not be resolved"
+                    );
+                }
+            } else {
+                setTimelineState(
+                    elements.timelineAuthorityIdentity,
+                    "error",
+                    attestationPresent
+                        ? "Registry authority was not declared"
+                        : "No signed trust attestation is present"
+                );
+            }
+
+            const authorityKey = authorityDocument?.keys?.find(
+                (key) => key.key_id === verification.registry_authority_key_id
+            ) || null;
+            authorityKeyAllowed = Boolean(
+                authorityIdentityResolved &&
+                authorityKey &&
+                authorityKey.status === authorityKeyStatus &&
+                ["active", "retired"].includes(authorityKeyStatus)
+            );
+
+            let authorityKeyDetail = "Authority signing key could not be resolved";
+            if (authorityKeyStatus === "revoked") {
+                authorityKeyDetail = (
+                    `${verification.registry_authority_key_id || "Unknown key"} · ` +
+                    "revoked · explicitly rejected"
+                );
+            } else if (authorityKeyAllowed) {
+                authorityKeyDetail = (
+                    `${verification.registry_authority_key_id} · ` +
+                    `${authorityKeyStatus}` +
+                    (
+                        authorityKeyStatus === "retired"
+                            ? " · historical verification allowed"
+                            : ""
+                    )
+                );
+            }
+
+            setTimelineState(
+                elements.timelineAuthorityKey,
+                authorityKeyAllowed ? "success" : "error",
+                authorityKeyDetail
+            );
+
+            const attestationAccepted = Boolean(
+                attestationPresent &&
+                attestationValid &&
+                authorityTrusted &&
+                authorityKeyAllowed
+            );
+            const attestationFailureDetails = {
+                "missing-trust-attestation": "Missing signed trust attestation",
+                "invalid-attestation-signature": "Invalid attestation signature",
+                "attestation-decision-mismatch": (
+                    "Attestation does not match the current trust decision"
+                ),
+                "unknown-registry-authority": "Unknown registry authority",
+                "unknown-authority-key": "Unknown registry-authority key",
+                "revoked-authority-key": "Registry-authority key is revoked",
+            };
+
+            setTimelineState(
+                elements.timelineAttestation,
+                attestationAccepted ? "success" : "error",
+                attestationAccepted
+                    ? (
+                        "Ed25519 attestation signature valid · " +
+                        verification.trust_attestation_id
+                    )
+                    : (
+                        attestationFailureDetails[
+                            verification.trust_failure_reason
+                        ] ||
+                        verification.trust_failure_reason ||
+                        "Trust attestation could not be validated"
                     )
             );
 
@@ -2037,6 +2467,26 @@ async function runCompleteVerification() {
                 "error",
                 "Registry trust could not be resolved"
             );
+            setTimelineState(
+                elements.timelineAuthorityIdentity,
+                "error",
+                "Registry authority identity could not be resolved"
+            );
+            setTimelineState(
+                elements.timelineAuthorityKey,
+                "error",
+                "Authority signing key could not be resolved"
+            );
+            setTimelineState(
+                elements.timelineAttestation,
+                "error",
+                "Trust attestation could not be verified"
+            );
+            setTimelineState(
+                elements.timelineOverall,
+                "error",
+                "Overall GAP validity could not be calculated"
+            );
 
             setTrustNode(
                 elements.trustSignatureNode,
@@ -2080,17 +2530,77 @@ async function runCompleteVerification() {
             )
         );
 
+        setCheck(
+            elements.attestationCheckIcon,
+            elements.attestationCheckDetail,
+            attestationValid,
+            "The signed trust attestation is valid.",
+            "The signed trust attestation is missing or invalid."
+        );
+
+        setCheck(
+            elements.authorityCheckIcon,
+            elements.authorityCheckDetail,
+            authorityTrusted && authorityIdentityResolved && authorityKeyAllowed,
+            "The registry authority and signing key are trusted locally.",
+            "The registry authority or signing key is not trusted locally."
+        );
+
         const completeResult = (
             artifactMatches &&
             signatureValid &&
-            providerValid &&
-            registryTrusted
+            registryTrusted &&
+            attestationValid &&
+            authorityTrusted &&
+            authorityIdentityResolved &&
+            authorityKeyAllowed &&
+            backendOverallValid
         );
         const authenticButUntrusted = (
             artifactMatches &&
             signatureValid &&
             providerValid &&
             !registryTrusted
+        );
+
+        let overallDetail = (
+            "Artifact, credential, provider approval, attestation and " +
+            "registry authority are valid"
+        );
+        if (!artifactMatches) {
+            overallDetail = "Artifact digest mismatch";
+        } else if (!signatureValid) {
+            overallDetail = "Credential signature invalid";
+        } else if (registryStatus !== "approved") {
+            overallDetail = "Provider is not approved";
+        } else if (!attestationPresent) {
+            overallDetail = "Signed trust attestation is missing";
+        } else if (authorityKeyStatus === "revoked") {
+            overallDetail = "Registry-authority signing key is revoked";
+        } else if (!attestationValid) {
+            overallDetail = "Trust attestation signature is invalid";
+        } else if (!authorityTrusted) {
+            overallDetail = "Registry authority is not trusted";
+        } else if (!authorityIdentityResolved || !authorityKeyAllowed) {
+            overallDetail = "Registry-authority identity or key was not resolved";
+        } else if (!registryTrusted) {
+            overallDetail = "Provider signed trust could not be established";
+        } else if (!backendOverallValid) {
+            overallDetail = "Backend GAP validity policy rejected the credential";
+        }
+
+        setTimelineState(
+            elements.timelineOverall,
+            completeResult ? "success" : "error",
+            overallDetail
+        );
+
+        setCheck(
+            elements.overallCheckIcon,
+            elements.overallCheckDetail,
+            completeResult,
+            overallDetail,
+            overallDetail
         );
 
         setBadge(
@@ -2206,6 +2716,19 @@ async function runCompleteVerification() {
                 : "error"
         );
     } catch (error) {
+        [
+            elements.timelineAuthorityIdentity,
+            elements.timelineAuthorityKey,
+            elements.timelineAttestation,
+            elements.timelineOverall,
+        ].forEach((timeline) => {
+            setTimelineState(
+                timeline,
+                "error",
+                "Verification did not reach this stage"
+            );
+        });
+
         setBadge(
             elements.trustChainStatus,
             "Verification failed",
@@ -2799,3 +3322,5 @@ setLoading(false);
 checkServiceHealth();
 loadProviders();
 renderTrustRegistry();
+renderRegistryAuthorities();
+renderTrustAttestations();

@@ -8,6 +8,8 @@ from app.services.provider_application_repository import (
 )
 from app.services.trust_registry_repository import TrustRegistryRepository
 from app.services.trust_registry_service import TrustRegistryService
+from app.core.registry_authority_config import registry_authority_repository
+from app.services.trust_attestation_repository import TrustAttestationRepository
 
 
 attribution_repository = AttributionRepository()
@@ -15,9 +17,13 @@ disclosure_audit_repository = DisclosureAuditRepository()
 
 provider_application_repository = ProviderApplicationRepository()
 trust_registry_repository = TrustRegistryRepository()
+trust_attestation_repository = TrustAttestationRepository()
 trust_registry_service = TrustRegistryService(
     trust_repository=trust_registry_repository,
     application_repository=provider_application_repository,
+    authority_repository=registry_authority_repository,
+    attestation_repository=trust_attestation_repository,
+    default_authority_id="gap-reference-registry",
 )
 
 

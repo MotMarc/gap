@@ -33,11 +33,11 @@ def verify_payload(
 
     try:
         public_key.verify(
-            base64.b64decode(signature),
+            base64.b64decode(signature, validate=True),
             payload,
         )
 
         return True
 
-    except InvalidSignature:
+    except (InvalidSignature, ValueError, base64.binascii.Error):
         return False

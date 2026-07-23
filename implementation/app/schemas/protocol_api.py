@@ -91,6 +91,14 @@ class VerificationResponse(BaseModel):
     provider_trusted: bool
     provider_trust_status: ProviderTrustStatus
     trust_decision_id: str | None = None
+    trust_attestation_present: bool
+    trust_attestation_valid: bool
+    trust_attestation_id: str | None = None
+    registry_authority_id: str | None = None
+    registry_authority_trusted: bool
+    registry_authority_key_id: str | None = None
+    registry_authority_key_status: Literal["active", "retired", "revoked"] | None = None
+    trust_failure_reason: str | None = None
     provider_id: str
     generation_id: str
     credential_id: str

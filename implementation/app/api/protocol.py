@@ -11,7 +11,9 @@ from app.core.repositories import (
     provider_application_repository,
     trust_registry_repository,
     trust_registry_service,
+    trust_attestation_repository,
 )
+from app.core.registry_authority_config import registry_authority_repository
 from app.crypto.provider_keys import load_private_key
 from app.domain.disclosure_authorisation import DisclosureAuthorisation
 from app.domain.generated_artifact import GeneratedArtifact
@@ -28,6 +30,11 @@ from app.schemas.protocol_api import (
     VerifyCredentialRequest,
 )
 from app.schemas.provider_identity import ProviderIdentityDocument
+from app.schemas.registry_authority import (
+    RegistryAuthorityIdentityDocument,
+    RegistryAuthoritySummaryResponse,
+)
+from app.schemas.trust_attestation import TrustDecisionAttestation
 from app.schemas.trust_registry import (
     ProviderApplicationRequest,
     ProviderApplicationResponse,
@@ -60,6 +67,11 @@ from app.services.provider_identity_service import (
     create_provider_identity_document,
 )
 from app.services.provider_repository import ProviderNotFoundError
+from app.services.registry_authority_identity_service import (
+    create_registry_authority_identity_document,
+)
+from app.services.registry_authority_repository import RegistryAuthorityNotFoundError
+from app.services.trust_attestation_repository import TrustAttestationNotFoundError
 from app.services.trust_registry_service import InvalidTrustTransitionError
 from app.services.verification_service import (
     verify_generation_credential_details,
@@ -123,12 +135,14 @@ def create_provider_trust_response(
     history = trust_registry_service.list_decision_history(provider_id)
     latest_decision = history[-1] if history else None
     trust_status = trust_registry_service.get_current_status(provider_id)
+    evaluation = trust_registry_service.evaluate_provider_trust(provider_id)
+    attestation = trust_registry_service.get_current_attestation(provider_id)
 
     return ProviderTrustResponse(
         provider_id=provider_id,
         provider_name=get_public_provider_name(provider_id),
         status=trust_status,
-        trusted=trust_status == "approved",
+        trusted=evaluation.trusted,
         latest_decision=(
             create_trust_decision_response(latest_decision)
             if latest_decision is not None
@@ -137,20 +151,29 @@ def create_provider_trust_response(
         decision_history=[
             create_trust_decision_response(decision) for decision in history
         ],
+        trust_attestation_id=evaluation.trust_attestation_id,
+        trust_attestation_present=evaluation.attestation_present,
+        trust_attestation_valid=evaluation.attestation_valid,
+        registry_authority_id=evaluation.registry_authority_id,
+        registry_authority_trusted=evaluation.registry_authority_trusted,
+        authority_key_id=evaluation.authority_key_id,
+        authority_key_status=evaluation.authority_key_status,
+        attestation_issued_at=attestation.payload.issued_at if attestation else None,
+        trust_failure_reason=evaluation.trust_failure_reason,
     )
 
 
 def require_approved_provider(
     provider_id: str,
 ) -> None:
-    trust_status = trust_registry_service.get_current_status(provider_id)
-
-    if trust_status != "approved":
+    evaluation = trust_registry_service.evaluate_provider_trust(provider_id)
+    if not evaluation.trusted:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
-                f"Provider {provider_id} cannot issue credentials while its "
-                f"trust status is {trust_status}."
+                f"Provider {provider_id} cannot issue credentials: "
+                f"{evaluation.trust_failure_reason} "
+                f"(status: {evaluation.provider_status})."
             ),
         )
 
@@ -260,19 +283,26 @@ def list_trust_registry() -> list[TrustRegistryEntryResponse]:
     for provider_id in sorted(provider_ids):
         latest_decision = trust_registry_service.get_current_decision(provider_id)
         trust_status = trust_registry_service.get_current_status(provider_id)
+        evaluation = trust_registry_service.evaluate_provider_trust(provider_id)
 
         entries.append(
             TrustRegistryEntryResponse(
                 provider_id=provider_id,
                 provider_name=get_public_provider_name(provider_id),
                 status=trust_status,
-                trusted=trust_status == "approved",
+                trusted=evaluation.trusted,
                 latest_decision_id=(
                     latest_decision.decision_id if latest_decision is not None else None
                 ),
                 latest_decision_at=(
                     latest_decision.decided_at if latest_decision is not None else None
                 ),
+                trust_attestation_id=evaluation.trust_attestation_id,
+                trust_attestation_valid=evaluation.attestation_valid,
+                registry_authority_id=evaluation.registry_authority_id,
+                registry_authority_trusted=evaluation.registry_authority_trusted,
+                authority_key_id=evaluation.authority_key_id,
+                authority_key_status=evaluation.authority_key_status,
             )
         )
 
@@ -304,6 +334,60 @@ def read_provider_trust(
         )
 
     return create_provider_trust_response(provider_id)
+
+
+@router.get(
+    "/registry-authorities",
+    response_model=list[RegistryAuthoritySummaryResponse],
+)
+def list_registry_authorities() -> list[RegistryAuthoritySummaryResponse]:
+    return [
+        RegistryAuthoritySummaryResponse(
+            authority_id=authority.authority_id,
+            authority_name=authority.authority_name,
+            active_key_id=authority.active_key_id,
+            published_key_count=len(authority.signing_keys),
+            trusted_by_local_registry=True,
+        )
+        for authority in registry_authority_repository.list_all()
+    ]
+
+
+@router.get(
+    "/registry-authorities/{authority_id}/.well-known/gap-registry.json",
+    response_model=RegistryAuthorityIdentityDocument,
+)
+def read_registry_authority_identity(
+    authority_id: str,
+) -> RegistryAuthorityIdentityDocument:
+    try:
+        authority = registry_authority_repository.get(authority_id)
+    except RegistryAuthorityNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return create_registry_authority_identity_document(authority)
+
+
+@router.get(
+    "/trust-attestations",
+    response_model=list[TrustDecisionAttestation],
+)
+def list_trust_attestations(
+    provider_id: str | None = None,
+) -> list[TrustDecisionAttestation]:
+    if provider_id is not None:
+        return trust_attestation_repository.list_for_provider(provider_id)
+    return trust_attestation_repository.list_all()
+
+
+@router.get(
+    "/trust-attestations/{attestation_id}",
+    response_model=TrustDecisionAttestation,
+)
+def read_trust_attestation(attestation_id: str) -> TrustDecisionAttestation:
+    try:
+        return trust_attestation_repository.get(attestation_id)
+    except TrustAttestationNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
 
 
 @router.post(
@@ -455,9 +539,9 @@ def verify_credential(
         provider_document=provider_document,
     )
 
-    trust_status = trust_registry_service.get_current_status(provider_id)
-    trust_decision = trust_registry_service.get_current_decision(provider_id)
-    provider_trusted = trust_status == "approved"
+    trust_evaluation = trust_registry_service.evaluate_provider_trust(provider_id)
+    trust_status = trust_evaluation.provider_status
+    provider_trusted = trust_evaluation.trusted
     cryptographic_valid = cryptographic_verification.valid
     valid = cryptographic_valid and provider_trusted
 
@@ -471,9 +555,15 @@ def verify_credential(
         cryptographic_valid=cryptographic_valid,
         provider_trusted=provider_trusted,
         provider_trust_status=trust_status,
-        trust_decision_id=(
-            trust_decision.decision_id if trust_decision is not None else None
-        ),
+        trust_decision_id=(trust_evaluation.trust_decision_id),
+        trust_attestation_present=trust_evaluation.attestation_present,
+        trust_attestation_valid=trust_evaluation.attestation_valid,
+        trust_attestation_id=trust_evaluation.trust_attestation_id,
+        registry_authority_id=trust_evaluation.registry_authority_id,
+        registry_authority_trusted=trust_evaluation.registry_authority_trusted,
+        registry_authority_key_id=trust_evaluation.authority_key_id,
+        registry_authority_key_status=trust_evaluation.authority_key_status,
+        trust_failure_reason=trust_evaluation.trust_failure_reason,
         provider_id=provider_id,
         generation_id=credential.payload.generation.generation_id,
         credential_id=credential.payload.credential_id,

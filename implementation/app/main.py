@@ -9,7 +9,7 @@ from app.api.protocol import router as protocol_router
 
 APPLICATION_DIRECTORY = Path(__file__).resolve().parent
 WEB_DIRECTORY = APPLICATION_DIRECTORY / "web"
-APPLICATION_VERSION = "0.9.0"
+APPLICATION_VERSION = "0.10.0"
 
 
 app = FastAPI(

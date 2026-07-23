@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -22,6 +23,15 @@ class ProviderTrustResponse(BaseModel):
     trusted: bool
     latest_decision: ProviderTrustDecisionResponse | None = None
     decision_history: list[ProviderTrustDecisionResponse]
+    trust_attestation_id: str | None = None
+    trust_attestation_present: bool = False
+    trust_attestation_valid: bool = False
+    registry_authority_id: str | None = None
+    registry_authority_trusted: bool = False
+    authority_key_id: str | None = None
+    authority_key_status: Literal["active", "retired", "revoked"] | None = None
+    attestation_issued_at: datetime | None = None
+    trust_failure_reason: str | None = None
 
 
 class TrustRegistryEntryResponse(BaseModel):
@@ -31,6 +41,12 @@ class TrustRegistryEntryResponse(BaseModel):
     trusted: bool
     latest_decision_id: str | None = None
     latest_decision_at: datetime | None = None
+    trust_attestation_id: str | None = None
+    trust_attestation_valid: bool = False
+    registry_authority_id: str | None = None
+    registry_authority_trusted: bool = False
+    authority_key_id: str | None = None
+    authority_key_status: Literal["active", "retired", "revoked"] | None = None
 
 
 class ProviderApplicationRequest(BaseModel):

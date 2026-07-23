@@ -70,11 +70,16 @@ def test_trust_registry_interface_is_present() -> None:
     assert "Removed" in response.text
 
 
-def test_frontend_reports_sprint_9_version() -> None:
+def test_frontend_reports_sprint_10_version() -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Reference Demonstrator v0.9.0" in response.text
+    assert "Reference Demonstrator v0.10.0" in response.text
+    assert "Registry Authority" in response.text
+    assert "Signed trust attestation" in response.text
+    assert "Registry authority identity" in response.text
+    assert "Attestation signature" in response.text
+    assert "trusted-authority" in response.text
 
 
 def test_stylesheet_is_served() -> None:
@@ -89,6 +94,8 @@ def test_stylesheet_is_served() -> None:
     assert ".trust-registry-grid" in response.text
     assert ".trust-status-approved" in response.text
     assert ".verification-result-warning" in response.text
+    assert ".registry-authority-panel" in response.text
+    assert ".attestation-valid" in response.text
 
 
 def test_javascript_is_served() -> None:
@@ -109,6 +116,66 @@ def test_javascript_is_served() -> None:
     assert "/generations/create" in response.text
     assert "/credentials/verify" in response.text
     assert "/trust-registry" in response.text
+    assert "/registry-authorities" in response.text
+    assert "/trust-attestations" in response.text
+    assert "registry_authority_id" in response.text
+    assert "trusted_by_local_registry" in response.text
+    assert "renderRegistryAuthorities" in response.text
+    assert "renderTrustAttestations" in response.text
+    assert "createRegistryAuthorityCard" in response.text
+    assert "createTrustAttestationCard" in response.text
+    assert "registryAuthorityGrid" in response.text
+    assert "trustAttestationGrid" in response.text
+    assert "trust_attestation_id" in response.text
+    assert "trust_attestation_valid" in response.text
+    assert "registry_authority_trusted" in response.text
+    assert "authority_key_status" in response.text
+    assert "timelineAuthorityIdentity" in response.text
+    assert "timelineAuthorityKey" in response.text
+    assert "timelineAttestation" in response.text
+    assert "timelineOverall" in response.text
+    assert (
+        "setTimelineState(\n                        elements.timelineAuthorityIdentity"
+        in (response.text)
+    )
+    assert (
+        "setTimelineState(\n                elements.timelineAuthorityKey"
+        in response.text
+    )
+    assert (
+        "setTimelineState(\n                elements.timelineAttestation"
+        in response.text
+    )
+    assert "setTimelineState(\n            elements.timelineOverall" in response.text
+    assert "signatureValid = verification.cryptographic_valid === true" in (
+        response.text
+    )
+    assert "signatureValid = verification.valid" not in response.text
+    assert "verification.provider_trusted === true" in response.text
+    assert "verification.trust_attestation_present === true" in response.text
+    assert "verification.trust_attestation_valid === true" in response.text
+    assert "verification.registry_authority_trusted === true" in response.text
+    assert "verification.registry_authority_key_status" in response.text
+    assert "backendOverallValid = verification.valid === true" in response.text
+    assert "escapeHtml(" not in response.text
+    assert ".innerHTML" not in response.text
+
+
+def test_sprint_10_federation_panels_are_present() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'id="registry-authority-grid"' in response.text
+    assert 'id="trust-attestation-grid"' in response.text
+    assert "Registry Authority" in response.text
+    assert "Signed trust attestation" in response.text
+    for timeline_id in (
+        "timeline-authority-identity",
+        "timeline-authority-key",
+        "timeline-attestation",
+        "timeline-overall",
+    ):
+        assert f'id="{timeline_id}"' in response.text
 
 
 def test_health_endpoint() -> None:
@@ -119,5 +186,5 @@ def test_health_endpoint() -> None:
     assert response.json() == {
         "status": "healthy",
         "service": "gap-reference-implementation",
-        "version": "0.9.0",
+        "version": "0.10.0",
     }

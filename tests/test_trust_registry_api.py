@@ -12,6 +12,7 @@ sys.path.insert(0, str(IMPLEMENTATION_DIRECTORY))
 
 from app.core.repositories import trust_registry_service  # noqa: E402
 from app.main import app  # noqa: E402
+from app.services.trust_registry_service import ProviderTrustEvaluation  # noqa: E402
 
 
 client = TestClient(app)
@@ -269,3 +270,145 @@ def test_identity_document_cannot_self_assert_registry_trust() -> None:
     assert "trust_status" not in document
     assert "provider_trusted" not in document
     assert "trusted" not in document
+
+
+def test_registry_authority_and_attestation_endpoints() -> None:
+    authorities = client.get("/registry-authorities")
+    assert authorities.status_code == 200
+    authority = authorities.json()[0]
+    assert authority["authority_id"] == "gap-reference-registry"
+    assert authority["trusted_by_local_registry"] is True
+
+    identity = client.get(
+        "/registry-authorities/gap-reference-registry/.well-known/gap-registry.json"
+    )
+    assert identity.status_code == 200
+    assert identity.json()["keys"][0]["algorithm"] == "Ed25519"
+    assert "private_key" not in identity.text
+
+    assert (
+        client.get(
+            "/registry-authorities/unknown/.well-known/gap-registry.json"
+        ).status_code
+        == 404
+    )
+
+    attestations = client.get(
+        "/trust-attestations", params={"provider_id": "gap-demo-provider"}
+    )
+    assert attestations.status_code == 200
+    assert len(attestations.json()) == 2
+    attestation_id = attestations.json()[-1]["payload"]["attestation_id"]
+    assert client.get(f"/trust-attestations/{attestation_id}").status_code == 200
+
+
+def test_verification_exposes_signed_registry_trust() -> None:
+    response = client.post(
+        "/credentials/verify", json={"credential": issue_demo_credential()}
+    )
+    body = response.json()
+    assert body["trust_attestation_present"] is True
+    assert body["trust_attestation_valid"] is True
+    assert body["registry_authority_id"] == "gap-reference-registry"
+    assert body["registry_authority_trusted"] is True
+    assert body["registry_authority_key_id"] == "gap-registry-key-2026-01"
+    assert body["registry_authority_key_status"] == "active"
+    assert body["trust_failure_reason"] is None
+    expected_fields = {
+        "valid",
+        "cryptographic_valid",
+        "provider_trusted",
+        "provider_trust_status",
+        "trust_decision_id",
+        "trust_attestation_present",
+        "trust_attestation_valid",
+        "trust_attestation_id",
+        "registry_authority_id",
+        "registry_authority_trusted",
+        "registry_authority_key_id",
+        "registry_authority_key_status",
+        "trust_failure_reason",
+        "failure_reason",
+    }
+    assert expected_fields <= body.keys()
+
+
+@pytest.mark.parametrize(
+    (
+        "attestation_present",
+        "attestation_valid",
+        "authority_id",
+        "authority_trusted",
+        "key_status",
+        "failure_reason",
+    ),
+    [
+        (False, False, None, False, None, "missing-trust-attestation"),
+        (
+            True,
+            False,
+            "unknown-authority",
+            False,
+            None,
+            "unknown-registry-authority",
+        ),
+        (
+            True,
+            False,
+            "gap-reference-registry",
+            True,
+            "revoked",
+            "revoked-authority-key",
+        ),
+        (
+            True,
+            False,
+            "gap-reference-registry",
+            True,
+            "active",
+            "invalid-attestation-signature",
+        ),
+    ],
+)
+def test_verification_exposes_registry_trust_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    attestation_present: bool,
+    attestation_valid: bool,
+    authority_id: str | None,
+    authority_trusted: bool,
+    key_status: str | None,
+    failure_reason: str,
+) -> None:
+    credential = issue_demo_credential()
+    monkeypatch.setattr(
+        trust_registry_service,
+        "evaluate_provider_trust",
+        lambda provider_id: ProviderTrustEvaluation(
+            provider_status="approved",
+            provider_approved=True,
+            attestation_present=attestation_present,
+            attestation_valid=attestation_valid,
+            registry_authority_id=authority_id,
+            registry_authority_trusted=authority_trusted,
+            authority_key_id=("test-authority-key" if attestation_present else None),
+            authority_key_status=key_status,
+            trust_decision_id="test-decision",
+            trust_attestation_id=("test-attestation" if attestation_present else None),
+            trust_failure_reason=failure_reason,
+            trusted=False,
+        ),
+    )
+
+    response = client.post("/credentials/verify", json={"credential": credential})
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["cryptographic_valid"] is True
+    assert body["provider_trusted"] is False
+    assert body["trust_attestation_present"] is attestation_present
+    assert body["trust_attestation_valid"] is attestation_valid
+    assert body["registry_authority_id"] == authority_id
+    assert body["registry_authority_trusted"] is authority_trusted
+    assert body["registry_authority_key_status"] == key_status
+    assert body["trust_failure_reason"] == failure_reason
+    assert body["valid"] is False

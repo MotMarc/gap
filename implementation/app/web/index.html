@@ -34,7 +34,7 @@
 
                 <span class="brand-copy">
                     <strong>Generation Attribution Protocol</strong>
-                    <small>Reference Demonstrator v0.9.0</small>
+                    <small>Reference Demonstrator v0.10.0</small>
                 </span>
             </button>
 
@@ -682,6 +682,27 @@
                                 </small>
                             </div>
                         </article>
+                        <article class="verification-check">
+                            <span id="attestation-check-icon" class="check-icon">○</span>
+                            <div>
+                                <strong>Trust-attestation validity</strong>
+                                <small id="attestation-check-detail">Signed decision not checked</small>
+                            </div>
+                        </article>
+                        <article class="verification-check">
+                            <span id="authority-check-icon" class="check-icon">○</span>
+                            <div>
+                                <strong>Registry-authority trust</strong>
+                                <small id="authority-check-detail">Local federation trust not checked</small>
+                            </div>
+                        </article>
+                        <article class="verification-check">
+                            <span id="overall-check-icon" class="check-icon">○</span>
+                            <div>
+                                <strong>Overall GAP validity</strong>
+                                <small id="overall-check-detail">Awaiting all independent checks</small>
+                            </div>
+                        </article>
                     </div>
 
                     <div class="verification-timeline">
@@ -723,7 +744,7 @@
                             <li id="timeline-provider">
                                 <span>5</span>
                                 <div>
-                                    <strong>Resolve provider identity</strong>
+                                    <strong>Resolve provider identity and signing key</strong>
                                     <small>Awaiting input</small>
                                 </div>
                             </li>
@@ -731,9 +752,21 @@
                             <li id="timeline-registry">
                                 <span>6</span>
                                 <div>
-                                    <strong>Resolve registry trust</strong>
+                                    <strong>Resolve signed trust attestation</strong>
                                     <small>Awaiting input</small>
                                 </div>
+                            </li>
+                            <li id="timeline-authority-identity">
+                                <span>7</span><div><strong>Resolve registry-authority identity</strong><small>Awaiting input</small></div>
+                            </li>
+                            <li id="timeline-authority-key">
+                                <span>8</span><div><strong>Resolve authority signing-key lifecycle</strong><small>Awaiting input</small></div>
+                            </li>
+                            <li id="timeline-attestation">
+                                <span>9</span><div><strong>Verify attestation signature</strong><small>Awaiting input</small></div>
+                            </li>
+                            <li id="timeline-overall">
+                                <span>10</span><div><strong>Calculate overall GAP validity</strong><small>Awaiting input</small></div>
                             </li>
                         </ol>
                     </div>
@@ -799,6 +832,34 @@
                     id="tamper-message"
                     class="message message-warning hidden"
                 ></div>
+
+                <div class="registry-authority-panel">
+                    <div>
+                        <span class="eyebrow">Configuration-based federation</span>
+                        <h2>Registry Authority</h2>
+                        <p>
+                            Local trusted-authority configuration determines which
+                            signed registry decisions can establish provider trust.
+                            Each Registry authority identity document publishes its
+                            complete verification-key lifecycle.
+                        </p>
+                    </div>
+                    <div id="registry-authority-grid" class="registry-authority-grid">
+                        Loading registry authority identity…
+                    </div>
+                </div>
+
+                <div class="trust-attestation-panel">
+                    <h2>Signed trust attestation</h2>
+                    <p>
+                        Each decision is bound to its provider, status, reason,
+                        timestamp, authority identity and authority signing key.
+                        Attestation signature verification is shown independently.
+                    </p>
+                    <div id="trust-attestation-grid" class="trust-attestation-grid">
+                        Loading attestation signatures…
+                    </div>
+                </div>
             </section>
         </section>
 
