@@ -1,0 +1,70 @@
+from datetime import datetime
+
+from pydantic import BaseModel, Field
+
+from app.domain.provider_application import ProviderApplicationStatus
+from app.domain.provider_trust import ProviderTrustStatus
+
+
+class ProviderTrustDecisionResponse(BaseModel):
+    decision_id: str
+    provider_id: str
+    status: ProviderTrustStatus
+    authority: str
+    reason: str
+    decided_at: datetime
+
+
+class ProviderTrustResponse(BaseModel):
+    provider_id: str
+    provider_name: str
+    status: ProviderTrustStatus
+    trusted: bool
+    latest_decision: ProviderTrustDecisionResponse | None = None
+    decision_history: list[ProviderTrustDecisionResponse]
+
+
+class TrustRegistryEntryResponse(BaseModel):
+    provider_id: str
+    provider_name: str
+    status: ProviderTrustStatus
+    trusted: bool
+    latest_decision_id: str | None = None
+    latest_decision_at: datetime | None = None
+
+
+class ProviderApplicationRequest(BaseModel):
+    provider_id: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+    provider_name: str = Field(
+        min_length=1,
+        max_length=200,
+    )
+    contact_reference: str = Field(
+        min_length=1,
+        max_length=500,
+        description=(
+            "Private onboarding contact reference. This value is not returned "
+            "through public trust-registry responses."
+        ),
+    )
+
+
+class ProviderApplicationResponse(BaseModel):
+    application_id: str
+    provider_id: str
+    provider_name: str
+    application_status: ProviderApplicationStatus
+    trust_status: ProviderTrustStatus
+    submitted_at: datetime
+
+
+class ProviderSummaryResponse(BaseModel):
+    provider_id: str
+    provider_name: str
+    active_key_id: str
+    published_key_count: int
+    trust_status: ProviderTrustStatus
+    provider_trusted: bool

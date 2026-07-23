@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.domain.provider_trust import ProviderTrustStatus
 from app.schemas.generation_credential import GenerationCredential
 
 
@@ -86,6 +87,10 @@ class VerifyCredentialRequest(BaseModel):
 
 class VerificationResponse(BaseModel):
     valid: bool
+    cryptographic_valid: bool
+    provider_trusted: bool
+    provider_trust_status: ProviderTrustStatus
+    trust_decision_id: str | None = None
     provider_id: str
     generation_id: str
     credential_id: str

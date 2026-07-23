@@ -34,7 +34,7 @@
 
                 <span class="brand-copy">
                     <strong>Generation Attribution Protocol</strong>
-                    <small>Reference Demonstrator v0.8.0</small>
+                    <small>Reference Demonstrator v0.9.0</small>
                 </span>
             </button>
 
@@ -61,6 +61,14 @@
                     data-tab-target="explorer"
                 >
                     Credential Explorer
+                </button>
+
+                <button
+                    class="navigation-button"
+                    type="button"
+                    data-tab-target="registry"
+                >
+                    Trust Registry
                 </button>
 
                 <button
@@ -126,7 +134,7 @@
                     <div class="flow-stage">
                         <span>3</span>
                         <strong>Verify</strong>
-                        <small>Detect modification</small>
+                        <small>Check authenticity and trust</small>
                     </div>
                 </div>
             </section>
@@ -165,7 +173,7 @@
                             </select>
 
                             <small>
-                                Loaded dynamically from the GAP provider registry.
+                                Loaded dynamically from approved GAP registry participants.
                             </small>
                         </div>
 
@@ -220,7 +228,22 @@
                                     <span>Public-key fingerprint</span>
                                     <code id="selected-provider-fingerprint">—</code>
                                 </div>
+
+                                <div>
+                                    <span>Registry trust</span>
+                                    <code id="selected-provider-trust-status">—</code>
+                                </div>
+
+                                <div>
+                                    <span>Latest trust decision</span>
+                                    <code id="selected-provider-trust-decision">—</code>
+                                </div>
                             </div>
+
+                            <p class="provider-trust-source">
+                                Trust is resolved independently from the provider's
+                                identity document through the GAP Trust Registry.
+                            </p>
 
                             <div class="provider-key-lifecycle-heading">
                                 <div>
@@ -427,8 +450,8 @@
                 <h1>Verify an artifact against its credential.</h1>
 
                 <p>
-                    GAP checks the credential signature, provider identity and
-                    SHA-256 digest of the supplied artifact independently.
+                    GAP checks the artifact digest, credential signature,
+                    provider identity and independent registry trust separately.
                 </p>
             </section>
 
@@ -535,10 +558,10 @@
                         <div class="provider-trust-chain-heading">
                             <div>
                                 <span class="provider-card-label">
-                                    Multi-provider verification
+                                    Cryptography plus governance
                                 </span>
                                 <h3 id="provider-trust-chain-title">
-                                    Provider trust chain
+                                    Identity and registry trust chain
                                 </h3>
                             </div>
 
@@ -590,6 +613,16 @@
                                     </small>
                                 </div>
                             </li>
+
+                            <li id="trust-registry-node">
+                                <span>5</span>
+                                <div>
+                                    <strong>Independent registry trust</strong>
+                                    <small id="trust-registry-result">
+                                        Not resolved
+                                    </small>
+                                </div>
+                            </li>
                         </ol>
                     </section>
 
@@ -631,6 +664,20 @@
                             <div>
                                 <strong>Provider identity</strong>
                                 <small id="provider-check-detail">
+                                    Not checked
+                                </small>
+                            </div>
+                        </article>
+
+                        <article class="verification-check">
+                            <span
+                                id="registry-check-icon"
+                                class="check-icon"
+                            >○</span>
+
+                            <div>
+                                <strong>GAP Trust Registry</strong>
+                                <small id="registry-check-detail">
                                     Not checked
                                 </small>
                             </div>
@@ -677,6 +724,14 @@
                                 <span>5</span>
                                 <div>
                                     <strong>Resolve provider identity</strong>
+                                    <small>Awaiting input</small>
+                                </div>
+                            </li>
+
+                            <li id="timeline-registry">
+                                <span>6</span>
+                                <div>
+                                    <strong>Resolve registry trust</strong>
                                     <small>Awaiting input</small>
                                 </div>
                             </li>
@@ -951,6 +1006,118 @@
         </section>
 
         <section
+            id="tab-registry"
+            class="tab-page hidden"
+            data-tab-page="registry"
+        >
+            <section class="page-introduction">
+                <span class="eyebrow">Independent ecosystem governance</span>
+
+                <h1>Cryptographic identity does not equal ecosystem trust.</h1>
+
+                <p>
+                    Provider identity documents prove which signing keys belong to
+                    a provider. The GAP Trust Registry separately records whether
+                    that provider is currently approved to participate.
+                </p>
+            </section>
+
+            <section class="trust-registry-overview">
+                <article class="trust-principle-card">
+                    <span class="provider-card-label">Decision model</span>
+                    <h2>Two independent questions</h2>
+
+                    <div class="trust-equation">
+                        <div>
+                            <strong>Cryptographic validity</strong>
+                            <small>
+                                Is the credential authentic under the provider's
+                                published key history?
+                            </small>
+                        </div>
+
+                        <span>+</span>
+
+                        <div>
+                            <strong>Registry trust</strong>
+                            <small>
+                                Is the provider currently approved by the independent
+                                GAP registry?
+                            </small>
+                        </div>
+
+                        <span>=</span>
+
+                        <div>
+                            <strong>Overall GAP validity</strong>
+                            <small>
+                                Both conditions must be true at verification time.
+                            </small>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="trust-principle-card">
+                    <span class="provider-card-label">Public status model</span>
+                    <h2>Provider lifecycle</h2>
+
+                    <div class="trust-status-legend">
+                        <span class="trust-status-pill trust-status-self-declared">
+                            Self-declared
+                        </span>
+                        <span class="trust-status-pill trust-status-applicant">
+                            Applicant
+                        </span>
+                        <span class="trust-status-pill trust-status-approved">
+                            Approved
+                        </span>
+                        <span class="trust-status-pill trust-status-suspended">
+                            Suspended
+                        </span>
+                        <span class="trust-status-pill trust-status-removed">
+                            Removed
+                        </span>
+                    </div>
+
+                    <p>
+                        Only approved providers may issue new credentials. A
+                        credential from a suspended or removed provider can remain
+                        cryptographically authentic while failing overall trust.
+                    </p>
+                </article>
+            </section>
+
+            <section class="trust-registry-section">
+                <div class="provider-ecosystem-heading">
+                    <div>
+                        <span class="eyebrow">Authoritative public view</span>
+                        <h2>GAP Trust Registry</h2>
+                    </div>
+
+                    <span
+                        id="trust-registry-status"
+                        class="status-badge status-neutral"
+                    >
+                        Loading registry
+                    </span>
+                </div>
+
+                <p>
+                    This view is loaded from <code>GET /trust-registry</code>.
+                    Provider-controlled identity documents cannot change these
+                    decisions, and private onboarding contact references are never
+                    exposed here.
+                </p>
+
+                <div
+                    id="trust-registry-grid"
+                    class="trust-registry-grid"
+                    aria-live="polite"
+                ></div>
+            </section>
+        </section>
+
+        <section
             id="tab-protocol"
             class="tab-page hidden"
             data-tab-page="protocol"
@@ -1004,8 +1171,8 @@
                     <span>4</span>
                     <h2>Independent verification</h2>
                     <p>
-                        Anyone can verify the file hash, credential signature and
-                        provider identity.
+                        Anyone can verify the file hash, credential signature,
+                        provider identity and independent registry trust.
                     </p>
                 </article>
 
@@ -1038,9 +1205,10 @@
 
                 <p>
                     Every participating provider publishes an independent identity
-                    document and its complete verification-key history. A credential
-                    issued in one trust domain cannot be reassigned to another, and
-                    a revoked key cannot be silently reused.
+                    document and complete verification-key history. The GAP Trust
+                    Registry separately decides whether that provider is approved.
+                    A credential cannot be reassigned to another trust domain, and a
+                    revoked key cannot be silently reused.
                 </p>
 
                 <div

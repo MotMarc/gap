@@ -32,6 +32,8 @@ def test_verification_interface_is_present() -> None:
     assert "Modify artifact bytes" in response.text
     assert "Modify credential model ID" in response.text
     assert "Reference revoked key" in response.text
+    assert "Independent registry trust" in response.text
+    assert "GAP Trust Registry" in response.text
 
 
 def test_credential_explorer_is_present() -> None:
@@ -50,6 +52,29 @@ def test_protocol_explanation_is_present() -> None:
     assert "How GAP works" in response.text
     assert "Controlled disclosure" in response.text
     assert "Signing-key lifecycle" in response.text
+    assert "independent registry trust" in response.text
+
+
+def test_trust_registry_interface_is_present() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Trust Registry" in response.text
+    assert "Cryptographic identity does not equal ecosystem trust" in response.text
+    assert 'id="trust-registry-grid"' in response.text
+    assert "Provider lifecycle" in response.text
+    assert "Self-declared" in response.text
+    assert "Applicant" in response.text
+    assert "Approved" in response.text
+    assert "Suspended" in response.text
+    assert "Removed" in response.text
+
+
+def test_frontend_reports_sprint_9_version() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Reference Demonstrator v0.9.0" in response.text
 
 
 def test_stylesheet_is_served() -> None:
@@ -61,6 +86,9 @@ def test_stylesheet_is_served() -> None:
     assert ".verification-timeline" in response.text
     assert ".credential-card" in response.text
     assert ".provider-key-history" in response.text
+    assert ".trust-registry-grid" in response.text
+    assert ".trust-status-approved" in response.text
+    assert ".verification-result-warning" in response.text
 
 
 def test_javascript_is_served() -> None:
@@ -74,8 +102,13 @@ def test_javascript_is_served() -> None:
     assert "tamperCredential" in response.text
     assert "tamperRevokedKey" in response.text
     assert "renderProviderKeyHistory" in response.text
+    assert "renderTrustRegistry" in response.text
+    assert "readProviderTrust" in response.text
+    assert "cryptographic_valid" in response.text
+    assert "provider_trusted" in response.text
     assert "/generations/create" in response.text
     assert "/credentials/verify" in response.text
+    assert "/trust-registry" in response.text
 
 
 def test_health_endpoint() -> None:
@@ -86,5 +119,5 @@ def test_health_endpoint() -> None:
     assert response.json() == {
         "status": "healthy",
         "service": "gap-reference-implementation",
-        "version": "0.8.0",
+        "version": "0.9.0",
     }

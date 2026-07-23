@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
@@ -9,7 +9,7 @@ from app.api.protocol import router as protocol_router
 
 APPLICATION_DIRECTORY = Path(__file__).resolve().parent
 WEB_DIRECTORY = APPLICATION_DIRECTORY / "web"
-APPLICATION_VERSION = "0.8.0"
+APPLICATION_VERSION = "0.9.0"
 
 
 app = FastAPI(
@@ -62,4 +62,3 @@ def read_health() -> dict[str, str]:
         "service": "gap-reference-implementation",
         "version": APPLICATION_VERSION,
     }
-

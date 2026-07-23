@@ -8,10 +8,14 @@ from app.core.provider_config import provider_repository
 from app.core.repositories import (
     attribution_repository,
     disclosure_audit_repository,
+    provider_application_repository,
+    trust_registry_repository,
+    trust_registry_service,
 )
 from app.crypto.provider_keys import load_private_key
 from app.domain.disclosure_authorisation import DisclosureAuthorisation
 from app.domain.generated_artifact import GeneratedArtifact
+from app.domain.provider_trust import ProviderTrustDecision
 from app.schemas.generation_credential import GenerationCredential
 from app.schemas.protocol_api import (
     AttributionDisclosureResponse,
@@ -24,6 +28,14 @@ from app.schemas.protocol_api import (
     VerifyCredentialRequest,
 )
 from app.schemas.provider_identity import ProviderIdentityDocument
+from app.schemas.trust_registry import (
+    ProviderApplicationRequest,
+    ProviderApplicationResponse,
+    ProviderSummaryResponse,
+    ProviderTrustDecisionResponse,
+    ProviderTrustResponse,
+    TrustRegistryEntryResponse,
+)
 from app.services.artifact_service import create_artifact_descriptor
 from app.services.attribution_repository import AttributionRecordNotFoundError
 from app.services.attribution_service import (
@@ -41,10 +53,14 @@ from app.services.generation_event_service import create_generation_event
 from app.services.provider_adapter_repository import (
     ProviderAdapterNotFoundError,
 )
+from app.services.provider_application_repository import (
+    DuplicateProviderApplicationError,
+)
 from app.services.provider_identity_service import (
     create_provider_identity_document,
 )
 from app.services.provider_repository import ProviderNotFoundError
+from app.services.trust_registry_service import InvalidTrustTransitionError
 from app.services.verification_service import (
     verify_generation_credential_details,
 )
@@ -71,6 +87,74 @@ def get_provider_document(
     )
 
 
+def get_public_provider_name(
+    provider_id: str,
+) -> str:
+    try:
+        return provider_repository.get(provider_id).provider_name
+    except ProviderNotFoundError:
+        applications = provider_application_repository.list_for_provider(provider_id)
+
+        if applications:
+            return max(
+                applications,
+                key=lambda application: application.submitted_at,
+            ).provider_name
+
+        return provider_id
+
+
+def create_trust_decision_response(
+    decision: ProviderTrustDecision,
+) -> ProviderTrustDecisionResponse:
+    return ProviderTrustDecisionResponse(
+        decision_id=decision.decision_id,
+        provider_id=decision.provider_id,
+        status=decision.status,
+        authority=decision.authority,
+        reason=decision.reason,
+        decided_at=decision.decided_at,
+    )
+
+
+def create_provider_trust_response(
+    provider_id: str,
+) -> ProviderTrustResponse:
+    history = trust_registry_service.list_decision_history(provider_id)
+    latest_decision = history[-1] if history else None
+    trust_status = trust_registry_service.get_current_status(provider_id)
+
+    return ProviderTrustResponse(
+        provider_id=provider_id,
+        provider_name=get_public_provider_name(provider_id),
+        status=trust_status,
+        trusted=trust_status == "approved",
+        latest_decision=(
+            create_trust_decision_response(latest_decision)
+            if latest_decision is not None
+            else None
+        ),
+        decision_history=[
+            create_trust_decision_response(decision) for decision in history
+        ],
+    )
+
+
+def require_approved_provider(
+    provider_id: str,
+) -> None:
+    trust_status = trust_registry_service.get_current_status(provider_id)
+
+    if trust_status != "approved":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"Provider {provider_id} cannot issue credentials while its "
+                f"trust status is {trust_status}."
+            ),
+        )
+
+
 def issue_credential_for_artifact(
     provider_id: str,
     account_reference: str,
@@ -85,6 +169,8 @@ def issue_credential_for_artifact(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(error),
         ) from error
+
+    require_approved_provider(provider_id)
 
     signing_key = provider.active_signing_key
 
@@ -135,17 +221,122 @@ def issue_credential_for_artifact(
     )
 
 
-@router.get("/providers")
-def list_providers() -> list[dict[str, str | int]]:
+@router.get(
+    "/providers",
+    response_model=list[ProviderSummaryResponse],
+)
+def list_providers() -> list[ProviderSummaryResponse]:
     return [
-        {
-            "provider_id": provider.provider_id,
-            "provider_name": provider.provider_name,
-            "active_key_id": provider.active_key_id,
-            "published_key_count": len(provider.signing_keys),
-        }
+        ProviderSummaryResponse(
+            provider_id=provider.provider_id,
+            provider_name=provider.provider_name,
+            active_key_id=provider.active_key_id,
+            published_key_count=len(provider.signing_keys),
+            trust_status=trust_registry_service.get_current_status(
+                provider.provider_id
+            ),
+            provider_trusted=trust_registry_service.is_trusted(provider.provider_id),
+        )
         for provider in provider_repository.list_all()
     ]
+
+
+@router.get(
+    "/trust-registry",
+    response_model=list[TrustRegistryEntryResponse],
+)
+def list_trust_registry() -> list[TrustRegistryEntryResponse]:
+    provider_ids = {provider.provider_id for provider in provider_repository.list_all()}
+    provider_ids.update(
+        decision.provider_id for decision in trust_registry_repository.list_all()
+    )
+    provider_ids.update(
+        application.provider_id
+        for application in provider_application_repository.list_all()
+    )
+
+    entries = []
+
+    for provider_id in sorted(provider_ids):
+        latest_decision = trust_registry_service.get_current_decision(provider_id)
+        trust_status = trust_registry_service.get_current_status(provider_id)
+
+        entries.append(
+            TrustRegistryEntryResponse(
+                provider_id=provider_id,
+                provider_name=get_public_provider_name(provider_id),
+                status=trust_status,
+                trusted=trust_status == "approved",
+                latest_decision_id=(
+                    latest_decision.decision_id if latest_decision is not None else None
+                ),
+                latest_decision_at=(
+                    latest_decision.decided_at if latest_decision is not None else None
+                ),
+            )
+        )
+
+    return entries
+
+
+@router.get(
+    "/providers/{provider_id}/trust",
+    response_model=ProviderTrustResponse,
+)
+def read_provider_trust(
+    provider_id: str,
+) -> ProviderTrustResponse:
+    known_provider_ids = {
+        provider.provider_id for provider in provider_repository.list_all()
+    }
+    known_provider_ids.update(
+        decision.provider_id for decision in trust_registry_repository.list_all()
+    )
+    known_provider_ids.update(
+        application.provider_id
+        for application in provider_application_repository.list_all()
+    )
+
+    if provider_id not in known_provider_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown trust-registry provider: {provider_id}",
+        )
+
+    return create_provider_trust_response(provider_id)
+
+
+@router.post(
+    "/provider-applications",
+    response_model=ProviderApplicationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def submit_provider_application(
+    request: ProviderApplicationRequest,
+) -> ProviderApplicationResponse:
+    try:
+        application = trust_registry_service.submit_application(
+            provider_id=request.provider_id,
+            provider_name=request.provider_name,
+            contact_reference=request.contact_reference,
+        )
+    except (
+        DuplicateProviderApplicationError,
+        InvalidTrustTransitionError,
+    ) as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
+
+    return ProviderApplicationResponse(
+        application_id=application.application_id,
+        provider_id=application.provider_id,
+        provider_name=application.provider_name,
+        application_status=application.status,
+        trust_status=trust_registry_service.get_current_status(application.provider_id),
+        submitted_at=application.submitted_at,
+    )
 
 
 @router.get(
@@ -180,6 +371,8 @@ def create_generated_artifact(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(error),
         ) from error
+
+    require_approved_provider(request.provider_id)
 
     try:
         artifact = adapter.generate(request.prompt)
@@ -257,20 +450,37 @@ def verify_credential(
 
     provider_document = get_provider_document(provider_id)
 
-    verification = verify_generation_credential_details(
+    cryptographic_verification = verify_generation_credential_details(
         credential=credential,
         provider_document=provider_document,
     )
 
+    trust_status = trust_registry_service.get_current_status(provider_id)
+    trust_decision = trust_registry_service.get_current_decision(provider_id)
+    provider_trusted = trust_status == "approved"
+    cryptographic_valid = cryptographic_verification.valid
+    valid = cryptographic_valid and provider_trusted
+
+    failure_reason = cryptographic_verification.failure_reason
+
+    if cryptographic_valid and not provider_trusted:
+        failure_reason = "provider-untrusted"
+
     return VerificationResponse(
-        valid=verification.valid,
+        valid=valid,
+        cryptographic_valid=cryptographic_valid,
+        provider_trusted=provider_trusted,
+        provider_trust_status=trust_status,
+        trust_decision_id=(
+            trust_decision.decision_id if trust_decision is not None else None
+        ),
         provider_id=provider_id,
         generation_id=credential.payload.generation.generation_id,
         credential_id=credential.payload.credential_id,
         key_id=credential.proof.key_id,
         algorithm=credential.proof.type,
-        key_status=verification.key_status,
-        failure_reason=verification.failure_reason,
+        key_status=cryptographic_verification.key_status,
+        failure_reason=failure_reason,
     )
 
 

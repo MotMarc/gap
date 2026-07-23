@@ -11,8 +11,12 @@ const state = {
     originalCredential: null,
     providers: [],
     providerDocuments: {},
+    providerTrustDocuments: {},
+    trustRegistry: [],
     providersReady: false,
+    trustRegistryReady: false,
     selectedProviderDocument: null,
+    selectedProviderTrust: null,
     providerSubstitution: null,
     revokedKeySubstitution: null,
     lastVerification: null,
@@ -44,6 +48,12 @@ const elements = {
     ),
     selectedProviderFingerprint: document.querySelector(
         "#selected-provider-fingerprint"
+    ),
+    selectedProviderTrustStatus: document.querySelector(
+        "#selected-provider-trust-status"
+    ),
+    selectedProviderTrustDecision: document.querySelector(
+        "#selected-provider-trust-decision"
     ),
     selectedProviderKeyCount: document.querySelector(
         "#selected-provider-key-count"
@@ -114,6 +124,8 @@ const elements = {
     trustSignatureResult: document.querySelector(
         "#trust-signature-result"
     ),
+    trustRegistryNode: document.querySelector("#trust-registry-node"),
+    trustRegistryResult: document.querySelector("#trust-registry-result"),
     signatureCheckIcon: document.querySelector("#signature-check-icon"),
     signatureCheckDetail: document.querySelector(
         "#signature-check-detail"
@@ -124,11 +136,14 @@ const elements = {
     providerCheckDetail: document.querySelector(
         "#provider-check-detail"
     ),
+    registryCheckIcon: document.querySelector("#registry-check-icon"),
+    registryCheckDetail: document.querySelector("#registry-check-detail"),
     timelineArtifact: document.querySelector("#timeline-artifact"),
     timelineHash: document.querySelector("#timeline-hash"),
     timelineCompare: document.querySelector("#timeline-compare"),
     timelineSignature: document.querySelector("#timeline-signature"),
     timelineProvider: document.querySelector("#timeline-provider"),
+    timelineRegistry: document.querySelector("#timeline-registry"),
     tamperArtifactButton: document.querySelector(
         "#tamper-artifact-button"
     ),
@@ -177,6 +192,8 @@ const elements = {
     providerEcosystemStatus: document.querySelector(
         "#provider-ecosystem-status"
     ),
+    trustRegistryGrid: document.querySelector("#trust-registry-grid"),
+    trustRegistryStatus: document.querySelector("#trust-registry-status"),
     copyCredentialButton: document.querySelector(
         "#copy-credential-button"
     ),
@@ -193,6 +210,7 @@ function setBadge(element, text, status) {
     element.classList.remove(
         "status-neutral",
         "status-success",
+        "status-warning",
         "status-error"
     );
     element.classList.add(`status-${status}`);
@@ -240,16 +258,27 @@ function activateTab(tabName) {
 
 
 function setLoading(isLoading) {
+    const selectedProviderApproved = Boolean(
+        state.selectedProviderTrust?.trusted === true &&
+        state.selectedProviderTrust?.status === "approved"
+    );
+
     elements.generateButton.disabled = (
         isLoading ||
-        !state.providersReady
+        !state.providersReady ||
+        !selectedProviderApproved
     );
     elements.generateButton.classList.toggle("is-loading", isLoading);
 
     const label = elements.generateButton.querySelector(".button-label");
 
     if (!state.providersReady) {
-        label.textContent = "Discovering providers";
+        label.textContent = "Discovering approved providers";
+        return;
+    }
+
+    if (!selectedProviderApproved) {
+        label.textContent = "Provider is not approved";
         return;
     }
 
@@ -343,6 +372,104 @@ function providerIdentityUrl(providerId) {
         `/providers/${encodeURIComponent(providerId)}` +
         "/.well-known/gap.json"
     );
+}
+
+
+function providerTrustUrl(providerId) {
+    return `/providers/${encodeURIComponent(providerId)}/trust`;
+}
+
+
+function trustStatusLabel(status) {
+    const labels = {
+        "self-declared": "Self-declared",
+        applicant: "Applicant",
+        approved: "Approved",
+        suspended: "Suspended",
+        removed: "Removed",
+    };
+
+    return labels[status] || status || "Unknown";
+}
+
+
+function trustStatusClass(status) {
+    const knownStatuses = [
+        "self-declared",
+        "applicant",
+        "approved",
+        "suspended",
+        "removed",
+    ];
+
+    return knownStatuses.includes(status)
+        ? `trust-status-${status}`
+        : "trust-status-unknown";
+}
+
+
+function badgeStatusForTrust(status) {
+    if (status === "approved") {
+        return "success";
+    }
+
+    if (status === "applicant" || status === "self-declared") {
+        return "warning";
+    }
+
+    return "error";
+}
+
+
+function formatRegistryDate(value) {
+    if (!value) {
+        return "No decision recorded";
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+
+    return date.toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
+
+async function readProviderTrust(providerId) {
+    if (!providerId) {
+        throw new Error("No provider was selected.");
+    }
+
+    if (state.providerTrustDocuments[providerId]) {
+        return state.providerTrustDocuments[providerId];
+    }
+
+    const response = await fetch(providerTrustUrl(providerId));
+
+    if (!response.ok) {
+        throw new Error(
+            `Registry trust resolution failed for ${providerId}.`
+        );
+    }
+
+    const trustDocument = await response.json();
+
+    if (trustDocument.provider_id !== providerId) {
+        throw new Error(
+            "The registry response declared a different provider ID."
+        );
+    }
+
+    state.providerTrustDocuments[providerId] = trustDocument;
+
+    return trustDocument;
 }
 
 
@@ -565,7 +692,10 @@ async function renderProviderKeyHistory(providerDocument) {
 
 async function renderSelectedProvider(providerId) {
     if (!providerId) {
+        state.selectedProviderDocument = null;
+        state.selectedProviderTrust = null;
         elements.providerIdentityCard.classList.add("hidden");
+        setLoading(false);
         return;
     }
 
@@ -577,18 +707,26 @@ async function renderSelectedProvider(providerId) {
     elements.selectedProviderAlgorithm.textContent = "Resolving…";
     elements.selectedProviderKeyStatus.textContent = "Resolving…";
     elements.selectedProviderFingerprint.textContent = "Resolving…";
+    elements.selectedProviderTrustStatus.textContent = "Resolving…";
+    elements.selectedProviderTrustDecision.textContent = "Resolving…";
     elements.selectedProviderKeyCount.textContent = "Resolving…";
     elements.selectedProviderKeyHistory.textContent = "";
 
+    state.selectedProviderDocument = null;
+    state.selectedProviderTrust = null;
+
     setBadge(
         elements.selectedProviderStatus,
-        "Resolving identity",
+        "Resolving identity and trust",
         "neutral"
     );
 
     elements.selectedProviderIdentityLink.href = (
         providerIdentityUrl(providerId)
     );
+
+    let identityResolved = false;
+    let trustResolved = false;
 
     try {
         const providerDocument = await readProviderDocument(providerId);
@@ -598,6 +736,7 @@ async function renderSelectedProvider(providerId) {
         );
 
         state.selectedProviderDocument = providerDocument;
+        identityResolved = true;
 
         elements.selectedProviderName.textContent = (
             providerDocument.provider_name
@@ -623,15 +762,7 @@ async function renderSelectedProvider(providerId) {
         elements.selectedProviderFingerprint.title = fingerprint || "";
 
         await renderProviderKeyHistory(providerDocument);
-
-        setBadge(
-            elements.selectedProviderStatus,
-            "Identity resolved",
-            "success"
-        );
     } catch (error) {
-        state.selectedProviderDocument = null;
-
         elements.selectedProviderGapVersion.textContent = "Unavailable";
         elements.selectedProviderKeyId.textContent = "Unavailable";
         elements.selectedProviderAlgorithm.textContent = "Unavailable";
@@ -640,18 +771,76 @@ async function renderSelectedProvider(providerId) {
         elements.selectedProviderKeyCount.textContent = "Unavailable";
         elements.selectedProviderKeyHistory.textContent = "";
 
-        setBadge(
-            elements.selectedProviderStatus,
-            "Resolution failed",
-            "error"
-        );
-
         setMessage(
             elements.generationError,
             error.message || "Provider identity could not be resolved.",
             "warning"
         );
     }
+
+    try {
+        const trustDocument = await readProviderTrust(providerId);
+
+        state.selectedProviderTrust = trustDocument;
+        trustResolved = true;
+
+        elements.selectedProviderTrustStatus.textContent = (
+            `${trustStatusLabel(trustDocument.status)} · ` +
+            (trustDocument.trusted ? "trusted" : "not trusted")
+        );
+
+        const latestDecision = trustDocument.latest_decision;
+
+        elements.selectedProviderTrustDecision.textContent = latestDecision
+            ? (
+                `${latestDecision.decision_id} · ` +
+                `${latestDecision.authority} · ` +
+                formatRegistryDate(latestDecision.decided_at)
+            )
+            : "No authoritative decision recorded";
+    } catch (error) {
+        elements.selectedProviderTrustStatus.textContent = "Unavailable";
+        elements.selectedProviderTrustDecision.textContent = (
+            "Registry resolution failed"
+        );
+
+        setMessage(
+            elements.generationError,
+            error.message || "Provider registry trust could not be resolved.",
+            "warning"
+        );
+    }
+
+    const providerApproved = Boolean(
+        identityResolved &&
+        trustResolved &&
+        state.selectedProviderTrust?.trusted === true &&
+        state.selectedProviderTrust?.status === "approved"
+    );
+
+    if (providerApproved) {
+        setBadge(
+            elements.selectedProviderStatus,
+            "Identity resolved · Approved",
+            "success"
+        );
+    } else if (identityResolved && trustResolved) {
+        const trustStatus = state.selectedProviderTrust?.status;
+
+        setBadge(
+            elements.selectedProviderStatus,
+            `Identity resolved · ${trustStatusLabel(trustStatus)}`,
+            badgeStatusForTrust(trustStatus)
+        );
+    } else {
+        setBadge(
+            elements.selectedProviderStatus,
+            "Resolution failed",
+            "error"
+        );
+    }
+
+    setLoading(false);
 }
 
 
@@ -675,9 +864,11 @@ async function createProviderEcosystemCard(provider) {
     const headingCopy = document.createElement("div");
     const name = document.createElement("h3");
     const identifier = document.createElement("code");
+    const trustBadge = document.createElement("span");
     const metrics = document.createElement("div");
     const actionRow = document.createElement("div");
     const identityLink = document.createElement("a");
+    const trustLink = document.createElement("a");
     const selectButton = document.createElement("button");
 
     card.className = "provider-ecosystem-card";
@@ -686,7 +877,11 @@ async function createProviderEcosystemCard(provider) {
     metrics.className = "provider-ecosystem-metrics";
     actionRow.className = "provider-ecosystem-actions";
     identityLink.className = "provider-identity-link";
+    trustLink.className = "provider-identity-link";
     selectButton.className = "secondary-button compact-button";
+    trustBadge.className = (
+        `trust-status-pill ${trustStatusClass(provider.trust_status)}`
+    );
 
     marker.textContent = provider.provider_name
         .split(/\s+/)
@@ -696,28 +891,52 @@ async function createProviderEcosystemCard(provider) {
         .toUpperCase();
     name.textContent = provider.provider_name;
     identifier.textContent = provider.provider_id;
+    trustBadge.textContent = trustStatusLabel(provider.trust_status);
 
     headingCopy.append(name, identifier);
-    heading.append(marker, headingCopy);
+    heading.append(marker, headingCopy, trustBadge);
 
     identityLink.href = providerIdentityUrl(provider.provider_id);
     identityLink.target = "_blank";
     identityLink.rel = "noreferrer";
     identityLink.textContent = "Identity document";
 
-    selectButton.type = "button";
-    selectButton.textContent = "Use this provider";
-    selectButton.addEventListener(
-        "click",
-        async () => {
-            elements.providerId.value = provider.provider_id;
-            await renderSelectedProvider(provider.provider_id);
-            activateTab("generate");
-            elements.providerId.focus();
-        }
+    trustLink.href = providerTrustUrl(provider.provider_id);
+    trustLink.target = "_blank";
+    trustLink.rel = "noreferrer";
+    trustLink.textContent = "Registry trust";
+
+    const selectable = Boolean(
+        provider.provider_trusted === true &&
+        provider.trust_status === "approved"
     );
 
-    actionRow.append(identityLink, selectButton);
+    selectButton.type = "button";
+    selectButton.textContent = selectable
+        ? "Use this provider"
+        : "Issuance unavailable";
+    selectButton.disabled = !selectable;
+
+    if (selectable) {
+        selectButton.addEventListener(
+            "click",
+            async () => {
+                elements.providerId.value = provider.provider_id;
+                await renderSelectedProvider(provider.provider_id);
+                activateTab("generate");
+                elements.providerId.focus();
+            }
+        );
+    }
+
+    actionRow.append(identityLink, trustLink, selectButton);
+
+    appendProviderMetric(
+        metrics,
+        "Registry trust",
+        `${trustStatusLabel(provider.trust_status)} · ` +
+            (provider.provider_trusted ? "trusted" : "not trusted")
+    );
 
     try {
         const providerDocument = await readProviderDocument(
@@ -787,7 +1006,7 @@ async function renderProviderEcosystem() {
 
     setBadge(
         elements.providerEcosystemStatus,
-        "Resolving identities",
+        "Resolving identities and trust",
         "neutral"
     );
 
@@ -797,16 +1016,218 @@ async function renderProviderEcosystem() {
 
     elements.providerEcosystemGrid.append(...cards);
 
+    const approvedCount = state.providers.filter(
+        (provider) => (
+            provider.provider_trusted === true &&
+            provider.trust_status === "approved"
+        )
+    ).length;
+
     setBadge(
         elements.providerEcosystemStatus,
-        `${cards.length} providers discovered`,
-        "success"
+        `${cards.length} providers · ${approvedCount} approved`,
+        approvedCount > 0 ? "success" : "warning"
     );
+}
+
+
+function createTrustDecisionItem(decision) {
+    const item = document.createElement("li");
+    const heading = document.createElement("div");
+    const status = document.createElement("span");
+    const date = document.createElement("small");
+    const reason = document.createElement("p");
+    const authority = document.createElement("code");
+
+    status.className = (
+        `trust-status-pill ${trustStatusClass(decision.status)}`
+    );
+    status.textContent = trustStatusLabel(decision.status);
+    date.textContent = formatRegistryDate(decision.decided_at);
+    reason.textContent = decision.reason;
+    authority.textContent = (
+        `${decision.authority} · ${decision.decision_id}`
+    );
+
+    heading.append(status, date);
+    item.append(heading, reason, authority);
+
+    return item;
+}
+
+
+async function createTrustRegistryCard(entry) {
+    const card = document.createElement("article");
+    const heading = document.createElement("div");
+    const headingCopy = document.createElement("div");
+    const name = document.createElement("h3");
+    const identifier = document.createElement("code");
+    const trustBadge = document.createElement("span");
+    const summary = document.createElement("p");
+    const metrics = document.createElement("div");
+    const historyHeading = document.createElement("h4");
+    const history = document.createElement("ol");
+    const trustLink = document.createElement("a");
+
+    card.className = "trust-registry-card";
+    heading.className = "trust-registry-card-heading";
+    metrics.className = "trust-registry-card-metrics";
+    history.className = "trust-decision-history";
+    trustBadge.className = (
+        `trust-status-pill ${trustStatusClass(entry.status)}`
+    );
+    trustLink.className = "provider-identity-link";
+
+    name.textContent = entry.provider_name;
+    identifier.textContent = entry.provider_id;
+    trustBadge.textContent = trustStatusLabel(entry.status);
+    summary.textContent = entry.trusted
+        ? (
+            "This provider is currently approved. Its active key may issue " +
+            "new GAP credentials."
+        )
+        : (
+            "This provider is not currently trusted for new credential " +
+            "issuance."
+        );
+
+    appendProviderMetric(
+        metrics,
+        "Current status",
+        trustStatusLabel(entry.status)
+    );
+    appendProviderMetric(
+        metrics,
+        "Trusted",
+        entry.trusted ? "Yes" : "No"
+    );
+    appendProviderMetric(
+        metrics,
+        "Latest decision",
+        entry.latest_decision_id || "No decision recorded"
+    );
+    appendProviderMetric(
+        metrics,
+        "Decision time",
+        formatRegistryDate(entry.latest_decision_at)
+    );
+
+    historyHeading.textContent = "Public decision history";
+    trustLink.href = providerTrustUrl(entry.provider_id);
+    trustLink.target = "_blank";
+    trustLink.rel = "noreferrer";
+    trustLink.textContent = "Open provider trust record";
+
+    headingCopy.append(name, identifier);
+    heading.append(headingCopy, trustBadge);
+
+    try {
+        const trustDocument = await readProviderTrust(entry.provider_id);
+        const historyItems = (
+            trustDocument.decision_history || []
+        ).map(createTrustDecisionItem);
+
+        if (historyItems.length > 0) {
+            history.append(...historyItems);
+        } else {
+            const emptyItem = document.createElement("li");
+            emptyItem.textContent = "No public trust decisions recorded.";
+            history.append(emptyItem);
+        }
+    } catch (error) {
+        const errorItem = document.createElement("li");
+        errorItem.textContent = (
+            error.message || "Decision history could not be resolved."
+        );
+        history.append(errorItem);
+        card.classList.add("trust-registry-card-error");
+    }
+
+    card.append(
+        heading,
+        summary,
+        metrics,
+        historyHeading,
+        history,
+        trustLink
+    );
+
+    return card;
+}
+
+
+async function renderTrustRegistry() {
+    elements.trustRegistryGrid.replaceChildren();
+    state.trustRegistryReady = false;
+
+    setBadge(
+        elements.trustRegistryStatus,
+        "Loading registry",
+        "neutral"
+    );
+
+    try {
+        const response = await fetch("/trust-registry");
+
+        if (!response.ok) {
+            throw new Error(await readError(response));
+        }
+
+        const entries = await response.json();
+
+        if (!Array.isArray(entries)) {
+            throw new Error("The trust registry returned an invalid response.");
+        }
+
+        state.trustRegistry = entries;
+        state.trustRegistryReady = true;
+
+        if (entries.length === 0) {
+            elements.trustRegistryGrid.textContent = (
+                "No providers are currently recorded in the trust registry."
+            );
+            setBadge(
+                elements.trustRegistryStatus,
+                "Registry empty",
+                "warning"
+            );
+            return;
+        }
+
+        const cards = await Promise.all(
+            entries.map(createTrustRegistryCard)
+        );
+
+        elements.trustRegistryGrid.append(...cards);
+
+        const approvedCount = entries.filter(
+            (entry) => entry.status === "approved" && entry.trusted
+        ).length;
+
+        setBadge(
+            elements.trustRegistryStatus,
+            `${entries.length} recorded · ${approvedCount} approved`,
+            approvedCount > 0 ? "success" : "warning"
+        );
+    } catch (error) {
+        state.trustRegistry = [];
+        state.trustRegistryReady = false;
+        elements.trustRegistryGrid.textContent = (
+            error.message || "The GAP Trust Registry is unavailable."
+        );
+
+        setBadge(
+            elements.trustRegistryStatus,
+            "Registry unavailable",
+            "error"
+        );
+    }
 }
 
 
 async function loadProviders() {
     state.providersReady = false;
+    state.selectedProviderTrust = null;
     elements.providerId.disabled = true;
     setLoading(false);
 
@@ -834,7 +1255,9 @@ async function loadProviders() {
         state.providers = providers.filter(
             (provider) => (
                 typeof provider.provider_id === "string" &&
-                typeof provider.provider_name === "string"
+                typeof provider.provider_name === "string" &&
+                typeof provider.trust_status === "string" &&
+                typeof provider.provider_trusted === "boolean"
             )
         );
 
@@ -844,12 +1267,26 @@ async function loadProviders() {
             );
         }
 
-        const options = state.providers.map((provider) => {
+        const selectableProviders = state.providers.filter(
+            (provider) => (
+                provider.provider_trusted === true &&
+                provider.trust_status === "approved"
+            )
+        );
+
+        if (selectableProviders.length === 0) {
+            throw new Error(
+                "No approved providers are currently available for issuance."
+            );
+        }
+
+        const options = selectableProviders.map((provider) => {
             const option = document.createElement("option");
 
             option.value = provider.provider_id;
             option.textContent = (
-                `${provider.provider_name} · ${provider.provider_id}`
+                `${provider.provider_name} · Approved · ` +
+                provider.provider_id
             );
 
             return option;
@@ -859,7 +1296,6 @@ async function loadProviders() {
         elements.providerId.disabled = false;
 
         state.providersReady = true;
-        setLoading(false);
 
         const selectedProviderId = elements.providerId.value;
 
@@ -867,9 +1303,12 @@ async function loadProviders() {
             renderSelectedProvider(selectedProviderId),
             renderProviderEcosystem(),
         ]);
+
+        setLoading(false);
     } catch (error) {
         state.providers = [];
         state.providersReady = false;
+        state.selectedProviderTrust = null;
 
         const option = document.createElement("option");
         option.value = "";
@@ -1036,6 +1475,12 @@ function resetTrustChain() {
         null,
         "Not checked"
     );
+    setTrustNode(
+        elements.trustRegistryNode,
+        elements.trustRegistryResult,
+        null,
+        "Not resolved"
+    );
 }
 
 
@@ -1061,6 +1506,7 @@ function resetVerificationDisplay() {
         [elements.signatureCheckIcon, elements.signatureCheckDetail],
         [elements.artifactCheckIcon, elements.artifactCheckDetail],
         [elements.providerCheckIcon, elements.providerCheckDetail],
+        [elements.registryCheckIcon, elements.registryCheckDetail],
     ].forEach(([icon, detail]) => {
         icon.textContent = "○";
         icon.className = "check-icon";
@@ -1073,6 +1519,7 @@ function resetVerificationDisplay() {
         elements.timelineCompare,
         elements.timelineSignature,
         elements.timelineProvider,
+        elements.timelineRegistry,
     ].forEach((item) => {
         item.className = "";
         item.querySelector("small").textContent = "Awaiting input";
@@ -1470,9 +1917,24 @@ async function runCompleteVerification() {
             `Checking ${credentialAlgorithm} signature`
         );
 
+        setTimelineState(
+            elements.timelineRegistry,
+            "active",
+            "Resolving independent provider trust"
+        );
+
+        setTrustNode(
+            elements.trustRegistryNode,
+            elements.trustRegistryResult,
+            "active",
+            "Querying the GAP Trust Registry"
+        );
+
         let verification = null;
         let signatureValid = false;
         let providerValid = false;
+        let registryTrusted = false;
+        let registryStatus = "self-declared";
 
         try {
             verification = await verifyCredentialSignature(
@@ -1481,11 +1943,16 @@ async function runCompleteVerification() {
 
             state.lastVerification = verification;
 
-            signatureValid = verification.valid === true;
+            signatureValid = verification.cryptographic_valid === true;
             providerValid = Boolean(
-                verification.provider_id &&
+                verification.provider_id === credentialProviderId &&
                 identityResolved &&
                 keyResolved
+            );
+            registryTrusted = verification.provider_trusted === true;
+            registryStatus = (
+                verification.provider_trust_status ||
+                "self-declared"
             );
 
             const resolvedAlgorithm = (
@@ -1499,7 +1966,10 @@ async function runCompleteVerification() {
                 signatureValid ? "success" : "error",
                 signatureValid
                     ? `${resolvedAlgorithm} signature valid`
-                    : "Credential signature invalid"
+                    : (
+                        verification.failure_reason ||
+                        "Credential signature invalid"
+                    )
             );
 
             setTimelineState(
@@ -1510,6 +1980,20 @@ async function runCompleteVerification() {
                     : "Provider identity or signing key was rejected"
             );
 
+            setTimelineState(
+                elements.timelineRegistry,
+                registryTrusted ? "success" : "error",
+                registryTrusted
+                    ? (
+                        `${trustStatusLabel(registryStatus)} · ` +
+                        `${verification.trust_decision_id || "decision recorded"}`
+                    )
+                    : (
+                        `${trustStatusLabel(registryStatus)} · ` +
+                        "provider is not currently trusted"
+                    )
+            );
+
             setTrustNode(
                 elements.trustSignatureNode,
                 elements.trustSignatureResult,
@@ -1517,6 +2001,21 @@ async function runCompleteVerification() {
                 signatureValid
                     ? `${resolvedAlgorithm} signature accepted`
                     : `${resolvedAlgorithm} signature rejected`
+            );
+
+            setTrustNode(
+                elements.trustRegistryNode,
+                elements.trustRegistryResult,
+                registryTrusted ? "success" : "error",
+                registryTrusted
+                    ? (
+                        `Approved by the GAP Trust Registry · ` +
+                        `${verification.trust_decision_id || "decision recorded"}`
+                    )
+                    : (
+                        `${trustStatusLabel(registryStatus)} · ` +
+                        "not trusted for overall GAP validity"
+                    )
             );
         } catch (error) {
             state.lastVerification = null;
@@ -1533,11 +2032,24 @@ async function runCompleteVerification() {
                 error.message
             );
 
+            setTimelineState(
+                elements.timelineRegistry,
+                "error",
+                "Registry trust could not be resolved"
+            );
+
             setTrustNode(
                 elements.trustSignatureNode,
                 elements.trustSignatureResult,
                 "error",
                 error.message || "Verification request failed"
+            );
+
+            setTrustNode(
+                elements.trustRegistryNode,
+                elements.trustRegistryResult,
+                "error",
+                "Registry trust resolution failed"
             );
         }
 
@@ -1545,7 +2057,7 @@ async function runCompleteVerification() {
             elements.signatureCheckIcon,
             elements.signatureCheckDetail,
             signatureValid,
-            "Ed25519 credential signature is valid.",
+            "Ed25519 credential signature is cryptographically valid.",
             "Credential signature validation failed."
         );
 
@@ -1557,44 +2069,82 @@ async function runCompleteVerification() {
             "Provider identity or signing-key lifecycle state was rejected."
         );
 
+        setCheck(
+            elements.registryCheckIcon,
+            elements.registryCheckDetail,
+            registryTrusted,
+            "Provider is currently approved by the GAP Trust Registry.",
+            (
+                `${trustStatusLabel(registryStatus)} providers are not ` +
+                "trusted for overall GAP validity."
+            )
+        );
+
         const completeResult = (
             artifactMatches &&
             signatureValid &&
-            providerValid
+            providerValid &&
+            registryTrusted
+        );
+        const authenticButUntrusted = (
+            artifactMatches &&
+            signatureValid &&
+            providerValid &&
+            !registryTrusted
         );
 
         setBadge(
             elements.trustChainStatus,
-            signatureValid && providerValid
+            completeResult
                 ? "Trust established"
-                : "Trust rejected",
-            signatureValid && providerValid
+                : authenticButUntrusted
+                    ? "Authentic · Registry rejected"
+                    : "Trust rejected",
+            completeResult
                 ? "success"
-                : "error"
+                : authenticButUntrusted
+                    ? "warning"
+                    : "error"
         );
 
         setBadge(
             elements.completeVerificationStatus,
-            completeResult ? "Valid" : "Invalid",
-            completeResult ? "success" : "error"
+            completeResult
+                ? "Valid and trusted"
+                : authenticButUntrusted
+                    ? "Authentic but untrusted"
+                    : "Invalid",
+            completeResult
+                ? "success"
+                : authenticButUntrusted
+                    ? "warning"
+                    : "error"
         );
 
         elements.verificationResultIcon.textContent = (
-            completeResult ? "✓" : "×"
+            completeResult
+                ? "✓"
+                : authenticButUntrusted
+                    ? "!"
+                    : "×"
         );
         elements.verificationResultIcon.className = (
             "verification-result-icon " +
             (
                 completeResult
                     ? "verification-result-success"
-                    : "verification-result-error"
+                    : authenticButUntrusted
+                        ? "verification-result-warning"
+                        : "verification-result-error"
             )
         );
 
         elements.verificationResultTitle.textContent = (
             completeResult
                 ? "Artifact successfully verified"
-                : "Verification failed"
+                : authenticButUntrusted
+                    ? "Credential authentic, provider untrusted"
+                    : "Verification failed"
         );
 
         if (!completeResult && state.providerSubstitution) {
@@ -1619,16 +2169,23 @@ async function runCompleteVerification() {
                 `with revocation metadata, so GAP refuses the credential before ` +
                 `accepting its signature.`
             );
+        } else if (authenticButUntrusted) {
+            elements.verificationResultDescription.textContent = (
+                `The artifact digest and credential signature are authentic, ` +
+                `but the provider's registry status is ` +
+                `${trustStatusLabel(registryStatus)}. Overall GAP validity ` +
+                `therefore fails without changing the cryptographic result.`
+            );
         } else {
             elements.verificationResultDescription.textContent = (
                 completeResult
                     ? (
-                        "The artifact digest, credential signature and provider " +
-                        "identity are all valid."
+                        "The artifact digest, credential signature, provider " +
+                        "identity and independent registry trust are all valid."
                     )
                     : (
                         "One or more GAP verification controls detected an " +
-                        "invalid or modified input."
+                        "invalid, modified or untrusted input."
                     )
             );
         }
@@ -1637,8 +2194,16 @@ async function runCompleteVerification() {
 
         setBadge(
             elements.explorerSignatureStatus,
-            signatureValid ? "Signature valid" : "Signature invalid",
-            signatureValid ? "success" : "error"
+            signatureValid
+                ? registryTrusted
+                    ? "Authentic and trusted"
+                    : "Authentic · Provider untrusted"
+                : "Cryptographically invalid",
+            signatureValid
+                ? registryTrusted
+                    ? "success"
+                    : "warning"
+                : "error"
         );
     } catch (error) {
         setBadge(
@@ -1659,7 +2224,6 @@ async function runCompleteVerification() {
         );
     }
 }
-
 
 
 async function readArtifactUpload(event) {
@@ -2073,11 +2637,21 @@ async function verifyExplorerCredential() {
 
     try {
         const result = await verifyCredentialSignature(state.credential);
+        const cryptographicValid = result.cryptographic_valid === true;
+        const providerTrusted = result.provider_trusted === true;
 
         setBadge(
             elements.explorerSignatureStatus,
-            result.valid ? "Signature valid" : "Signature invalid",
-            result.valid ? "success" : "error"
+            cryptographicValid
+                ? providerTrusted
+                    ? "Authentic and trusted"
+                    : "Authentic · Provider untrusted"
+                : "Cryptographically invalid",
+            cryptographicValid
+                ? providerTrusted
+                    ? "success"
+                    : "warning"
+                : "error"
         );
     } catch {
         setBadge(
@@ -2087,7 +2661,7 @@ async function verifyExplorerCredential() {
         );
     } finally {
         elements.explorerVerifyButton.disabled = false;
-        elements.explorerVerifyButton.textContent = "Verify signature";
+        elements.explorerVerifyButton.textContent = "Verify credential";
     }
 }
 
@@ -2224,3 +2798,4 @@ renderExplorer();
 setLoading(false);
 checkServiceHealth();
 loadProviders();
+renderTrustRegistry();

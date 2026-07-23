@@ -1,0 +1,30 @@
+{
+  "payload": {
+    "version": "0.0.1",
+    "credential_id": "gc_f3e4b5ce0365456ead4cd3a232aea435f345026677757e06cbfff1a84eefb12a",
+    "generation": {
+      "generation_id": "gid_a9aec6a23bbd2d7e3c277f9b82c9c9254c4fbf0991be910fb55d317801e86f5c",
+      "created_at": "2026-07-23T11:46:30.266986Z"
+    },
+    "provider": {
+      "provider_id": "gap-demo-provider"
+    },
+    "model": {
+      "model_id": "gap-semantic-procedural-image-v2"
+    },
+    "artifacts": [
+      {
+        "media_type": "image/png",
+        "digest": {
+          "algorithm": "sha-256",
+          "value": "b4b362313f21eeb0fb45bb8f0d1c431adc05777e52656ee934c8b43cda09010d"
+        }
+      }
+    ]
+  },
+  "proof": {
+    "type": "Ed25519",
+    "key_id": "demo-key-2026-02",
+    "signature": "HpKkk8jInYhKSw4IkiFxTzQIUxgU8JKrUgy6U3MKvzdlUG+hD84ySGcI4lrzJmgEZ4o+Gtswpkrb3aoSHgKRCA=="
+  }
+}
