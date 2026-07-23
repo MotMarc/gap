@@ -10,6 +10,10 @@ from app.services.trust_registry_repository import TrustRegistryRepository
 from app.services.trust_registry_service import TrustRegistryService
 from app.core.registry_authority_config import registry_authority_repository
 from app.services.trust_attestation_repository import TrustAttestationRepository
+from app.services.federation_bundle_repository import FederationBundleRepository
+from app.services.federated_trust_service import FederatedTrustService
+from app.services.federation_file_service import load_accepted_bundle_directory
+from pathlib import Path
 
 
 attribution_repository = AttributionRepository()
@@ -18,12 +22,19 @@ disclosure_audit_repository = DisclosureAuditRepository()
 provider_application_repository = ProviderApplicationRepository()
 trust_registry_repository = TrustRegistryRepository()
 trust_attestation_repository = TrustAttestationRepository()
+federation_bundle_repository = FederationBundleRepository()
 trust_registry_service = TrustRegistryService(
     trust_repository=trust_registry_repository,
     application_repository=provider_application_repository,
     authority_repository=registry_authority_repository,
     attestation_repository=trust_attestation_repository,
     default_authority_id="gap-reference-registry",
+)
+federated_trust_service = FederatedTrustService(
+    local_trust_service=trust_registry_service,
+    authority_repository=registry_authority_repository,
+    bundle_repository=federation_bundle_repository,
+    local_authority_id="gap-reference-registry",
 )
 
 
@@ -54,3 +65,16 @@ for index, provider in enumerate(PROVIDERS, start=1):
         decided_at=SEED_APPROVAL_TIME,
         decision_id=f"seed-approval-{index}",
     )
+
+
+FEDERATION_ACCEPTED_DIRECTORY = (
+    Path(__file__).resolve().parents[3] / "runtime" / "federation" / "accepted"
+)
+(
+    FEDERATION_LOADED_BUNDLE_COUNT,
+    FEDERATION_INVALID_FILE_COUNT,
+) = load_accepted_bundle_directory(
+    FEDERATION_ACCEPTED_DIRECTORY,
+    registry_authority_repository,
+    federation_bundle_repository,
+)
