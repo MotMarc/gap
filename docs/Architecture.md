@@ -34,6 +34,24 @@ Repositories are append-only in-memory stores. Federation means configuring
 multiple locally accepted authorities; it does not perform remote discovery or
 synchronization.
 
+## Sprint 11 federation architecture
+
+`FederationBundlePayload` packages one current signed attestation per provider,
+sorted by provider ID. Its Ed25519 proof covers authority identity, sequence,
+timestamps, predecessor hash and every attestation. Its lowercase SHA-256 digest
+covers canonical JSON for the complete bundle including proof.
+
+The first accepted bundle is sequence 1 without a predecessor. Later bundles
+increment exactly once and reference the previous accepted digest. Verification
+precedes repository mutation; accepted models are copied and never replaced.
+Runtime files use atomic replacement and are revalidated at startup. A broken
+authority chain is excluded without invalidating unrelated chains.
+
+`FederatedTrustService` uses the local signed source and latest current bundle
+source per configured authority. Equal statuses resolve to that status.
+Disagreement sets `federation_conflict`, clears effective status, and denies
+trust. There is no majority, weighting, timestamp tie-break, or local preference.
+
 ## Components and boundaries
 
 ### Registry Authority identity

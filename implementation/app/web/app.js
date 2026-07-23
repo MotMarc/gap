@@ -165,7 +165,10 @@ const elements = {
     timelineAuthorityIdentity: requireElement("timeline-authority-identity"),
     timelineAuthorityKey: requireElement("timeline-authority-key"),
     timelineAttestation: requireElement("timeline-attestation"),
+    timelineFederationChain: requireElement("timeline-federation-chain"),
+    timelineFederationConflict: requireElement("timeline-federation-conflict"),
     timelineOverall: requireElement("timeline-overall"),
+    federationBundleGrid: requireElement("federation-bundle-grid"),
     tamperArtifactButton: document.querySelector(
         "#tamper-artifact-button"
     ),
@@ -1793,6 +1796,8 @@ function resetVerificationDisplay() {
         elements.timelineAuthorityIdentity,
         elements.timelineAuthorityKey,
         elements.timelineAttestation,
+        elements.timelineFederationChain,
+        elements.timelineFederationConflict,
         elements.timelineOverall,
     ].forEach((item) => {
         item.className = "";
@@ -2212,6 +2217,16 @@ async function runCompleteVerification() {
             "Verifying signed trust attestation"
         );
         setTimelineState(
+            elements.timelineFederationChain,
+            "active",
+            "Checking accepted bundle freshness and chain"
+        );
+        setTimelineState(
+            elements.timelineFederationConflict,
+            "active",
+            "Comparing authority decisions"
+        );
+        setTimelineState(
             elements.timelineOverall,
             "active",
             "Calculating overall GAP validity"
@@ -2423,6 +2438,31 @@ async function runCompleteVerification() {
                         "Trust attestation could not be validated"
                     )
             );
+            const federationSources = verification.federation_sources || [];
+            const federationBundleIds = verification.federation_bundle_ids || [];
+            const federationConflict = verification.federation_conflict === true;
+            const effectiveTrustStatus = (
+                verification.effective_provider_trust_status || "unavailable"
+            );
+            setTimelineState(
+                elements.timelineFederationChain,
+                verification.federation_failure_reason &&
+                    verification.federation_source_count === 0
+                    ? "error"
+                    : "success",
+                federationBundleIds.length
+                    ? `${federationBundleIds.length} current bundle source(s)`
+                    : "Current local authority source; no portable bundle required"
+            );
+            setTimelineState(
+                elements.timelineFederationConflict,
+                federationConflict ? "error" : "success",
+                federationConflict
+                    ? `Authority disagreement: ${federationSources.map(
+                        (source) => `${source.registry_authority_id}=${source.provider_status}`
+                    ).join(", ")}`
+                    : `No conflict · effective status ${effectiveTrustStatus}`
+            );
 
             setTrustNode(
                 elements.trustSignatureNode,
@@ -2481,6 +2521,16 @@ async function runCompleteVerification() {
                 elements.timelineAttestation,
                 "error",
                 "Trust attestation could not be verified"
+            );
+            setTimelineState(
+                elements.timelineFederationChain,
+                "error",
+                "Federation bundle state could not be resolved"
+            );
+            setTimelineState(
+                elements.timelineFederationConflict,
+                "error",
+                "Authority conflicts could not be evaluated"
             );
             setTimelineState(
                 elements.timelineOverall,
@@ -2720,6 +2770,8 @@ async function runCompleteVerification() {
             elements.timelineAuthorityIdentity,
             elements.timelineAuthorityKey,
             elements.timelineAttestation,
+            elements.timelineFederationChain,
+            elements.timelineFederationConflict,
             elements.timelineOverall,
         ].forEach((timeline) => {
             setTimelineState(
@@ -3218,6 +3270,53 @@ async function checkServiceHealth() {
 }
 
 
+async function renderFederationBundles() {
+    try {
+        const response = await fetch("/federation/bundles");
+        if (!response.ok) {
+            throw new Error("Federation bundle list unavailable.");
+        }
+        const bundles = await response.json();
+        elements.federationBundleGrid.replaceChildren();
+        if (!bundles.length) {
+            const empty = document.createElement("p");
+            empty.textContent = (
+                "No portable bundles accepted. Local signed trust remains active."
+            );
+            elements.federationBundleGrid.append(empty);
+            return;
+        }
+        bundles.forEach((bundle) => {
+            const card = document.createElement("article");
+            card.className = "trust-registry-card";
+            const title = document.createElement("strong");
+            title.textContent = (
+                `${bundle.registry_authority_id} · sequence ${bundle.sequence_number}`
+            );
+            const detail = document.createElement("p");
+            detail.textContent = (
+                `${bundle.bundle_id} · expires ${bundle.expires_at} · ` +
+                `${bundle.attestation_count} attestations · ` +
+                `${bundle.current ? "current" : bundle.expired ? "expired" : "historical"}`
+            );
+            const chain = document.createElement("small");
+            chain.textContent = (
+                `Digest ${bundle.bundle_hash}; predecessor ` +
+                `${bundle.previous_bundle_hash || "genesis"}; signature ` +
+                `${bundle.signature_valid ? "valid" : "invalid"}; chain ` +
+                `${bundle.chain_valid ? "valid" : "invalid"}; replay protection active`
+            );
+            card.append(title, detail, chain);
+            elements.federationBundleGrid.append(card);
+        });
+    } catch (error) {
+        elements.federationBundleGrid.textContent = (
+            error.message || "Federation bundle state could not be loaded."
+        );
+    }
+}
+
+
 elements.tabButtons.forEach((button) => {
     button.addEventListener(
         "click",
@@ -3324,3 +3423,4 @@ loadProviders();
 renderTrustRegistry();
 renderRegistryAuthorities();
 renderTrustAttestations();
+renderFederationBundles();

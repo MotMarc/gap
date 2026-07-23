@@ -100,7 +100,7 @@ Then open `http://127.0.0.1:8000`.
 
 ## License
 
-MIT
+Check LICENSE file
 
 ## Sprint 10 limitations
 

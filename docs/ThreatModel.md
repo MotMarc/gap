@@ -32,3 +32,20 @@ Other current limitations include in-memory repositories, configuration-only
 federation, no remote authority discovery, no authenticated registry
 administration, no transparency log, no consensus or quorum, and no automated
 cross-registry conflict resolution.
+
+## Federation bundle threats
+
+Sprint 11 rejects unknown authorities/keys, revoked keys, malformed signatures,
+excessive lifetime, expiry, future issuance beyond five minutes, sequence gaps,
+replays, rollbacks, missing predecessors, chain mismatches, duplicates,
+cross-authority attestations, and invalid contained attestations. Retired keys
+may verify history but cannot sign new state. Verification completes before
+repository or filesystem mutation.
+
+Imported JSON is size- and count-limited and uses atomic accepted-file writes.
+Public APIs expose no paths, private keys, contacts, accounts, prompts, or
+attribution records. There is no mutation API or remote fetch. Conflicting valid
+authority decisions fail closed; expired signed data remains audit-only.
+Production persistence, authenticated administration, secure key custody and
+transparency-log proofs remain limitations. Sprint 12 should add signed tree
+heads/inclusion proofs or authenticated transport with strict allowlisting.

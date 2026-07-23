@@ -34,7 +34,7 @@
 
                 <span class="brand-copy">
                     <strong>Generation Attribution Protocol</strong>
-                    <small>Reference Demonstrator v0.10.0</small>
+                    <small>Reference Demonstrator v0.11.0</small>
                 </span>
             </button>
 
@@ -765,8 +765,14 @@
                             <li id="timeline-attestation">
                                 <span>9</span><div><strong>Verify attestation signature</strong><small>Awaiting input</small></div>
                             </li>
+                            <li id="timeline-federation-chain">
+                                <span>10</span><div><strong>Resolve federation bundle freshness and chain</strong><small>Awaiting input</small></div>
+                            </li>
+                            <li id="timeline-federation-conflict">
+                                <span>11</span><div><strong>Detect cross-authority trust conflicts</strong><small>Awaiting input</small></div>
+                            </li>
                             <li id="timeline-overall">
-                                <span>10</span><div><strong>Calculate overall GAP validity</strong><small>Awaiting input</small></div>
+                                <span>12</span><div><strong>Calculate overall GAP validity</strong><small>Awaiting input</small></div>
                             </li>
                         </ol>
                     </div>
@@ -858,6 +864,19 @@
                     </p>
                     <div id="trust-attestation-grid" class="trust-attestation-grid">
                         Loading attestation signatures…
+                    </div>
+                </div>
+                <div class="panel registry-authority-panel">
+                    <div class="section-heading">
+                        <span class="eyebrow">Portable federation</span>
+                        <h2>Federation bundles</h2>
+                        <p>
+                            Accepted, signed authority chains with freshness,
+                            replay protection and conflict-safe provider trust.
+                        </p>
+                    </div>
+                    <div id="federation-bundle-grid" class="trust-registry-grid">
+                        Loading accepted federation bundles…
                     </div>
                 </div>
             </section>

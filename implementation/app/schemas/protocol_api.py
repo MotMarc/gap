@@ -99,6 +99,13 @@ class VerificationResponse(BaseModel):
     registry_authority_key_id: str | None = None
     registry_authority_key_status: Literal["active", "retired", "revoked"] | None = None
     trust_failure_reason: str | None = None
+    effective_provider_trust_status: ProviderTrustStatus | None = None
+    federation_conflict: bool = False
+    federation_source_count: int = 0
+    federation_authority_ids: list[str] = []
+    federation_bundle_ids: list[str] = []
+    federation_sources: list[dict] = []
+    federation_failure_reason: str | None = None
     provider_id: str
     generation_id: str
     credential_id: str

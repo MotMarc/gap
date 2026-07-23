@@ -5,11 +5,15 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.protocol import router as protocol_router
+from app.core.repositories import (
+    FEDERATION_INVALID_FILE_COUNT,
+    FEDERATION_LOADED_BUNDLE_COUNT,
+)
 
 
 APPLICATION_DIRECTORY = Path(__file__).resolve().parent
 WEB_DIRECTORY = APPLICATION_DIRECTORY / "web"
-APPLICATION_VERSION = "0.10.0"
+APPLICATION_VERSION = "0.11.0"
 
 
 app = FastAPI(
@@ -52,7 +56,7 @@ def read_demonstrator() -> FileResponse:
     "/health",
     tags=["System"],
 )
-def read_health() -> dict[str, str]:
+def read_health() -> dict[str, str | int]:
     """
     Return the current service status.
     """
@@ -61,4 +65,6 @@ def read_health() -> dict[str, str]:
         "status": "healthy",
         "service": "gap-reference-implementation",
         "version": APPLICATION_VERSION,
+        "federation_loaded_bundle_count": FEDERATION_LOADED_BUNDLE_COUNT,
+        "federation_invalid_file_count": FEDERATION_INVALID_FILE_COUNT,
     }

@@ -1,5 +1,7 @@
 import base64
 from binascii import Error as Base64DecodeError
+from dataclasses import asdict
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -12,6 +14,8 @@ from app.core.repositories import (
     trust_registry_repository,
     trust_registry_service,
     trust_attestation_repository,
+    federation_bundle_repository,
+    federated_trust_service,
 )
 from app.core.registry_authority_config import registry_authority_repository
 from app.crypto.provider_keys import load_private_key
@@ -35,6 +39,15 @@ from app.schemas.registry_authority import (
     RegistryAuthoritySummaryResponse,
 )
 from app.schemas.trust_attestation import TrustDecisionAttestation
+from app.schemas.federation_bundle import (
+    FederationBundle,
+    FederationBundleVerificationResult,
+)
+from app.services.federation_bundle_service import (
+    calculate_bundle_digest,
+    verify_federation_bundle,
+)
+from app.services.federation_bundle_repository import FederationBundleNotFoundError
 from app.schemas.trust_registry import (
     ProviderApplicationRequest,
     ProviderApplicationResponse,
@@ -137,12 +150,13 @@ def create_provider_trust_response(
     trust_status = trust_registry_service.get_current_status(provider_id)
     evaluation = trust_registry_service.evaluate_provider_trust(provider_id)
     attestation = trust_registry_service.get_current_attestation(provider_id)
+    federation = federated_trust_service.evaluate(provider_id)
 
     return ProviderTrustResponse(
         provider_id=provider_id,
         provider_name=get_public_provider_name(provider_id),
         status=trust_status,
-        trusted=evaluation.trusted,
+        trusted=federation.trusted,
         latest_decision=(
             create_trust_decision_response(latest_decision)
             if latest_decision is not None
@@ -160,20 +174,29 @@ def create_provider_trust_response(
         authority_key_status=evaluation.authority_key_status,
         attestation_issued_at=attestation.payload.issued_at if attestation else None,
         trust_failure_reason=evaluation.trust_failure_reason,
+        effective_status=federation.effective_status,
+        federation_conflict=federation.federation_conflict,
+        federation_source_count=federation.source_count,
+        federation_sources=[asdict(source) for source in federation.authority_sources],
+        federation_failure_reason=federation.failure_reason,
     )
 
 
 def require_approved_provider(
     provider_id: str,
 ) -> None:
-    evaluation = trust_registry_service.evaluate_provider_trust(provider_id)
+    evaluation = federated_trust_service.evaluate(provider_id)
     if not evaluation.trusted:
+        status_label = (
+            evaluation.effective_status
+            or trust_registry_service.get_current_status(provider_id)
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
                 f"Provider {provider_id} cannot issue credentials: "
-                f"{evaluation.trust_failure_reason} "
-                f"(status: {evaluation.provider_status})."
+                f"{evaluation.failure_reason} "
+                f"(status: {status_label})."
             ),
         )
 
@@ -284,13 +307,14 @@ def list_trust_registry() -> list[TrustRegistryEntryResponse]:
         latest_decision = trust_registry_service.get_current_decision(provider_id)
         trust_status = trust_registry_service.get_current_status(provider_id)
         evaluation = trust_registry_service.evaluate_provider_trust(provider_id)
+        federation = federated_trust_service.evaluate(provider_id)
 
         entries.append(
             TrustRegistryEntryResponse(
                 provider_id=provider_id,
                 provider_name=get_public_provider_name(provider_id),
                 status=trust_status,
-                trusted=evaluation.trusted,
+                trusted=federation.trusted,
                 latest_decision_id=(
                     latest_decision.decision_id if latest_decision is not None else None
                 ),
@@ -303,6 +327,13 @@ def list_trust_registry() -> list[TrustRegistryEntryResponse]:
                 registry_authority_trusted=evaluation.registry_authority_trusted,
                 authority_key_id=evaluation.authority_key_id,
                 authority_key_status=evaluation.authority_key_status,
+                effective_status=federation.effective_status,
+                federation_conflict=federation.federation_conflict,
+                federation_source_count=federation.source_count,
+                federation_sources=[
+                    asdict(source) for source in federation.authority_sources
+                ],
+                federation_failure_reason=federation.failure_reason,
             )
         )
 
@@ -388,6 +419,66 @@ def read_trust_attestation(attestation_id: str) -> TrustDecisionAttestation:
         return trust_attestation_repository.get(attestation_id)
     except TrustAttestationNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+def _bundle_summary(bundle: FederationBundle) -> dict:
+    now = datetime.now(timezone.utc)
+    latest = federation_bundle_repository.latest_for_authority(
+        bundle.payload.registry_authority_id
+    )
+    expired = bundle.payload.expires_at <= now
+    return {
+        "bundle_id": bundle.payload.bundle_id,
+        "registry_authority_id": bundle.payload.registry_authority_id,
+        "sequence_number": bundle.payload.sequence_number,
+        "issued_at": bundle.payload.issued_at,
+        "expires_at": bundle.payload.expires_at,
+        "previous_bundle_hash": bundle.payload.previous_bundle_hash,
+        "bundle_hash": calculate_bundle_digest(bundle),
+        "attestation_count": len(bundle.payload.attestations),
+        "current": latest is not None
+        and latest.payload.bundle_id == bundle.payload.bundle_id
+        and not expired,
+        "expired": expired,
+        "valid": True,
+        "signature_valid": True,
+        "chain_valid": True,
+        "replay_protected": True,
+    }
+
+
+@router.get("/federation/bundles")
+def list_federation_bundles() -> list[dict]:
+    return [_bundle_summary(item) for item in federation_bundle_repository.list_all()]
+
+
+@router.get("/federation/bundles/{bundle_id}", response_model=FederationBundle)
+def read_federation_bundle(bundle_id: str) -> FederationBundle:
+    try:
+        return federation_bundle_repository.get(bundle_id)
+    except FederationBundleNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.get("/federation/authorities/{authority_id}/chain")
+def read_federation_chain(authority_id: str) -> list[dict]:
+    bundles = federation_bundle_repository.list_for_authority(authority_id)
+    if not bundles:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown federation bundle chain: {authority_id}",
+        )
+    return [_bundle_summary(item) for item in bundles]
+
+
+@router.post(
+    "/federation/bundles/verify",
+    response_model=FederationBundleVerificationResult,
+)
+def verify_federation_bundle_stateless(
+    bundle: FederationBundle,
+) -> FederationBundleVerificationResult:
+    return verify_federation_bundle(bundle, registry_authority_repository)
 
 
 @router.post(
@@ -540,10 +631,13 @@ def verify_credential(
     )
 
     trust_evaluation = trust_registry_service.evaluate_provider_trust(provider_id)
+    federation = federated_trust_service.evaluate(provider_id)
     trust_status = trust_evaluation.provider_status
-    provider_trusted = trust_evaluation.trusted
+    provider_trusted = federation.trusted
     cryptographic_valid = cryptographic_verification.valid
-    valid = cryptographic_valid and provider_trusted
+    valid = (
+        cryptographic_valid and provider_trusted and not federation.federation_conflict
+    )
 
     failure_reason = cryptographic_verification.failure_reason
 
@@ -564,6 +658,15 @@ def verify_credential(
         registry_authority_key_id=trust_evaluation.authority_key_id,
         registry_authority_key_status=trust_evaluation.authority_key_status,
         trust_failure_reason=trust_evaluation.trust_failure_reason,
+        effective_provider_trust_status=federation.effective_status,
+        federation_conflict=federation.federation_conflict,
+        federation_source_count=federation.source_count,
+        federation_authority_ids=[
+            source.registry_authority_id for source in federation.authority_sources
+        ],
+        federation_bundle_ids=list(federation.bundle_ids),
+        federation_sources=[asdict(source) for source in federation.authority_sources],
+        federation_failure_reason=federation.failure_reason,
         provider_id=provider_id,
         generation_id=credential.payload.generation.generation_id,
         credential_id=credential.payload.credential_id,

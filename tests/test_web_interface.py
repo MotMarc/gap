@@ -70,11 +70,11 @@ def test_trust_registry_interface_is_present() -> None:
     assert "Removed" in response.text
 
 
-def test_frontend_reports_sprint_10_version() -> None:
+def test_frontend_reports_sprint_11_version() -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Reference Demonstrator v0.10.0" in response.text
+    assert "Reference Demonstrator v0.11.0" in response.text
     assert "Registry Authority" in response.text
     assert "Signed trust attestation" in response.text
     assert "Registry authority identity" in response.text
@@ -173,6 +173,8 @@ def test_sprint_10_federation_panels_are_present() -> None:
         "timeline-authority-identity",
         "timeline-authority-key",
         "timeline-attestation",
+        "timeline-federation-chain",
+        "timeline-federation-conflict",
         "timeline-overall",
     ):
         assert f'id="{timeline_id}"' in response.text
@@ -183,8 +185,28 @@ def test_health_endpoint() -> None:
 
     assert response.status_code == 200
 
-    assert response.json() == {
-        "status": "healthy",
-        "service": "gap-reference-implementation",
-        "version": "0.10.0",
-    }
+    body = response.json()
+    assert body["status"] == "healthy"
+    assert body["service"] == "gap-reference-implementation"
+    assert body["version"] == "0.11.0"
+    assert body["federation_invalid_file_count"] >= 0
+
+
+def test_sprint_11_federation_runtime_wiring() -> None:
+    html = client.get("/").text
+    javascript = client.get("/static/app.js").text
+    assert 'id="federation-bundle-grid"' in html
+    for identifier in (
+        "timelineFederationChain",
+        "timelineFederationConflict",
+        "federationBundleGrid",
+    ):
+        assert identifier in javascript
+    for field in (
+        "federation_conflict",
+        "federation_sources",
+        "federation_bundle_ids",
+        "effective_provider_trust_status",
+    ):
+        assert field in javascript
+    assert "/federation/bundles" in javascript

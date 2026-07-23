@@ -32,6 +32,11 @@ class ProviderTrustResponse(BaseModel):
     authority_key_status: Literal["active", "retired", "revoked"] | None = None
     attestation_issued_at: datetime | None = None
     trust_failure_reason: str | None = None
+    effective_status: ProviderTrustStatus | None = None
+    federation_conflict: bool = False
+    federation_source_count: int = 0
+    federation_sources: list[dict] = []
+    federation_failure_reason: str | None = None
 
 
 class TrustRegistryEntryResponse(BaseModel):
@@ -47,6 +52,11 @@ class TrustRegistryEntryResponse(BaseModel):
     registry_authority_trusted: bool = False
     authority_key_id: str | None = None
     authority_key_status: Literal["active", "retired", "revoked"] | None = None
+    effective_status: ProviderTrustStatus | None = None
+    federation_conflict: bool = False
+    federation_source_count: int = 0
+    federation_sources: list[dict] = []
+    federation_failure_reason: str | None = None
 
 
 class ProviderApplicationRequest(BaseModel):
