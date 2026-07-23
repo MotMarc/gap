@@ -1,21 +1,108 @@
-MIT License
+GAP PROPRIETARY SOURCE-AVAILABLE LICENCE
+Version 1.0
 
-Copyright (c) 2026 Marc Adrian Mot
+Copyright © 2026 Marc Adrian Mot. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1. Ownership
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The Generative Attribution Protocol (“GAP”), including its source code, documentation, protocol specifications, architecture, diagrams, tests, examples, interfaces and other original materials contained in this repository (collectively, the “Software”), is owned by Marc Adrian Mot (the “Copyright Holder”).
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+The Software is protected by copyright and other applicable intellectual property laws.
+
+2. No General Licence Granted
+
+Except for the limited right to view the publicly available contents of this repository through GitHub, no licence or permission is granted to any person or organisation.
+
+All rights not expressly granted in a separate written agreement signed by the Copyright Holder are reserved.
+
+3. Prohibited Uses
+
+Without a separate written licence from the Copyright Holder, you may not, whether for commercial or non-commercial purposes:
+
+a. use, execute or deploy the Software in a production environment;
+
+b. copy, reproduce or republish the Software, except for temporary copies technically necessary to view this repository;
+
+c. modify, adapt, translate, merge or create derivative works based on the Software;
+
+d. incorporate the Software or any substantial portion of it into another application, protocol, platform, service, product or research implementation;
+
+e. distribute, sublicense, sell, rent, lease, host, provide or otherwise make the Software available to another person;
+
+f. offer the Software or any derivative work as a product, hosted service, software-as-a-service offering or commercial feature;
+
+g. use the Software to provide services to a third party;
+
+h. remove, obscure or alter any copyright, ownership or proprietary notice;
+
+i. claim or imply authorship, ownership, endorsement or affiliation with GAP or the Copyright Holder;
+
+j. use the Software, its documentation or its implementation as training data for an artificial intelligence or machine-learning system; or
+
+k. circumvent these restrictions through an affiliate, contractor, employee, agent or other third party.
+
+4. Paid Licensing
+
+Any use of the Software beyond viewing and evaluating the repository requires:
+
+a. a separate written licence agreement signed by the Copyright Holder; and
+
+b. payment of all applicable licence fees specified in that agreement.
+
+Payment, communication, negotiation or submission of a licensing request does not itself grant any rights.
+
+No licence is valid unless its scope, permitted users, permitted uses, duration and fees have been agreed in writing by the Copyright Holder.
+
+For commercial, academic, organisational or other licensing enquiries, contact the Copyright Holder through the contact information provided in this repository.
+
+5. Evaluation Requests
+
+The Copyright Holder may provide written permission for limited evaluation, testing, academic review or proof-of-concept use.
+
+Any such permission must be expressly provided in writing and applies only within the scope and duration stated in that permission.
+
+No evaluation permission authorises production use, redistribution, commercial exploitation or incorporation into another product or service.
+
+6. No Rights in Names or Branding
+
+This licence does not grant any right to use the names “GAP” or “Generative Attribution Protocol,” or any associated names, logos, branding or identifiers.
+
+7. Third-Party Components
+
+Third-party packages, libraries and other materials included with or referenced by the Software remain governed by their respective licences.
+
+Nothing in this licence restricts rights independently granted under a third-party licence.
+
+8. Contributions
+
+No contribution, suggestion, issue, pull request or other submission transfers ownership of the Software or grants the contributor any rights in the Software.
+
+The Copyright Holder may require a separate contributor agreement before accepting any contribution.
+
+9. Enforcement and Termination
+
+Any unauthorised use of the Software constitutes copyright infringement and may result in legal action.
+
+Any limited permission granted under this licence automatically terminates upon breach of its terms.
+
+Upon termination, all use of the Software must cease and all unauthorised copies must be deleted.
+
+10. No Warranty
+
+THE SOFTWARE IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, SECURITY, RELIABILITY, TITLE AND NON-INFRINGEMENT.
+
+11. Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDER SHALL NOT BE LIABLE FOR ANY CLAIM, LOSS, DAMAGE OR OTHER LIABILITY ARISING FROM OR CONNECTED WITH ACCESS TO, EVALUATION OF OR USE OF THE SOFTWARE.
+
+12. Governing Law
+
+This licence and any dispute arising from it shall be governed by the laws of England and Wales.
+
+The courts of England and Wales shall have exclusive jurisdiction over any dispute arising from or connected with this licence.
+
+13. Entire Notice
+
+This document states the permissions granted for the publicly available Software. No additional permission shall be inferred from publication, public accessibility, correspondence, silence or conduct.
+
+Commercial or other use requires a separate written licence signed by the Copyright Holder.
