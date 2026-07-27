@@ -32,6 +32,13 @@ const state = {
     providerSubstitution: null,
     revokedKeySubstitution: null,
     lastVerification: null,
+    attestations: [],
+    attestationTrustEntries: [],
+    attestationAuthorities: [],
+    transparencyEntries: [],
+    transparencyTreeHeads: [],
+    selectedTransparencyEntryId: null,
+    showAllTreeHeads: false,
 };
 
 
@@ -167,8 +174,36 @@ const elements = {
     timelineAttestation: requireElement("timeline-attestation"),
     timelineFederationChain: requireElement("timeline-federation-chain"),
     timelineFederationConflict: requireElement("timeline-federation-conflict"),
+    timelineTransparencyEntry: requireElement("timeline-transparency-entry"),
+    timelineTransparencyProof: requireElement("timeline-transparency-proof"),
     timelineOverall: requireElement("timeline-overall"),
     federationBundleGrid: requireElement("federation-bundle-grid"),
+    transparencyLogSummary: requireElement("transparency-log-summary"),
+    transparencyHealthBanner: requireElement("transparency-health-banner"),
+    transparencyTreeHeads: requireElement("transparency-tree-heads"),
+    transparencyConsistencyStatus: requireElement(
+        "transparency-consistency-status"
+    ),
+    transparencySplitViewWarning: requireElement(
+        "transparency-split-view-warning"
+    ),
+    transparencyEntryGrid: requireElement("transparency-entry-grid"),
+    transparencyEntryExplorer: requireElement("transparency-entry-explorer"),
+    transparencyEntryCount: requireElement("transparency-entry-count"),
+    transparencyEntryTypeFilter: requireElement(
+        "transparency-entry-type-filter"
+    ),
+    transparencyAuthorityFilter: requireElement(
+        "transparency-authority-filter"
+    ),
+    transparencyEntrySearch: requireElement("transparency-entry-search"),
+    transparencyEntrySort: requireElement("transparency-entry-sort"),
+    toggleTreeHeadHistory: requireElement("toggle-tree-head-history"),
+    olderCheckpointSelect: requireElement("older-checkpoint-select"),
+    newerCheckpointSelect: requireElement("newer-checkpoint-select"),
+    compareCheckpointsButton: requireElement("compare-checkpoints-button"),
+    inspectCurrentTreeHead: requireElement("inspect-current-tree-head"),
+    browseTransparencyEntries: requireElement("browse-transparency-entries"),
     tamperArtifactButton: document.querySelector(
         "#tamper-artifact-button"
     ),
@@ -221,6 +256,11 @@ const elements = {
     trustRegistryStatus: document.querySelector("#trust-registry-status"),
     registryAuthorityGrid: document.querySelector("#registry-authority-grid"),
     trustAttestationGrid: document.querySelector("#trust-attestation-grid"),
+    attestationResultCount: requireElement("attestation-result-count"),
+    attestationProviderFilter: requireElement("attestation-provider-filter"),
+    attestationStatusFilter: requireElement("attestation-status-filter"),
+    attestationHistoryFilter: requireElement("attestation-history-filter"),
+    attestationSearch: requireElement("attestation-search"),
     copyCredentialButton: document.querySelector(
         "#copy-credential-button"
     ),
@@ -263,6 +303,10 @@ function hideMessage(element) {
 
 
 function activateTab(tabName) {
+    const knownTab = [...elements.tabPages].some(
+        (page) => page.dataset.tabPage === tabName
+    );
+    if (!knownTab) return;
     elements.tabPages.forEach((page) => {
         page.classList.toggle(
             "hidden",
@@ -276,6 +320,7 @@ function activateTab(tabName) {
             button.dataset.tabTarget === tabName
         );
     });
+    window.history.replaceState(null, "", `#${tabName}`);
 
     window.scrollTo({
         top: 0,
@@ -1289,58 +1334,197 @@ async function renderTrustRegistry() {
 }
 
 
+function formatTechnicalValue(value, leading = 12, trailing = 8) {
+    const text = String(value ?? "Unavailable");
+    return text.length > leading + trailing + 3
+        ? `${text.slice(0, leading)}…${text.slice(-trailing)}`
+        : text;
+}
+
+
+function formatDate(value) {
+    return formatRegistryDate(value);
+}
+
+
+function createStatusBadge(label, state = "neutral") {
+    const badge = document.createElement("span");
+    badge.className = `status-badge status-${state}`;
+    badge.textContent = label;
+    badge.setAttribute("aria-label", `Status: ${label}`);
+    return badge;
+}
+
+
+function createTechnicalValue(value, accessibleLabel) {
+    const container = document.createElement("span");
+    const code = document.createElement("code");
+    const copy = document.createElement("button");
+    const feedback = document.createElement("span");
+    const fullValue = String(value ?? "Unavailable");
+    container.className = "technical-value";
+    code.textContent = formatTechnicalValue(fullValue);
+    code.title = fullValue;
+    code.dataset.fullValue = fullValue;
+    copy.type = "button";
+    copy.className = "copy-button";
+    copy.textContent = "Copy";
+    copy.setAttribute("aria-label", `Copy ${accessibleLabel}`);
+    feedback.className = "copy-feedback";
+    feedback.setAttribute("aria-live", "polite");
+    copy.addEventListener("click", async () => {
+        try {
+            await navigator.clipboard.writeText(fullValue);
+            feedback.textContent = "Copied";
+        } catch {
+            feedback.textContent = "Copy unavailable";
+        }
+        window.setTimeout(() => {
+            feedback.textContent = "";
+        }, 1800);
+    });
+    container.append(code, copy, feedback);
+    return container;
+}
+
+
+function createMetadataRow(label, value, technical = false) {
+    const row = document.createElement("div");
+    const term = document.createElement("dt");
+    const description = document.createElement("dd");
+    row.className = "metadata-row";
+    term.textContent = label;
+    if (technical) {
+        description.append(createTechnicalValue(value, label));
+    } else {
+        description.textContent = value ?? "Unavailable";
+    }
+    row.append(term, description);
+    return row;
+}
+
+
+function createRawJsonViewer(value, label = "Raw JSON") {
+    const details = document.createElement("details");
+    const summary = document.createElement("summary");
+    const actions = document.createElement("div");
+    const pre = document.createElement("pre");
+    const copy = document.createElement("button");
+    const feedback = document.createElement("span");
+    const serialized = JSON.stringify(value, null, 2);
+    details.className = "raw-data-viewer";
+    summary.textContent = label;
+    copy.type = "button";
+    copy.className = "copy-button";
+    copy.textContent = "Copy JSON";
+    feedback.className = "copy-feedback";
+    feedback.setAttribute("aria-live", "polite");
+    copy.addEventListener("click", async () => {
+        try {
+            await navigator.clipboard.writeText(serialized);
+            feedback.textContent = "Copied";
+        } catch {
+            feedback.textContent = "Copy unavailable";
+        }
+    });
+    pre.textContent = serialized;
+    actions.className = "raw-data-actions";
+    actions.append(copy, feedback);
+    details.append(summary, actions, pre);
+    return details;
+}
+
+
 function createRegistryDetail(label, value) {
-    const detail = document.createElement("p");
-    const title = document.createElement("strong");
-    const text = document.createElement("span");
-
-    title.textContent = `${label}: `;
-    text.textContent = value ?? "Unavailable";
-    detail.append(title, text);
-
-    return detail;
+    return createMetadataRow(label, value, /id|key|hash/i.test(label));
 }
 
 
 function createRegistryAuthorityCard(authority, identityDocument) {
     const card = document.createElement("article");
     const name = document.createElement("h3");
-    const identifier = document.createElement("code");
+    const header = document.createElement("div");
     const identityLink = document.createElement("a");
+    const metrics = document.createElement("div");
+    const history = document.createElement("details");
+    const historySummary = document.createElement("summary");
     const trusted = authority.trusted_by_local_registry === true;
     const keys = Array.isArray(identityDocument?.keys)
         ? identityDocument.keys
         : [];
-    const lifecycle = keys.length > 0
-        ? keys.map((key) => `${key.key_id}: ${key.status}`).join(", ")
-        : "Unavailable";
-
-    card.className = (
-        `${trusted ? "authority-trusted" : "authority-untrusted"} credential-card`
+    const counts = ["active", "retired", "revoked"].map(
+        (status) => keys.filter((key) => key.status === status).length
     );
+
+    card.className = `${trusted ? "authority-trusted" : "authority-untrusted"} authority-overview`;
+    header.className = "summary-card-header";
     name.textContent = authority.authority_name;
-    identifier.textContent = authority.authority_id;
+    header.append(
+        name,
+        createStatusBadge(
+            trusted ? "Trusted locally" : "Not trusted locally",
+            trusted ? "success" : "error"
+        )
+    );
     identityLink.href = (
         `/registry-authorities/${encodeURIComponent(authority.authority_id)}` +
         "/.well-known/gap-registry.json"
     );
-    identityLink.textContent = "Registry authority identity";
-
-    card.append(
-        name,
-        identifier,
-        createRegistryDetail("Active authority key", authority.active_key_id),
-        createRegistryDetail(
-            "Published key count",
-            String(authority.published_key_count)
-        ),
-        createRegistryDetail(
-            "Trusted local authority",
-            trusted ? "Yes" : "No"
-        ),
-        createRegistryDetail("Authority key lifecycle", lifecycle),
-        identityLink
-    );
+    identityLink.className = "secondary-button";
+    identityLink.textContent = "View identity document";
+    metrics.className = "metric-grid metric-grid-compact";
+    [
+        ["Authority ID", createTechnicalValue(authority.authority_id, "authority ID")],
+        ["Active key", createTechnicalValue(authority.active_key_id, "active key ID")],
+        ["Published keys", String(authority.published_key_count)],
+        ["Key lifecycle", `${counts[0]} active · ${counts[1]} retired · ${counts[2]} revoked`],
+    ].forEach(([label, value]) => {
+        const metric = document.createElement("div");
+        const metricLabel = document.createElement("span");
+        const metricValue = document.createElement("strong");
+        metric.className = "metric-card";
+        metricLabel.textContent = label;
+        if (typeof value === "string") metricValue.textContent = value;
+        else metricValue.append(value);
+        metric.append(metricLabel, metricValue);
+        metrics.append(metric);
+    });
+    history.className = "disclosure-panel";
+    historySummary.textContent = `Signing-key history (${keys.length})`;
+    history.append(historySummary);
+    keys
+        .slice()
+        .sort((left, right) => ["active", "retired", "revoked"].indexOf(left.status) - ["active", "retired", "revoked"].indexOf(right.status))
+        .forEach((key) => {
+            const row = document.createElement("div");
+            const metadata = document.createElement("dl");
+            row.className = "key-history-row";
+            metadata.className = "metadata-list";
+            row.append(
+                createStatusBadge(
+                    key.status,
+                    key.status === "active"
+                        ? "success"
+                        : key.status === "revoked"
+                            ? "error"
+                            : "neutral"
+                ),
+                metadata
+            );
+            metadata.append(
+                createMetadataRow("Key ID", key.key_id, true),
+                createMetadataRow("Created", formatDate(key.created_at)),
+                createMetadataRow(
+                    key.status === "revoked" ? "Revoked" : "Retired",
+                    key.revoked_at || key.retired_at
+                        ? formatDate(key.revoked_at || key.retired_at)
+                        : "Not applicable"
+                ),
+                createMetadataRow("Public key", key.public_key, true)
+            );
+            history.append(row);
+        });
+    card.append(header, metrics, history, identityLink);
 
     return card;
 }
@@ -1484,14 +1668,164 @@ async function renderTrustAttestations() {
     if (results.some((result) => result === null)) return;
 
     const [attestations, trustEntries, authorities] = results;
-    const cards = attestations.map(
-        (attestation) => createTrustAttestationCard(
-            attestation,
-            trustEntries,
-            authorities
+    state.attestations = attestations;
+    state.attestationTrustEntries = trustEntries;
+    state.attestationAuthorities = authorities;
+    const providerIds = [...new Set(
+        attestations.map((item) => item.payload?.provider_id).filter(Boolean)
+    )].sort();
+    elements.attestationProviderFilter.replaceChildren(
+        new Option("All providers", ""),
+        ...providerIds.map((providerId) => new Option(providerId, providerId))
+    );
+    renderFilteredTrustAttestations();
+}
+
+
+function createAttestationSummaryCard(attestation, isCurrent) {
+    const payload = attestation.payload ?? {};
+    const proof = attestation.proof ?? {};
+    const trustEntry = state.attestationTrustEntries.find(
+        (entry) => entry.latest_decision_id === payload.decision_id
+    );
+    const authority = state.attestationAuthorities.find(
+        (entry) => entry.authority_id === payload.registry_authority_id
+    );
+    const valid = isCurrent && trustEntry?.trust_attestation_valid === true;
+    const card = document.createElement("article");
+    const header = document.createElement("div");
+    const title = document.createElement("h4");
+    const badges = document.createElement("div");
+    const metadata = document.createElement("dl");
+    const evidence = document.createElement("details");
+    const evidenceSummary = document.createElement("summary");
+    const evidenceMetadata = document.createElement("dl");
+    card.className = `${valid ? "attestation-valid" : "attestation-historical"} attestation-card`;
+    header.className = "attestation-card-header";
+    title.textContent = payload.provider_id ?? "Unknown provider";
+    badges.className = "status-badge-row";
+    badges.append(
+        createStatusBadge(
+            payload.status ?? "unknown",
+            payload.status === "approved"
+                ? "success"
+                : payload.status === "suspended"
+                    ? "warning"
+                    : payload.status === "removed"
+                        ? "error"
+                        : "info"
+        ),
+        createStatusBadge(isCurrent ? "Current" : "Historical", isCurrent ? "info" : "neutral"),
+        createStatusBadge(
+            isCurrent ? (valid ? "Valid" : "Invalid") : "Signed history",
+            isCurrent ? (valid ? "success" : "error") : "neutral"
         )
     );
-    elements.trustAttestationGrid.replaceChildren(...cards);
+    header.append(title, badges);
+    metadata.className = "metadata-list metadata-list-compact";
+    metadata.append(
+        createMetadataRow("Decision time", formatDate(payload.decided_at)),
+        createMetadataRow("Authority", payload.registry_authority_name),
+        createMetadataRow("Attestation", payload.attestation_id, true)
+    );
+    evidence.className = "disclosure-panel";
+    evidenceSummary.textContent = "Technical evidence";
+    evidenceMetadata.className = "metadata-list";
+    evidenceMetadata.append(
+        createMetadataRow("Decision ID", payload.decision_id, true),
+        createMetadataRow("Full attestation ID", payload.attestation_id, true),
+        createMetadataRow("Registry authority ID", payload.registry_authority_id, true),
+        createMetadataRow("Authority key ID", proof.key_id, true),
+        createMetadataRow("Key lifecycle", isCurrent ? trustEntry?.authority_key_status : "Historical"),
+        createMetadataRow("Reason", payload.reason),
+        createMetadataRow(
+            "Authority trust",
+            authority?.trusted_by_local_registry ? "Trusted locally" : "Not trusted locally"
+        ),
+        createMetadataRow("Signature", proof.signature, true)
+    );
+    evidence.append(
+        evidenceSummary,
+        evidenceMetadata,
+        createRawJsonViewer(attestation, "Complete signed JSON")
+    );
+    card.append(header, metadata, evidence);
+    return card;
+}
+
+
+function renderFilteredTrustAttestations() {
+    const providerFilter = elements.attestationProviderFilter.value;
+    const statusFilter = elements.attestationStatusFilter.value;
+    const historyFilter = elements.attestationHistoryFilter.value;
+    const query = elements.attestationSearch.value.trim().toLowerCase();
+    const grouped = new Map();
+    state.attestations.forEach((attestation) => {
+        const payload = attestation.payload ?? {};
+        const trustEntry = state.attestationTrustEntries.find(
+            (entry) => entry.latest_decision_id === payload.decision_id
+        );
+        const isCurrent = trustEntry?.trust_attestation_id === payload.attestation_id;
+        const searchable = [payload.provider_id, payload.decision_id, payload.attestation_id]
+            .join(" ")
+            .toLowerCase();
+        if (
+            (providerFilter && payload.provider_id !== providerFilter) ||
+            (statusFilter && payload.status !== statusFilter) ||
+            (historyFilter === "current" && !isCurrent) ||
+            (historyFilter === "historical" && isCurrent) ||
+            (query && !searchable.includes(query))
+        ) return;
+        if (!grouped.has(payload.provider_id)) grouped.set(payload.provider_id, []);
+        grouped.get(payload.provider_id).push({attestation, isCurrent});
+    });
+    const groups = [];
+    grouped.forEach((items, providerId) => {
+        const section = document.createElement("section");
+        const header = document.createElement("div");
+        const title = document.createElement("h3");
+        const current = items.find((item) => item.isCurrent);
+        const historical = items.filter((item) => !item.isCurrent);
+        section.className = "attestation-provider-group";
+        header.className = "provider-group-header";
+        title.textContent = providerId;
+        header.append(
+            title,
+            createStatusBadge(
+                current?.attestation.payload.status || "Historical evidence",
+                current?.attestation.payload.status === "approved" ? "success" : "neutral"
+            )
+        );
+        section.append(header);
+        if (current) section.append(createAttestationSummaryCard(current.attestation, true));
+        if (historical.length) {
+            const history = document.createElement("details");
+            const summary = document.createElement("summary");
+            history.className = "history-group";
+            summary.textContent = `View decision history (${historical.length})`;
+            history.append(summary);
+            historical
+                .sort(
+                    (left, right) =>
+                        new Date(right.attestation.payload.decided_at) -
+                        new Date(left.attestation.payload.decided_at)
+                )
+                .forEach((item) => history.append(
+                    createAttestationSummaryCard(item.attestation, false)
+                ));
+            section.append(history);
+        }
+        groups.push(section);
+    });
+    elements.attestationResultCount.textContent = `${groups.length} provider${groups.length === 1 ? "" : "s"}`;
+    if (!groups.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.textContent = "No attestations match these filters.";
+        elements.trustAttestationGrid.replaceChildren(empty);
+    } else {
+        elements.trustAttestationGrid.replaceChildren(...groups);
+    }
 }
 
 
@@ -1798,6 +2132,8 @@ function resetVerificationDisplay() {
         elements.timelineAttestation,
         elements.timelineFederationChain,
         elements.timelineFederationConflict,
+        elements.timelineTransparencyEntry,
+        elements.timelineTransparencyProof,
         elements.timelineOverall,
     ].forEach((item) => {
         item.className = "";
@@ -2227,6 +2563,16 @@ async function runCompleteVerification() {
             "Comparing authority decisions"
         );
         setTimelineState(
+            elements.timelineTransparencyEntry,
+            "active",
+            "Resolving public trust-artifact commitment"
+        );
+        setTimelineState(
+            elements.timelineTransparencyProof,
+            "active",
+            "Verifying signed checkpoint and Merkle audit path"
+        );
+        setTimelineState(
             elements.timelineOverall,
             "active",
             "Calculating overall GAP validity"
@@ -2463,6 +2809,25 @@ async function runCompleteVerification() {
                     ).join(", ")}`
                     : `No conflict · effective status ${effectiveTrustStatus}`
             );
+            setTimelineState(
+                elements.timelineTransparencyEntry,
+                verification.transparency_entry_ids.length > 0
+                    ? "success"
+                    : "error",
+                verification.transparency_entry_ids.length > 0
+                    ? `${verification.transparency_entry_ids.length} public commitment(s)`
+                    : verification.transparency_failure_reason ||
+                          "Transparency entry missing"
+            );
+            setTimelineState(
+                elements.timelineTransparencyProof,
+                verification.transparency_verified ? "success" : "error",
+                verification.transparency_verified
+                    ? `Signed tree head ${verification.transparency_tree_head_id}; ` +
+                      `inclusion and consistency verified`
+                    : verification.transparency_failure_reason ||
+                          "Transparency verification failed"
+            );
 
             setTrustNode(
                 elements.trustSignatureNode,
@@ -2531,6 +2896,16 @@ async function runCompleteVerification() {
                 elements.timelineFederationConflict,
                 "error",
                 "Authority conflicts could not be evaluated"
+            );
+            setTimelineState(
+                elements.timelineTransparencyEntry,
+                "error",
+                "Transparency entry could not be resolved"
+            );
+            setTimelineState(
+                elements.timelineTransparencyProof,
+                "error",
+                "Signed tree head and inclusion could not be verified"
             );
             setTimelineState(
                 elements.timelineOverall,
@@ -2772,6 +3147,8 @@ async function runCompleteVerification() {
             elements.timelineAttestation,
             elements.timelineFederationChain,
             elements.timelineFederationConflict,
+            elements.timelineTransparencyEntry,
+            elements.timelineTransparencyProof,
             elements.timelineOverall,
         ].forEach((timeline) => {
             setTimelineState(
@@ -3316,6 +3693,542 @@ async function renderFederationBundles() {
     }
 }
 
+async function renderTransparencyLogLegacy() {
+    try {
+        const [summaryResponse, entriesResponse, headsResponse] = await Promise.all([
+            fetch("/transparency/log"),
+            fetch("/transparency/entries?limit=100"),
+            fetch("/transparency/tree-heads"),
+        ]);
+        if (!summaryResponse.ok || !entriesResponse.ok || !headsResponse.ok) {
+            throw new Error("Transparency log data is unavailable.");
+        }
+        const summary = await summaryResponse.json();
+        const entries = await entriesResponse.json();
+        const heads = await headsResponse.json();
+
+        elements.transparencyLogSummary.replaceChildren();
+        const heading = document.createElement("h2");
+        heading.textContent = summary.log_name;
+        const identity = document.createElement("p");
+        identity.textContent = (
+            `${summary.log_id} · active key ${summary.active_key_id} · ` +
+            `${summary.tree_algorithm} · ${summary.hash_algorithm}`
+        );
+        const checkpoint = document.createElement("p");
+        checkpoint.textContent = (
+            `Tree size ${summary.current_tree_size}; root ` +
+            `${summary.current_root_hash}; checkpoint ` +
+            `${summary.latest_tree_head_id}; locally trusted: ` +
+            `${summary.trusted_locally}; consistency: ${summary.consistency_status}`
+        );
+        elements.transparencyLogSummary.append(heading, identity, checkpoint);
+
+        elements.transparencyTreeHeads.replaceChildren();
+        heads.forEach((head) => {
+            const item = document.createElement("p");
+            item.textContent = (
+                `${head.payload.tree_head_id} · size ${head.payload.tree_size} · ` +
+                `${head.payload.root_hash} · ${head.payload.timestamp} · ` +
+                `key ${head.proof.key_id} · signature published`
+            );
+            elements.transparencyTreeHeads.append(item);
+        });
+        elements.transparencyConsistencyStatus.textContent = (
+            summary.consistency_status === "consistent"
+                ? "Append-only continuity verified"
+                : "Append-only continuity failed"
+        );
+        if (heads.length > 1) {
+            const oldHead = heads[0];
+            const newHead = heads[heads.length - 1];
+            const proofResponse = await fetch(
+                "/transparency/consistency-proof?" +
+                    `old_tree_size=${oldHead.payload.tree_size}&` +
+                    `new_tree_size=${newHead.payload.tree_size}`
+            );
+            const proof = await proofResponse.json();
+            const comparisonResponse = await fetch(
+                "/transparency/compare-tree-heads",
+                {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        old_tree_head: oldHead,
+                        new_tree_head: newHead,
+                        proof,
+                    }),
+                }
+            );
+            const comparison = await comparisonResponse.json();
+            elements.transparencyConsistencyStatus.textContent = (
+                `Compared sizes ${oldHead.payload.tree_size} and ` +
+                `${newHead.payload.tree_size}: ` +
+                `${comparison.append_only ? "append-only continuity verified" : "failed"}`
+            );
+            elements.transparencySplitViewWarning.classList.toggle(
+                "hidden",
+                !comparison.split_view
+            );
+        }
+
+        elements.transparencyEntryGrid.replaceChildren();
+        entries.forEach((entry) => {
+            const card = document.createElement("button");
+            card.type = "button";
+            card.className = "trust-registry-card transparency-entry-card";
+            card.textContent = (
+                `#${entry.leaf_index} · ${entry.entry_type} · ${entry.object_id} · ` +
+                `${entry.source_authority_id} · ${entry.object_digest} · ` +
+                `${entry.recorded_at} · included`
+            );
+            card.addEventListener("click", async () => {
+                const proofResponse = await fetch(
+                    `/transparency/entries/${entry.entry_id}/inclusion-proof`
+                );
+                const proof = await proofResponse.json();
+                elements.transparencyEntryExplorer.textContent = JSON.stringify(
+                    {
+                        entry,
+                        leaf_hash: proof.leaf_hash,
+                        leaf_index: proof.leaf_index,
+                        audit_path: proof.audit_path,
+                        root_hash: proof.root_hash,
+                        inclusion_verified: proofResponse.ok,
+                    },
+                    null,
+                    2
+                );
+            });
+            elements.transparencyEntryGrid.append(card);
+        });
+    } catch (error) {
+        elements.transparencyLogSummary.textContent = (
+            error.message || "Transparency log could not be loaded."
+        );
+    }
+}
+
+function createMetricCard(label, value, options = {}) {
+    const card = document.createElement("article");
+    const title = document.createElement("span");
+    const content = document.createElement("strong");
+    card.className = `metric-card${options.primary ? " metric-card-primary" : ""}`;
+    title.textContent = label;
+    if (options.technical) {
+        content.append(createTechnicalValue(value, label));
+    } else if (value instanceof Node) {
+        content.append(value);
+    } else {
+        content.textContent = value ?? "Unavailable";
+    }
+    card.append(title, content);
+    return card;
+}
+
+
+function renderTransparencyOverview(summary) {
+    const healthy = (
+        summary.trusted_locally === true &&
+        summary.consistency_status === "consistent"
+    );
+    elements.transparencyHealthBanner.className = (
+        `outcome-banner ${healthy ? "outcome-success" : "outcome-error"}`
+    );
+    elements.transparencyHealthBanner.replaceChildren();
+    const heading = document.createElement("strong");
+    const detail = document.createElement("span");
+    heading.textContent = healthy
+        ? "Transparency log healthy"
+        : "Transparency inconsistency detected";
+    detail.textContent = healthy
+        ? "The current checkpoint is trusted and append-only continuity is intact."
+        : "Trust evidence requires immediate review.";
+    elements.transparencyHealthBanner.append(heading, detail);
+    elements.transparencyLogSummary.replaceChildren(
+        createMetricCard("Current tree size", String(summary.current_tree_size), {primary: true}),
+        createMetricCard("Current root", summary.current_root_hash, {technical: true, primary: true}),
+        createMetricCard("Latest checkpoint", summary.latest_tree_head_id, {technical: true}),
+        createMetricCard("Last checkpoint", formatDate(summary.latest_tree_head_timestamp)),
+        createMetricCard(
+            "Trusted log",
+            createStatusBadge(summary.trusted_locally ? "Trusted" : "Untrusted", summary.trusted_locally ? "success" : "error")
+        ),
+        createMetricCard(
+            "Consistency",
+            createStatusBadge(summary.consistency_status, summary.consistency_status === "consistent" ? "success" : "error")
+        ),
+        createMetricCard("Public entries", String(summary.entry_count)),
+        createMetricCard("Active log key", summary.active_key_id, {technical: true})
+    );
+}
+
+
+function groupTreeHeads(heads) {
+    const groups = new Map();
+    heads.forEach((head) => {
+        const key = `${head.payload.tree_size}:${head.payload.root_hash}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(head);
+    });
+    return [...groups.values()].sort(
+        (left, right) =>
+            right[0].payload.tree_size - left[0].payload.tree_size ||
+            new Date(right.at(-1).payload.timestamp) - new Date(left.at(-1).payload.timestamp)
+    );
+}
+
+
+function renderTreeHeadHistory() {
+    const groups = groupTreeHeads(state.transparencyTreeHeads);
+    const visible = state.showAllTreeHeads ? groups : groups.slice(0, 10);
+    const table = document.createElement("table");
+    const head = document.createElement("thead");
+    const body = document.createElement("tbody");
+    const headerRow = document.createElement("tr");
+    ["Checkpoint", "Tree size", "Root", "Timestamp", "Signing key", "Status", "Actions"]
+        .forEach((label) => {
+            const cell = document.createElement("th");
+            cell.scope = "col";
+            cell.textContent = label;
+            headerRow.append(cell);
+        });
+    head.append(headerRow);
+    visible.forEach((group, index) => {
+        const latest = group.at(-1);
+        const row = document.createElement("tr");
+        if (index === 0) row.className = "current-row";
+        const values = [
+            index === 0
+                ? createStatusBadge("Current", "success")
+                : `Historical${group.length > 1 ? ` · ${group.length} checkpoints` : ""}`,
+            String(latest.payload.tree_size),
+            createTechnicalValue(latest.payload.root_hash, "tree-head root"),
+            formatDate(latest.payload.timestamp),
+            createTechnicalValue(latest.proof.key_id, "tree-head signing key"),
+            createStatusBadge("Signature published", "info"),
+        ];
+        values.forEach((value) => {
+            const cell = document.createElement("td");
+            if (value instanceof Node) cell.append(value);
+            else cell.textContent = value;
+            row.append(cell);
+        });
+        const actionCell = document.createElement("td");
+        const details = document.createElement("details");
+        const summary = document.createElement("summary");
+        summary.textContent = "Inspect";
+        details.className = "table-details";
+        details.append(summary, createRawJsonViewer(
+            group.length === 1 ? latest : group,
+            group.length === 1 ? "Signed tree head JSON" : `${group.length} signed checkpoints`
+        ));
+        actionCell.append(details);
+        row.append(actionCell);
+        body.append(row);
+    });
+    table.className = "compact-table";
+    table.append(head, body);
+    elements.transparencyTreeHeads.replaceChildren(table);
+    elements.toggleTreeHeadHistory.hidden = groups.length <= 10;
+    elements.toggleTreeHeadHistory.textContent = state.showAllTreeHeads
+        ? "Show latest 10"
+        : `Show all (${groups.length})`;
+    elements.toggleTreeHeadHistory.setAttribute(
+        "aria-expanded",
+        String(state.showAllTreeHeads)
+    );
+}
+
+
+function populateCheckpointSelectors() {
+    const heads = state.transparencyTreeHeads;
+    const options = heads.map((head) => {
+        const option = document.createElement("option");
+        option.value = head.payload.tree_head_id;
+        option.textContent = `${head.payload.tree_size} · ${formatTechnicalValue(head.payload.root_hash, 8, 6)} · ${formatDate(head.payload.timestamp)}`;
+        return option;
+    });
+    elements.olderCheckpointSelect.replaceChildren(
+        ...options.map((option) => option.cloneNode(true))
+    );
+    elements.newerCheckpointSelect.replaceChildren(
+        ...options.map((option) => option.cloneNode(true))
+    );
+    if (heads.length) {
+        elements.olderCheckpointSelect.value = heads[0].payload.tree_head_id;
+        elements.newerCheckpointSelect.value = heads.at(-1).payload.tree_head_id;
+    }
+}
+
+
+async function renderCheckpointComparison() {
+    const oldHead = state.transparencyTreeHeads.find(
+        (head) => head.payload.tree_head_id === elements.olderCheckpointSelect.value
+    );
+    const newHead = state.transparencyTreeHeads.find(
+        (head) => head.payload.tree_head_id === elements.newerCheckpointSelect.value
+    );
+    if (!oldHead || !newHead) return;
+    elements.transparencyConsistencyStatus.className = "outcome-banner outcome-info";
+    elements.transparencyConsistencyStatus.textContent = "Verifying checkpoint continuity…";
+    try {
+        const proofResponse = await fetch(
+            "/transparency/consistency-proof?" +
+                `old_tree_size=${oldHead.payload.tree_size}&new_tree_size=${newHead.payload.tree_size}`
+        );
+        if (!proofResponse.ok) throw new Error("Checkpoint order is invalid.");
+        const proof = await proofResponse.json();
+        const response = await fetch("/transparency/compare-tree-heads", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                old_tree_head: oldHead,
+                new_tree_head: newHead,
+                proof,
+            }),
+        });
+        if (!response.ok) throw new Error("Comparison could not be verified.");
+        const result = await response.json();
+        const appended = newHead.payload.tree_size - oldHead.payload.tree_size;
+        elements.transparencyConsistencyStatus.className = (
+            `outcome-banner ${result.append_only ? "outcome-success" : "outcome-error"}`
+        );
+        elements.transparencyConsistencyStatus.replaceChildren();
+        const title = document.createElement("strong");
+        const detail = document.createElement("span");
+        title.textContent = result.append_only
+            ? "Append-only continuity verified"
+            : "Checkpoint comparison failed";
+        detail.textContent = (
+            `${oldHead.payload.tree_size} → ${newHead.payload.tree_size} · ` +
+            `${appended} appended entr${appended === 1 ? "y" : "ies"} · ` +
+            `signatures valid · consistency proof ${result.valid ? "valid" : "invalid"}`
+        );
+        elements.transparencyConsistencyStatus.append(title, detail);
+        elements.transparencySplitViewWarning.classList.toggle(
+            "hidden",
+            !result.split_view
+        );
+    } catch {
+        elements.transparencyConsistencyStatus.className = "outcome-banner outcome-error";
+        elements.transparencyConsistencyStatus.textContent = (
+            "Unable to compare these checkpoints. Select an older checkpoint first."
+        );
+    }
+}
+
+
+function renderLogEntryList() {
+    const type = elements.transparencyEntryTypeFilter.value;
+    const authority = elements.transparencyAuthorityFilter.value;
+    const query = elements.transparencyEntrySearch.value.trim().toLowerCase();
+    const sort = elements.transparencyEntrySort.value;
+    const filtered = state.transparencyEntries
+        .filter((entry) => (
+            (!type || entry.entry_type === type) &&
+            (!authority || entry.source_authority_id === authority) &&
+            (!query || [entry.entry_id, entry.object_id]
+                .join(" ")
+                .toLowerCase()
+                .includes(query))
+        ))
+        .sort((left, right) => (
+            sort === "oldest"
+                ? left.leaf_index - right.leaf_index
+                : sort === "index"
+                    ? left.leaf_index - right.leaf_index
+                    : right.leaf_index - left.leaf_index
+        ));
+    elements.transparencyEntryCount.textContent = `${filtered.length} result${filtered.length === 1 ? "" : "s"}`;
+    const fragment = document.createDocumentFragment();
+    filtered.slice(0, 100).forEach((entry) => {
+        const button = document.createElement("button");
+        const header = document.createElement("span");
+        const metadata = document.createElement("span");
+        button.type = "button";
+        button.className = "entry-list-item";
+        button.dataset.entryId = entry.entry_id;
+        button.setAttribute("role", "option");
+        button.setAttribute(
+            "aria-selected",
+            String(entry.entry_id === state.selectedTransparencyEntryId)
+        );
+        if (entry.entry_id === state.selectedTransparencyEntryId) {
+            button.classList.add("selected");
+        }
+        header.className = "entry-list-item-header";
+        header.append(
+            createStatusBadge(
+                entry.entry_type === "trust-attestation"
+                    ? "Trust attestation"
+                    : "Federation bundle",
+                entry.entry_type === "trust-attestation" ? "info" : "warning"
+            ),
+            document.createTextNode(`#${entry.leaf_index}`)
+        );
+        metadata.className = "entry-list-item-metadata";
+        metadata.textContent = (
+            `${formatTechnicalValue(entry.object_id)} · ` +
+            `${entry.source_authority_id} · ${formatDate(entry.recorded_at)} · Included`
+        );
+        button.append(header, metadata);
+        fragment.append(button);
+    });
+    if (!filtered.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.textContent = "No transparency entries match these filters.";
+        fragment.append(empty);
+    }
+    elements.transparencyEntryGrid.replaceChildren(fragment);
+}
+
+
+async function renderEntryExplorer(entryId) {
+    const entry = state.transparencyEntries.find((item) => item.entry_id === entryId);
+    if (!entry) return;
+    state.selectedTransparencyEntryId = entryId;
+    renderLogEntryList();
+    elements.transparencyEntryExplorer.replaceChildren();
+    const loading = document.createElement("div");
+    loading.className = "loading-state";
+    loading.textContent = "Verifying inclusion proof…";
+    elements.transparencyEntryExplorer.append(loading);
+    try {
+        const response = await fetch(
+            `/transparency/entries/${encodeURIComponent(entryId)}/inclusion-proof`
+        );
+        if (!response.ok) throw new Error("Inclusion proof unavailable.");
+        const proof = await response.json();
+        const tabs = document.createElement("div");
+        const panels = document.createElement("div");
+        const views = [
+            ["Overview", () => {
+                const content = document.createElement("div");
+                const outcome = document.createElement("div");
+                const metadata = document.createElement("dl");
+                outcome.className = "outcome-banner outcome-success";
+                outcome.textContent = "Included in signed checkpoint";
+                metadata.className = "metadata-list";
+                metadata.append(
+                    createMetadataRow("Entry type", entry.entry_type),
+                    createMetadataRow("Entry ID", entry.entry_id, true),
+                    createMetadataRow("Object ID", entry.object_id, true),
+                    createMetadataRow("Source authority", entry.source_authority_id, true),
+                    createMetadataRow("Recorded", formatDate(entry.recorded_at)),
+                    createMetadataRow("Object digest", entry.object_digest, true),
+                    createMetadataRow("Leaf hash", proof.leaf_hash, true),
+                    createMetadataRow("Leaf index", String(proof.leaf_index)),
+                    createMetadataRow("Tree head", proof.root_hash, true)
+                );
+                content.append(outcome, metadata);
+                return content;
+            }],
+            ["Inclusion proof", () => {
+                const content = document.createElement("div");
+                const metadata = document.createElement("dl");
+                metadata.className = "metadata-list";
+                metadata.append(
+                    createMetadataRow("Tree size", String(proof.tree_size)),
+                    createMetadataRow("Root hash", proof.root_hash, true),
+                    createMetadataRow("Audit path length", String(proof.audit_path.length))
+                );
+                const audit = document.createElement("details");
+                const summary = document.createElement("summary");
+                summary.textContent = `Reveal audit path (${proof.audit_path.length})`;
+                audit.className = "disclosure-panel";
+                audit.append(summary, createRawJsonViewer(proof.audit_path, "Audit path values"));
+                content.append(metadata, audit);
+                return content;
+            }],
+            ["Signed object", () => {
+                const content = document.createElement("div");
+                const metadata = document.createElement("dl");
+                metadata.className = "metadata-list";
+                metadata.append(
+                    createMetadataRow("Object type", entry.entry_type),
+                    createMetadataRow("Authority", entry.source_authority_id, true),
+                    createMetadataRow("Signature", entry.public_object?.proof?.signature, true)
+                );
+                content.append(metadata);
+                return content;
+            }],
+            ["Raw JSON", () => createRawJsonViewer({entry, proof}, "Complete entry and proof JSON")],
+        ];
+        tabs.className = "segmented-control";
+        tabs.setAttribute("role", "tablist");
+        panels.className = "explorer-panel";
+        const selectView = (selectedIndex) => {
+            [...tabs.children].forEach((button, index) => {
+                button.setAttribute("aria-selected", String(index === selectedIndex));
+                button.tabIndex = index === selectedIndex ? 0 : -1;
+            });
+            panels.replaceChildren(views[selectedIndex][1]());
+        };
+        views.forEach(([label], index) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent = label;
+            button.setAttribute("role", "tab");
+            button.addEventListener("click", () => selectView(index));
+            tabs.append(button);
+        });
+        const explanation = document.createElement("p");
+        explanation.className = "evidence-explanation";
+        explanation.textContent = (
+            "This proves that the exact public object was committed to the selected " +
+            "tree checkpoint. It does not independently validate the trust object."
+        );
+        elements.transparencyEntryExplorer.replaceChildren(tabs, panels, explanation);
+        selectView(0);
+    } catch {
+        const error = document.createElement("div");
+        error.className = "error-state";
+        error.textContent = "Unable to load this inclusion proof. Retry by selecting the entry again.";
+        elements.transparencyEntryExplorer.replaceChildren(error);
+    }
+}
+
+
+async function renderTransparencyLog() {
+    try {
+        const [summaryResponse, entriesResponse, headsResponse] = await Promise.all([
+            fetch("/transparency/log"),
+            fetch("/transparency/entries?limit=100"),
+            fetch("/transparency/tree-heads"),
+        ]);
+        if (!summaryResponse.ok || !entriesResponse.ok || !headsResponse.ok) {
+            throw new Error("Transparency data unavailable.");
+        }
+        const summary = await summaryResponse.json();
+        state.transparencyEntries = await entriesResponse.json();
+        state.transparencyTreeHeads = await headsResponse.json();
+        renderTransparencyOverview(summary);
+        renderTreeHeadHistory();
+        populateCheckpointSelectors();
+        const authorities = [...new Set(
+            state.transparencyEntries.map((entry) => entry.source_authority_id)
+        )].sort();
+        elements.transparencyAuthorityFilter.replaceChildren(
+            new Option("All authorities", ""),
+            ...authorities.map((authority) => new Option(authority, authority))
+        );
+        renderLogEntryList();
+        await renderCheckpointComparison();
+    } catch (error) {
+        console.error("Transparency Log rendering failed.", error);
+        elements.transparencyHealthBanner.className = "outcome-banner outcome-error";
+        elements.transparencyHealthBanner.textContent = (
+            "Unable to load the Transparency Log. Retry by reloading this view."
+        );
+        const errorState = document.createElement("div");
+        errorState.className = "error-state";
+        errorState.textContent = "Transparency evidence is currently unavailable.";
+        elements.transparencyLogSummary.replaceChildren(errorState);
+    }
+}
+
 
 elements.tabButtons.forEach((button) => {
     button.addEventListener(
@@ -3413,6 +4326,51 @@ elements.explorerVerifyButton.addEventListener(
     verifyExplorerCredential
 );
 
+[
+    elements.attestationProviderFilter,
+    elements.attestationStatusFilter,
+    elements.attestationHistoryFilter,
+    elements.attestationSearch,
+].forEach((control) => {
+    control.addEventListener("input", renderFilteredTrustAttestations);
+});
+
+[
+    elements.transparencyEntryTypeFilter,
+    elements.transparencyAuthorityFilter,
+    elements.transparencyEntrySearch,
+    elements.transparencyEntrySort,
+].forEach((control) => {
+    control.addEventListener("input", renderLogEntryList);
+});
+
+elements.transparencyEntryGrid.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-entry-id]");
+    if (button) renderEntryExplorer(button.dataset.entryId);
+});
+
+elements.toggleTreeHeadHistory.addEventListener("click", () => {
+    state.showAllTreeHeads = !state.showAllTreeHeads;
+    renderTreeHeadHistory();
+});
+
+elements.compareCheckpointsButton.addEventListener(
+    "click",
+    renderCheckpointComparison
+);
+
+elements.inspectCurrentTreeHead.addEventListener("click", () => {
+    const current = state.transparencyTreeHeads.at(-1);
+    if (current) {
+        elements.newerCheckpointSelect.value = current.payload.tree_head_id;
+        elements.newerCheckpointSelect.focus();
+    }
+});
+
+elements.browseTransparencyEntries.addEventListener("click", () => {
+    elements.transparencyEntrySearch.focus();
+});
+
 
 updatePromptCount();
 resetVerificationDisplay();
@@ -3424,3 +4382,5 @@ renderTrustRegistry();
 renderRegistryAuthorities();
 renderTrustAttestations();
 renderFederationBundles();
+renderTransparencyLog();
+activateTab(window.location.hash.slice(1) || "generate");

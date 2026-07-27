@@ -8,12 +8,13 @@ from app.api.protocol import router as protocol_router
 from app.core.repositories import (
     FEDERATION_INVALID_FILE_COUNT,
     FEDERATION_LOADED_BUNDLE_COUNT,
+    transparency_log_repository,
 )
 
 
 APPLICATION_DIRECTORY = Path(__file__).resolve().parent
 WEB_DIRECTORY = APPLICATION_DIRECTORY / "web"
-APPLICATION_VERSION = "0.11.0"
+APPLICATION_VERSION = "0.12.0"
 
 
 app = FastAPI(
@@ -56,7 +57,7 @@ def read_demonstrator() -> FileResponse:
     "/health",
     tags=["System"],
 )
-def read_health() -> dict[str, str | int]:
+def read_health() -> dict[str, str | int | bool]:
     """
     Return the current service status.
     """
@@ -67,4 +68,14 @@ def read_health() -> dict[str, str | int]:
         "version": APPLICATION_VERSION,
         "federation_loaded_bundle_count": FEDERATION_LOADED_BUNDLE_COUNT,
         "federation_invalid_file_count": FEDERATION_INVALID_FILE_COUNT,
+        "transparency_log_loaded": True,
+        "transparency_entry_count": transparency_log_repository.entry_count,
+        "transparency_tree_size": transparency_log_repository.entry_count,
+        "transparency_valid_tree_head_count": len(
+            transparency_log_repository.list_tree_heads()
+        ),
+        "transparency_invalid_runtime_object_count": (
+            transparency_log_repository.invalid_runtime_object_count
+        ),
+        "transparency_consistency_valid": True,
     }

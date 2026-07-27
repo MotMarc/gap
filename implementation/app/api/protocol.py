@@ -16,6 +16,11 @@ from app.core.repositories import (
     trust_attestation_repository,
     federation_bundle_repository,
     federated_trust_service,
+    transparency_log_repository,
+)
+from app.core.transparency_log_config import (
+    REFERENCE_TRANSPARENCY_LOG,
+    TRUSTED_TRANSPARENCY_LOGS,
 )
 from app.core.registry_authority_config import registry_authority_repository
 from app.crypto.provider_keys import load_private_key
@@ -43,11 +48,32 @@ from app.schemas.federation_bundle import (
     FederationBundle,
     FederationBundleVerificationResult,
 )
+from app.schemas.signed_tree_head import SignedTreeHead
+from app.schemas.transparency_log import TransparencyLogIdentityDocument
+from app.schemas.transparency_proof import (
+    ConsistencyVerificationRequest,
+    ConsistencyVerificationResult,
+    InclusionVerificationRequest,
+    InclusionVerificationResult,
+    TreeHeadComparisonRequest,
+)
 from app.services.federation_bundle_service import (
     calculate_bundle_digest,
     verify_federation_bundle,
 )
 from app.services.federation_bundle_repository import FederationBundleNotFoundError
+from app.services.transparency_log_repository import (
+    TransparencyEntryNotFoundError,
+    TransparencyLogRepositoryError,
+    TransparencyTreeHeadNotFoundError,
+)
+from app.services.transparency_log_identity_service import (
+    create_transparency_log_identity_document,
+)
+from app.services.transparency_verification_service import (
+    verify_consistency,
+    verify_inclusion,
+)
 from app.schemas.trust_registry import (
     ProviderApplicationRequest,
     ProviderApplicationResponse,
@@ -151,6 +177,7 @@ def create_provider_trust_response(
     evaluation = trust_registry_service.evaluate_provider_trust(provider_id)
     attestation = trust_registry_service.get_current_attestation(provider_id)
     federation = federated_trust_service.evaluate(provider_id)
+    transparency_sources = [asdict(source) for source in federation.authority_sources]
 
     return ProviderTrustResponse(
         provider_id=provider_id,
@@ -179,6 +206,23 @@ def create_provider_trust_response(
         federation_source_count=federation.source_count,
         federation_sources=[asdict(source) for source in federation.authority_sources],
         federation_failure_reason=federation.failure_reason,
+        transparency_verified=federation.trusted
+        and all(
+            source.transparency_verified for source in federation.authority_sources
+        ),
+        transparency_sources=transparency_sources,
+        transparency_failure_reason=(
+            None
+            if federation.trusted
+            else next(
+                (
+                    source.transparency_failure_reason
+                    for source in federation.authority_sources
+                    if not source.transparency_verified
+                ),
+                None,
+            )
+        ),
     )
 
 
@@ -334,6 +378,22 @@ def list_trust_registry() -> list[TrustRegistryEntryResponse]:
                     asdict(source) for source in federation.authority_sources
                 ],
                 federation_failure_reason=federation.failure_reason,
+                transparency_verified=federation.trusted
+                and all(
+                    source.transparency_verified
+                    for source in federation.authority_sources
+                ),
+                transparency_sources=[
+                    asdict(source) for source in federation.authority_sources
+                ],
+                transparency_failure_reason=next(
+                    (
+                        source.transparency_failure_reason
+                        for source in federation.authority_sources
+                        if not source.transparency_verified
+                    ),
+                    None,
+                ),
             )
         )
 
@@ -479,6 +539,162 @@ def verify_federation_bundle_stateless(
     bundle: FederationBundle,
 ) -> FederationBundleVerificationResult:
     return verify_federation_bundle(bundle, registry_authority_repository)
+
+
+@router.get("/transparency/log")
+def read_transparency_log() -> dict:
+    latest = transparency_log_repository.latest_tree_head()
+    return {
+        "log_id": REFERENCE_TRANSPARENCY_LOG.log_id,
+        "log_name": REFERENCE_TRANSPARENCY_LOG.log_name,
+        "active_key_id": REFERENCE_TRANSPARENCY_LOG.active_key_id,
+        "hash_algorithm": "SHA-256",
+        "tree_algorithm": "GAP-RFC6962-SHA256-v1",
+        "entry_count": transparency_log_repository.entry_count,
+        "current_tree_size": transparency_log_repository.entry_count,
+        "current_root_hash": transparency_log_repository.current_root(),
+        "latest_tree_head_id": latest.payload.tree_head_id if latest else None,
+        "latest_tree_head_timestamp": latest.payload.timestamp if latest else None,
+        "trusted_locally": True,
+        "invalid_runtime_object_count": (
+            transparency_log_repository.invalid_runtime_object_count
+        ),
+        "consistency_status": "consistent",
+    }
+
+
+@router.get(
+    "/transparency/log/.well-known/gap-transparency.json",
+    response_model=TransparencyLogIdentityDocument,
+)
+def read_transparency_log_identity() -> TransparencyLogIdentityDocument:
+    return create_transparency_log_identity_document(REFERENCE_TRANSPARENCY_LOG)
+
+
+@router.get("/transparency/entries")
+def list_transparency_entries(
+    entry_type: str | None = None,
+    source_authority_id: str | None = None,
+    object_id: str | None = None,
+    limit: int = 100,
+):
+    if limit < 1 or limit > 500:
+        raise HTTPException(status_code=422, detail="limit must be between 1 and 500")
+    entries = transparency_log_repository.list_entries()
+    if entry_type:
+        entries = [item for item in entries if item.entry_type == entry_type]
+    if source_authority_id:
+        entries = [
+            item for item in entries if item.source_authority_id == source_authority_id
+        ]
+    if object_id:
+        entries = [item for item in entries if item.object_id == object_id]
+    return [
+        {"leaf_index": index, **item.model_dump(mode="json")}
+        for index, item in enumerate(entries[:limit])
+    ]
+
+
+@router.get("/transparency/entries/{entry_id}")
+def read_transparency_entry(entry_id: str):
+    try:
+        return transparency_log_repository.get(entry_id)
+    except TransparencyEntryNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.get("/transparency/tree-head", response_model=SignedTreeHead)
+def read_current_tree_head() -> SignedTreeHead:
+    tree_head = transparency_log_repository.latest_tree_head()
+    if tree_head is None:
+        raise HTTPException(status_code=404, detail="No signed tree head is available.")
+    return tree_head
+
+
+@router.get("/transparency/tree-heads", response_model=list[SignedTreeHead])
+def list_tree_heads() -> list[SignedTreeHead]:
+    return transparency_log_repository.list_tree_heads()
+
+
+@router.get("/transparency/tree-heads/{tree_head_id}", response_model=SignedTreeHead)
+def read_tree_head(tree_head_id: str) -> SignedTreeHead:
+    try:
+        return transparency_log_repository.get_tree_head(tree_head_id)
+    except TransparencyTreeHeadNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.get("/transparency/entries/{entry_id}/inclusion-proof")
+def read_inclusion_proof(entry_id: str, tree_size: int | None = None):
+    try:
+        return transparency_log_repository.inclusion_proof(entry_id, tree_size)
+    except (TransparencyEntryNotFoundError, TransparencyLogRepositoryError) as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.get("/transparency/consistency-proof")
+def read_consistency_proof(old_tree_size: int, new_tree_size: int):
+    try:
+        return transparency_log_repository.consistency_proof(
+            old_tree_size, new_tree_size
+        )
+    except TransparencyLogRepositoryError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.post(
+    "/transparency/verify-inclusion",
+    response_model=InclusionVerificationResult,
+)
+def verify_inclusion_stateless(
+    request: InclusionVerificationRequest,
+) -> InclusionVerificationResult:
+    return verify_inclusion(
+        request.entry, request.tree_head, request.proof, TRUSTED_TRANSPARENCY_LOGS
+    )
+
+
+@router.post(
+    "/transparency/verify-consistency",
+    response_model=ConsistencyVerificationResult,
+)
+def verify_consistency_stateless(
+    request: ConsistencyVerificationRequest,
+) -> ConsistencyVerificationResult:
+    return verify_consistency(
+        request.old_tree_head,
+        request.new_tree_head,
+        request.proof,
+        TRUSTED_TRANSPARENCY_LOGS,
+    )
+
+
+@router.post(
+    "/transparency/compare-tree-heads",
+    response_model=ConsistencyVerificationResult,
+)
+def compare_tree_heads(
+    request: TreeHeadComparisonRequest,
+) -> ConsistencyVerificationResult:
+    old, new = request.old_tree_head.payload, request.new_tree_head.payload
+    if old.log_id == new.log_id and old.tree_size == new.tree_size:
+        if old.root_hash != new.root_hash:
+            return ConsistencyVerificationResult(
+                valid=False,
+                split_view=True,
+                failure_reason="split-view-detected",
+            )
+        return ConsistencyVerificationResult(valid=True, append_only=True)
+    if request.proof is None:
+        return ConsistencyVerificationResult(
+            valid=False, failure_reason="consistency-proof-required"
+        )
+    return verify_consistency(
+        request.old_tree_head,
+        request.new_tree_head,
+        request.proof,
+        TRUSTED_TRANSPARENCY_LOGS,
+    )
 
 
 @router.post(
@@ -635,8 +851,19 @@ def verify_credential(
     trust_status = trust_evaluation.provider_status
     provider_trusted = federation.trusted
     cryptographic_valid = cryptographic_verification.valid
+    transparency_sources = [asdict(source) for source in federation.authority_sources]
+    transparent = [
+        source
+        for source in federation.authority_sources
+        if source.transparency_verified
+    ]
+    transparency_verified = bool(transparent) and provider_trusted
+    transparency_source = transparent[0] if transparent else None
     valid = (
-        cryptographic_valid and provider_trusted and not federation.federation_conflict
+        cryptographic_valid
+        and provider_trusted
+        and transparency_verified
+        and not federation.federation_conflict
     )
 
     failure_reason = cryptographic_verification.failure_reason
@@ -667,6 +894,51 @@ def verify_credential(
         federation_bundle_ids=list(federation.bundle_ids),
         federation_sources=[asdict(source) for source in federation.authority_sources],
         federation_failure_reason=federation.failure_reason,
+        transparency_verified=transparency_verified,
+        transparency_log_id=(
+            transparency_source.transparency_log_id if transparency_source else None
+        ),
+        transparency_log_trusted=(
+            transparency_source.transparency_log_trusted
+            if transparency_source
+            else False
+        ),
+        transparency_entry_ids=[
+            source.transparency_entry_id
+            for source in transparent
+            if source.transparency_entry_id
+        ],
+        transparency_tree_head_id=(
+            transparency_source.transparency_tree_head_id
+            if transparency_source
+            else None
+        ),
+        transparency_tree_size=(
+            transparency_source.transparency_tree_size if transparency_source else None
+        ),
+        transparency_root_hash=(
+            transparency_source.transparency_root_hash if transparency_source else None
+        ),
+        transparency_tree_head_valid=(
+            transparency_source.transparency_tree_head_valid
+            if transparency_source
+            else False
+        ),
+        transparency_inclusion_valid=(
+            transparency_source.transparency_inclusion_valid
+            if transparency_source
+            else False
+        ),
+        transparency_consistency_valid=True,
+        transparency_failure_reason=next(
+            (
+                source.transparency_failure_reason
+                for source in federation.authority_sources
+                if not source.transparency_verified
+            ),
+            None if transparency_verified else "transparency-entry-missing",
+        ),
+        transparency_sources=transparency_sources,
         provider_id=provider_id,
         generation_id=credential.payload.generation.generation_id,
         credential_id=credential.payload.credential_id,

@@ -6,7 +6,13 @@ The objective of GAP is to enable participating AI providers to cryptographicall
 
 ## Current Status
 
-Early research and reference implementation, version 0.10.0.
+Early research and reference implementation, version 0.12.0.
+
+Sprint 12 adds a dedicated Transparency Log Operator, typed public log entries,
+signed Merkle-tree checkpoints, verifiable inclusion proofs and append-only
+consistency proofs. A signed provider trust source establishes effective trust
+only when its public attestation (or accepted federation bundle) is included in
+a trusted signed tree head.
 
 Sprint 10 adds portable Ed25519-signed provider trust-decision attestations.
 A provider is trusted only when it is approved, its current decision has a
@@ -56,6 +62,9 @@ overall_valid =
     AND provider_trusted
     AND trust_attestation_valid
     AND registry_authority_trusted
+    AND federation_state_valid
+    AND transparency_verified
+    AND NOT federation_conflict
 ```
 
 The credential-verification API reports every constituent control separately.
@@ -76,6 +85,39 @@ bytes and the credential's SHA-256 descriptor.
 Public trust responses never contain private onboarding contact references.
 Private attribution records remain separately retained and are available only
 through the controlled-disclosure workflow.
+
+## Sprint 12 transparency
+
+The reference log uses Ed25519 checkpoints and
+`GAP-RFC6962-SHA256-v1`. Its exact hash rules are:
+
+```text
+empty_hash = SHA256(b"")
+leaf_hash  = SHA256(b"\x00" + canonical_entry_bytes)
+node_hash  = SHA256(b"\x01" + left_hash + right_hash)
+```
+
+The tree splits at the largest power of two strictly below its size and never
+duplicates an odd final leaf. Inclusion proves membership in one checkpoint;
+consistency proves append-only extension between checkpoints. Neither validates
+the signed trust object itself. Unknown log operators, revoked log keys,
+invalid proofs, and same-size/different-root split views fail closed.
+
+Public routes are `GET /transparency/log`, the well-known log identity,
+bounded entry and tree-head listings, entry inclusion proofs, consistency
+proofs, and stateless POST verification/comparison routes. No public append or
+log-administration route exists.
+
+Create or validate the separate log key pair:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\generate_transparency_log_keys.py
+```
+
+Runtime entries and checkpoints are atomically persisted under ignored
+`runtime/transparency/`. The browser's Transparency Log view exposes public
+entries, signed checkpoints and proofs without filesystem paths or private
+records.
 
 ## Local setup
 
@@ -102,12 +144,15 @@ Then open `http://127.0.0.1:8000`.
 
 Check LICENSE file
 
-## Sprint 10 limitations
+## Current limitations
 
 Federation is configuration-based. The reference implementation does not crawl
 remote registries, poll authority endpoints, reconcile conflicting decisions,
 provide authority quorum or consensus, persist production data, or integrate
 with blockchains, certificate transparency, HSMs or cloud key management.
-The local authority private key is demonstration material rather than a
-production key-custody design. The browser tests include static and API-backed
-coverage; a reusable browser automation suite is not yet part of the repository.
+The local private keys are demonstration material rather than a production
+key-custody design. There is no public submission, remote gossip, witness
+cosigning, multi-log quorum, blockchain anchoring, CT interoperability,
+production database, distributed consensus, OAuth, KMS/HSM integration or
+automatic rotation. Sprint 13 should add witness cosigning, checkpoint gossip
+and split-view monitoring.

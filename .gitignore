@@ -226,3 +226,4 @@ __pycache__/
 .vscode/
 implementation/keys/
 runtime/federation/accepted/*.json
+runtime/transparency/

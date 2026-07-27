@@ -53,7 +53,10 @@ def write_bundle_atomically(
 
 
 def load_accepted_bundle_directory(
-    directory: Path, authority_repository, bundle_repository
+    directory: Path,
+    authority_repository,
+    bundle_repository,
+    transparency_repository=None,
 ) -> tuple[int, int]:
     accepted = invalid = 0
     if not directory.exists():
@@ -70,7 +73,10 @@ def load_accepted_bundle_directory(
     for bundles in grouped.values():
         for bundle in sorted(bundles, key=lambda item: item.payload.sequence_number):
             result = import_federation_bundle(
-                bundle, authority_repository, bundle_repository
+                bundle,
+                authority_repository,
+                bundle_repository,
+                transparency_repository=transparency_repository,
             )
             if result.imported:
                 accepted += 1

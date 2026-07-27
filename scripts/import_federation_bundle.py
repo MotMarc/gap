@@ -5,8 +5,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "implementation"))
 
 from app.core.registry_authority_config import registry_authority_repository  # noqa: E402
+from app.core.transparency_log_config import REFERENCE_TRANSPARENCY_LOG  # noqa: E402
 from app.services.federation_bundle_repository import FederationBundleRepository  # noqa: E402
 from app.services.federation_bundle_service import import_federation_bundle  # noqa: E402
+from app.services.transparency_log_repository import TransparencyLogRepository  # noqa: E402
 from app.services.federation_file_service import (  # noqa: E402
     load_accepted_bundle_directory,
     read_bundle_file,
@@ -24,13 +26,17 @@ def main() -> int:
     )
     args = parser.parse_args()
     repository = FederationBundleRepository()
+    transparency_repository = TransparencyLogRepository(REFERENCE_TRANSPARENCY_LOG)
     load_accepted_bundle_directory(
         args.accepted_directory, registry_authority_repository, repository
     )
     try:
         bundle = read_bundle_file(args.bundle)
         result = import_federation_bundle(
-            bundle, registry_authority_repository, repository
+            bundle,
+            registry_authority_repository,
+            repository,
+            transparency_repository=transparency_repository,
         )
         if not result.imported:
             print(result.verification.model_dump_json(indent=2))

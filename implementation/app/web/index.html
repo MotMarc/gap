@@ -34,7 +34,7 @@
 
                 <span class="brand-copy">
                     <strong>Generation Attribution Protocol</strong>
-                    <small>Reference Demonstrator v0.11.0</small>
+                    <small>Reference Demonstrator v0.12.0</small>
                 </span>
             </button>
 
@@ -69,6 +69,14 @@
                     data-tab-target="registry"
                 >
                     Trust Registry
+                </button>
+
+                <button
+                    class="navigation-button"
+                    type="button"
+                    data-tab-target="transparency"
+                >
+                    Transparency Log
                 </button>
 
                 <button
@@ -574,6 +582,7 @@
                         </div>
 
                         <ol>
+                            <li class="timeline-phase" aria-hidden="true">Artifact integrity</li>
                             <li id="trust-credential-node">
                                 <span>1</span>
                                 <div>
@@ -733,6 +742,7 @@
                                 </div>
                             </li>
 
+                            <li class="timeline-phase" aria-hidden="true">Provider authentication</li>
                             <li id="timeline-signature">
                                 <span>4</span>
                                 <div>
@@ -749,6 +759,7 @@
                                 </div>
                             </li>
 
+                            <li class="timeline-phase" aria-hidden="true">Trust and federation</li>
                             <li id="timeline-registry">
                                 <span>6</span>
                                 <div>
@@ -771,8 +782,16 @@
                             <li id="timeline-federation-conflict">
                                 <span>11</span><div><strong>Detect cross-authority trust conflicts</strong><small>Awaiting input</small></div>
                             </li>
+                            <li class="timeline-phase" aria-hidden="true">Transparency</li>
+                            <li id="timeline-transparency-entry">
+                                <span>12</span><div><strong>Resolve transparency-log entry</strong><small>Awaiting input</small></div>
+                            </li>
+                            <li id="timeline-transparency-proof">
+                                <span>13</span><div><strong>Verify signed tree head and Merkle inclusion</strong><small>Awaiting input</small></div>
+                            </li>
+                            <li class="timeline-phase" aria-hidden="true">Final policy</li>
                             <li id="timeline-overall">
-                                <span>12</span><div><strong>Calculate overall GAP validity</strong><small>Awaiting input</small></div>
+                                <span>14</span><div><strong>Calculate overall GAP validity</strong><small>Awaiting input</small></div>
                             </li>
                         </ol>
                     </div>
@@ -840,7 +859,8 @@
                 ></div>
 
                 <div class="registry-authority-panel">
-                    <div>
+                    <div class="section-header">
+                        <div>
                         <span class="eyebrow">Configuration-based federation</span>
                         <h2>Registry Authority</h2>
                         <p>
@@ -849,20 +869,29 @@
                             Each Registry authority identity document publishes its
                             complete verification-key lifecycle.
                         </p>
+                        </div>
                     </div>
-                    <div id="registry-authority-grid" class="registry-authority-grid">
+                    <div id="registry-authority-grid" class="registry-authority-grid loading-state" aria-live="polite">
                         Loading registry authority identity…
                     </div>
                 </div>
 
                 <div class="trust-attestation-panel">
-                    <h2>Signed trust attestation</h2>
-                    <p>
-                        Each decision is bound to its provider, status, reason,
-                        timestamp, authority identity and authority signing key.
-                        Attestation signature verification is shown independently.
-                    </p>
-                    <div id="trust-attestation-grid" class="trust-attestation-grid">
+                    <div class="section-header">
+                        <div>
+                            <span class="eyebrow">Current decisions first</span>
+                            <h2>Signed trust attestations</h2>
+                            <p>Filter current decisions quickly; historical signed evidence remains available on demand. Attestation signature validity remains independently inspectable.</p>
+                        </div>
+                        <span id="attestation-result-count" class="status-badge status-neutral">Loading</span>
+                    </div>
+                    <form id="attestation-toolbar" class="data-toolbar" role="search">
+                        <label><span>Provider</span><select id="attestation-provider-filter"><option value="">All providers</option></select></label>
+                        <label><span>Status</span><select id="attestation-status-filter"><option value="">All statuses</option><option value="approved">Approved</option><option value="applicant">Applicant</option><option value="suspended">Suspended</option><option value="removed">Removed</option></select></label>
+                        <label><span>Evidence</span><select id="attestation-history-filter"><option value="current">Current only</option><option value="all">Current and history</option><option value="historical">History only</option></select></label>
+                        <label class="toolbar-search"><span>Search identifiers</span><input id="attestation-search" type="search" placeholder="Provider, decision or attestation ID"></label>
+                    </form>
+                    <div id="trust-attestation-grid" class="trust-attestation-grid loading-state" aria-live="polite">
                         Loading attestation signatures…
                     </div>
                 </div>
@@ -879,6 +908,71 @@
                         Loading accepted federation bundles…
                     </div>
                 </div>
+            </section>
+        </section>
+
+        <section
+            id="tab-transparency"
+            class="tab-page hidden"
+            data-tab-page="transparency"
+        >
+            <section class="page-introduction">
+                <span class="eyebrow">Append-only public trust history</span>
+                <h1>Transparency Log</h1>
+                <p>
+                    Signed trust attestations and accepted federation bundles are
+                    committed to an RFC-6962-shaped Merkle tree.
+                </p>
+            </section>
+            <section class="panel transparency-log-panel">
+                <div id="transparency-health-banner" class="outcome-banner outcome-info">
+                    <strong>Loading Transparency Log…</strong>
+                    <span>Checking the current signed checkpoint and consistency state.</span>
+                </div>
+                <div id="transparency-log-summary" class="metric-grid loading-state">Loading transparency log…</div>
+                <div class="section-actions">
+                    <a id="transparency-identity-link" class="secondary-button" href="/transparency/log/.well-known/gap-transparency.json">View log identity</a>
+                    <button id="inspect-current-tree-head" class="secondary-button" type="button">Inspect current tree head</button>
+                    <button id="browse-transparency-entries" class="secondary-button" type="button">Browse entries</button>
+                </div>
+                <section class="evidence-section" aria-labelledby="tree-head-history-heading">
+                    <div class="section-header">
+                        <div><span class="eyebrow">Bounded checkpoint evidence</span><h2 id="tree-head-history-heading">Signed tree-head history</h2></div>
+                        <button id="toggle-tree-head-history" class="text-button" type="button" aria-expanded="false">Show all</button>
+                    </div>
+                    <div id="transparency-tree-heads" class="compact-table-wrap loading-state">Loading checkpoints…</div>
+                </section>
+                <section class="checkpoint-comparison" aria-labelledby="checkpoint-comparison-heading">
+                    <div class="section-header"><div><span class="eyebrow">Cryptographic continuity</span><h2 id="checkpoint-comparison-heading">Compare checkpoints</h2></div></div>
+                    <div class="comparison-controls">
+                        <label><span>Older checkpoint</span><select id="older-checkpoint-select"></select></label>
+                        <label><span>Newer checkpoint</span><select id="newer-checkpoint-select"></select></label>
+                        <button id="compare-checkpoints-button" class="secondary-button" type="button">Compare</button>
+                    </div>
+                    <div id="transparency-consistency-status" class="outcome-banner outcome-info" aria-live="polite">Append-only continuity awaiting verification.</div>
+                    <div id="transparency-split-view-warning" class="critical-banner hidden" role="alert">
+                        <strong>Potential split view detected</strong>
+                        <span>The same log state cannot safely present conflicting signed roots.</span>
+                    </div>
+                </section>
+                <section id="transparency-entry-browser" class="evidence-section" aria-labelledby="log-entry-browser-heading">
+                    <div class="section-header">
+                        <div><span class="eyebrow">Searchable public commitments</span><h2 id="log-entry-browser-heading">Public log entries</h2></div>
+                        <span id="transparency-entry-count" class="status-badge status-neutral">Loading</span>
+                    </div>
+                    <form id="transparency-entry-toolbar" class="data-toolbar" role="search">
+                        <label><span>Entry type</span><select id="transparency-entry-type-filter"><option value="">All types</option><option value="trust-attestation">Trust attestation</option><option value="federation-bundle">Federation bundle</option></select></label>
+                        <label><span>Source authority</span><select id="transparency-authority-filter"><option value="">All authorities</option></select></label>
+                        <label class="toolbar-search"><span>Search identifiers</span><input id="transparency-entry-search" type="search" placeholder="Entry or object ID"></label>
+                        <label><span>Sort</span><select id="transparency-entry-sort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="index">Leaf index</option></select></label>
+                    </form>
+                    <div class="entry-master-detail">
+                        <div id="transparency-entry-grid" class="entry-list loading-state" role="listbox" aria-label="Transparency log entries">Loading public trust artifacts…</div>
+                        <article id="transparency-entry-explorer" class="entry-explorer" aria-live="polite">
+                            <div class="empty-state"><strong>Select a log entry</strong><span>Inspect its signed object and inclusion proof here.</span></div>
+                        </article>
+                    </div>
+                </section>
             </section>
         </section>
 

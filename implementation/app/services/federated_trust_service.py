@@ -21,6 +21,21 @@ class FederationTrustSource:
     attestation_valid: bool
     bundle_valid: bool
     source_type: str
+    transparency_required: bool = True
+    transparency_entry_id: str | None = None
+    transparency_entry_type: str | None = None
+    transparency_object_id: str | None = None
+    transparency_logged: bool = False
+    transparency_leaf_index: int | None = None
+    transparency_tree_head_id: str | None = None
+    transparency_tree_size: int | None = None
+    transparency_root_hash: str | None = None
+    transparency_log_id: str | None = None
+    transparency_log_trusted: bool = False
+    transparency_tree_head_valid: bool = False
+    transparency_inclusion_valid: bool = False
+    transparency_verified: bool = False
+    transparency_failure_reason: str | None = "transparency-entry-missing"
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,11 +62,61 @@ class FederatedTrustService:
         authority_repository,
         bundle_repository,
         local_authority_id: str,
+        transparency_repository=None,
     ) -> None:
         self.local_trust_service = local_trust_service
         self.authority_repository = authority_repository
         self.bundle_repository = bundle_repository
         self.local_authority_id = local_authority_id
+        self.transparency_repository = transparency_repository
+
+    def _transparency(self, entry_type: str, object_id: str) -> dict:
+        repository = self.transparency_repository
+        if repository is None:
+            return {}
+        found = repository.find_object(entry_type, object_id)
+        if found is None:
+            return {}
+        index, entry = found
+        tree_head = repository.latest_tree_head()
+        if tree_head is None:
+            return {
+                "transparency_logged": True,
+                "transparency_entry_id": entry.entry_id,
+                "transparency_failure_reason": "transparency-tree-head-missing",
+            }
+        from app.services.transparency_log_service import (
+            verify_signed_tree_head_details,
+        )
+        from app.services.transparency_verification_service import verify_inclusion
+        from app.core.transparency_log_config import TRUSTED_TRANSPARENCY_LOGS
+
+        proof = repository.inclusion_proof(entry.entry_id, tree_head.payload.tree_size)
+        tree_result = verify_signed_tree_head_details(
+            tree_head, TRUSTED_TRANSPARENCY_LOGS
+        )
+        inclusion = verify_inclusion(entry, tree_head, proof, TRUSTED_TRANSPARENCY_LOGS)
+        verified = tree_result.valid and inclusion.valid
+        return {
+            "transparency_entry_id": entry.entry_id,
+            "transparency_entry_type": entry.entry_type,
+            "transparency_object_id": object_id,
+            "transparency_logged": True,
+            "transparency_leaf_index": index,
+            "transparency_tree_head_id": tree_head.payload.tree_head_id,
+            "transparency_tree_size": tree_head.payload.tree_size,
+            "transparency_root_hash": tree_head.payload.root_hash,
+            "transparency_log_id": tree_head.payload.log_id,
+            "transparency_log_trusted": tree_result.log_trusted,
+            "transparency_tree_head_valid": tree_result.valid,
+            "transparency_inclusion_valid": inclusion.valid,
+            "transparency_verified": verified,
+            "transparency_failure_reason": (
+                None
+                if verified
+                else inclusion.failure_reason or tree_result.failure_reason
+            ),
+        }
 
     def evaluate(self, provider_id: str, now: datetime | None = None):
         current_time = now or datetime.now(timezone.utc)
@@ -74,6 +139,9 @@ class FederatedTrustService:
                     attestation_valid=True,
                     bundle_valid=True,
                     source_type="local",
+                    **self._transparency(
+                        "trust-attestation", attestation.payload.attestation_id
+                    ),
                 )
             )
         for authority in self.authority_repository.list_all():
@@ -120,16 +188,36 @@ class FederatedTrustService:
                     attestation_valid=True,
                     bundle_valid=True,
                     source_type="federated-bundle",
+                    **self._transparency("federation-bundle", bundle.payload.bundle_id),
                 )
             )
         if not sources:
             return FederatedTrustEvaluation(
                 provider_id, None, False, False, (), (), (), (), "no-valid-trust-source"
             )
-        statuses = {source.provider_status for source in sources}
-        authority_ids = tuple(source.registry_authority_id for source in sources)
+        transparent_sources = [
+            source for source in sources if source.transparency_verified
+        ]
+        if not transparent_sources:
+            return FederatedTrustEvaluation(
+                provider_id,
+                None,
+                False,
+                False,
+                tuple(sources),
+                (),
+                (),
+                tuple(source.bundle_id for source in sources if source.bundle_id),
+                "no-transparent-trust-source",
+            )
+        statuses = {source.provider_status for source in transparent_sources}
+        authority_ids = tuple(
+            source.registry_authority_id for source in transparent_sources
+        )
         bundle_ids = tuple(
-            source.bundle_id for source in sources if source.bundle_id is not None
+            source.bundle_id
+            for source in transparent_sources
+            if source.bundle_id is not None
         )
         if len(statuses) > 1:
             return FederatedTrustEvaluation(

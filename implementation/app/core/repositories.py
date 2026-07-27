@@ -14,6 +14,8 @@ from app.services.federation_bundle_repository import FederationBundleRepository
 from app.services.federated_trust_service import FederatedTrustService
 from app.services.federation_file_service import load_accepted_bundle_directory
 from pathlib import Path
+from app.core.transparency_log_config import REFERENCE_TRANSPARENCY_LOG
+from app.services.transparency_log_repository import TransparencyLogRepository
 
 
 attribution_repository = AttributionRepository()
@@ -23,18 +25,26 @@ provider_application_repository = ProviderApplicationRepository()
 trust_registry_repository = TrustRegistryRepository()
 trust_attestation_repository = TrustAttestationRepository()
 federation_bundle_repository = FederationBundleRepository()
+TRANSPARENCY_RUNTIME_DIRECTORY = (
+    Path(__file__).resolve().parents[3] / "runtime" / "transparency"
+)
+transparency_log_repository = TransparencyLogRepository(
+    REFERENCE_TRANSPARENCY_LOG, TRANSPARENCY_RUNTIME_DIRECTORY
+)
 trust_registry_service = TrustRegistryService(
     trust_repository=trust_registry_repository,
     application_repository=provider_application_repository,
     authority_repository=registry_authority_repository,
     attestation_repository=trust_attestation_repository,
     default_authority_id="gap-reference-registry",
+    transparency_repository=transparency_log_repository,
 )
 federated_trust_service = FederatedTrustService(
     local_trust_service=trust_registry_service,
     authority_repository=registry_authority_repository,
     bundle_repository=federation_bundle_repository,
     local_authority_id="gap-reference-registry",
+    transparency_repository=transparency_log_repository,
 )
 
 
@@ -66,7 +76,6 @@ for index, provider in enumerate(PROVIDERS, start=1):
         decision_id=f"seed-approval-{index}",
     )
 
-
 FEDERATION_ACCEPTED_DIRECTORY = (
     Path(__file__).resolve().parents[3] / "runtime" / "federation" / "accepted"
 )
@@ -77,4 +86,13 @@ FEDERATION_ACCEPTED_DIRECTORY = (
     FEDERATION_ACCEPTED_DIRECTORY,
     registry_authority_repository,
     federation_bundle_repository,
+    transparency_log_repository,
 )
+
+latest_tree_head = transparency_log_repository.latest_tree_head()
+if (
+    latest_tree_head is None
+    or latest_tree_head.payload.tree_size != transparency_log_repository.entry_count
+    or latest_tree_head.payload.root_hash != transparency_log_repository.current_root()
+):
+    transparency_log_repository.create_current_tree_head()

@@ -37,6 +37,10 @@ class ProviderTrustResponse(BaseModel):
     federation_source_count: int = 0
     federation_sources: list[dict] = []
     federation_failure_reason: str | None = None
+    transparency_required: bool = True
+    transparency_verified: bool = False
+    transparency_sources: list[dict] = []
+    transparency_failure_reason: str | None = None
 
 
 class TrustRegistryEntryResponse(BaseModel):
@@ -57,6 +61,10 @@ class TrustRegistryEntryResponse(BaseModel):
     federation_source_count: int = 0
     federation_sources: list[dict] = []
     federation_failure_reason: str | None = None
+    transparency_required: bool = True
+    transparency_verified: bool = False
+    transparency_sources: list[dict] = []
+    transparency_failure_reason: str | None = None
 
 
 class ProviderApplicationRequest(BaseModel):

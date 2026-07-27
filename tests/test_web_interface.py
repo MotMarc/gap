@@ -71,13 +71,15 @@ def test_trust_registry_interface_is_present() -> None:
     assert "Removed" in response.text
 
 
-def test_frontend_reports_sprint_11_version() -> None:
+def test_frontend_reports_sprint_12_version() -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Reference Demonstrator v0.11.0" in response.text
+    assert "Reference Demonstrator v0.12.0" in response.text
     assert "Registry Authority" in response.text
     assert "Signed trust attestation" in response.text
+    assert "Transparency Log" in response.text
+    assert "Potential split view detected" in response.text
     assert "Registry authority identity" in response.text
     assert "Attestation signature" in response.text
     assert "trusted-authority" in response.text
@@ -97,6 +99,7 @@ def test_stylesheet_is_served() -> None:
     assert ".verification-result-warning" in response.text
     assert ".registry-authority-panel" in response.text
     assert ".attestation-valid" in response.text
+    assert ".transparency-log-panel" in response.text
 
 
 def test_javascript_is_served() -> None:
@@ -135,6 +138,8 @@ def test_javascript_is_served() -> None:
     assert "timelineAuthorityKey" in response.text
     assert "timelineAttestation" in response.text
     assert "timelineOverall" in response.text
+    assert "timelineTransparencyEntry" in response.text
+    assert "timelineTransparencyProof" in response.text
     assert re.search(
         r"setTimelineState\(\s*elements\.timelineAuthorityIdentity",
         response.text,
@@ -151,6 +156,14 @@ def test_javascript_is_served() -> None:
         r"setTimelineState\(\s*elements\.timelineOverall",
         response.text,
     )
+    assert re.search(
+        r"setTimelineState\(\s*elements\.timelineTransparencyEntry",
+        response.text,
+    )
+    assert re.search(
+        r"setTimelineState\(\s*elements\.timelineTransparencyProof",
+        response.text,
+    )
     assert "signatureValid = verification.cryptographic_valid === true" in (
         response.text
     )
@@ -160,6 +173,11 @@ def test_javascript_is_served() -> None:
     assert "verification.trust_attestation_valid === true" in response.text
     assert "verification.registry_authority_trusted === true" in response.text
     assert "verification.registry_authority_key_status" in response.text
+    assert "verification.transparency_verified" in response.text
+    assert "verification.transparency_tree_head_id" in response.text
+    assert "verification.transparency_failure_reason" in response.text
+    assert "/transparency/entries" in response.text
+    assert "/transparency/tree-heads" in response.text
     assert "backendOverallValid = verification.valid === true" in response.text
     assert "escapeHtml(" not in response.text
     assert ".innerHTML" not in response.text
@@ -180,6 +198,8 @@ def test_sprint_10_federation_panels_are_present() -> None:
         "timeline-federation-chain",
         "timeline-federation-conflict",
         "timeline-overall",
+        "timeline-transparency-entry",
+        "timeline-transparency-proof",
     ):
         assert f'id="{timeline_id}"' in response.text
 
@@ -192,7 +212,8 @@ def test_health_endpoint() -> None:
     body = response.json()
     assert body["status"] == "healthy"
     assert body["service"] == "gap-reference-implementation"
-    assert body["version"] == "0.11.0"
+    assert body["version"] == "0.12.0"
+    assert body["transparency_log_loaded"] is True
     assert body["federation_invalid_file_count"] >= 0
 
 
@@ -214,3 +235,82 @@ def test_sprint_11_federation_runtime_wiring() -> None:
     ):
         assert field in javascript
     assert "/federation/bundles" in javascript
+
+
+def test_sprint_12_inspection_dashboard_structure_and_wiring() -> None:
+    page = client.get("/").text
+    javascript = client.get("/static/app.js").text
+    stylesheet = client.get("/static/styles.css").text
+
+    required_ids = (
+        "attestation-provider-filter",
+        "attestation-status-filter",
+        "attestation-history-filter",
+        "attestation-search",
+        "attestation-result-count",
+        "toggle-tree-head-history",
+        "older-checkpoint-select",
+        "newer-checkpoint-select",
+        "compare-checkpoints-button",
+        "transparency-entry-type-filter",
+        "transparency-authority-filter",
+        "transparency-entry-search",
+        "transparency-entry-sort",
+        "transparency-entry-count",
+        "transparency-entry-grid",
+        "transparency-entry-explorer",
+        "transparency-health-banner",
+    )
+    for element_id in required_ids:
+        assert f'id="{element_id}"' in page
+        assert element_id in javascript
+
+    assert 'aria-expanded="false"' in page
+    assert 'role="listbox"' in page
+    assert 'aria-live="polite"' in page
+    assert "Current only" in page
+    assert "Current and history" in page
+    assert "Select a log entry" in page
+    assert "Loading Transparency Log" in page
+
+    for helper in (
+        "formatTechnicalValue",
+        "createTechnicalValue",
+        "createStatusBadge",
+        "createMetadataRow",
+        "createRawJsonViewer",
+        "renderFilteredTrustAttestations",
+        "renderTransparencyOverview",
+        "renderTreeHeadHistory",
+        "renderCheckpointComparison",
+        "renderLogEntryList",
+        "renderEntryExplorer",
+    ):
+        assert re.search(rf"function\s+{helper}\s*\(", javascript)
+
+    assert "slice(0, 10)" in javascript
+    assert "View decision history" in javascript
+    assert "aria-selected" in javascript
+    assert "navigator.clipboard.writeText" in javascript
+    assert "textContent = serialized" in javascript
+    assert ".innerHTML" not in javascript
+
+    for component in (
+        ".metric-grid",
+        ".technical-value",
+        ".data-toolbar",
+        ".compact-table",
+        ".entry-master-detail",
+        ".entry-list-item.selected",
+        ".segmented-control",
+        ".raw-data-viewer",
+        ".outcome-banner",
+        ".loading-state",
+        ".empty-state",
+        ".error-state",
+        ":focus-visible",
+    ):
+        assert component in stylesheet
+    assert "@media (max-width: 1080px)" in stylesheet
+    assert "@media (max-width: 768px)" in stylesheet
+    assert "@media (max-width: 480px)" in stylesheet

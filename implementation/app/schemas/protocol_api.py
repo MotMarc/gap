@@ -106,6 +106,19 @@ class VerificationResponse(BaseModel):
     federation_bundle_ids: list[str] = []
     federation_sources: list[dict] = []
     federation_failure_reason: str | None = None
+    transparency_required: bool = True
+    transparency_verified: bool = False
+    transparency_log_id: str | None = None
+    transparency_log_trusted: bool = False
+    transparency_entry_ids: list[str] = []
+    transparency_tree_head_id: str | None = None
+    transparency_tree_size: int | None = None
+    transparency_root_hash: str | None = None
+    transparency_tree_head_valid: bool = False
+    transparency_inclusion_valid: bool = False
+    transparency_consistency_valid: bool = True
+    transparency_failure_reason: str | None = None
+    transparency_sources: list[dict] = []
     provider_id: str
     generation_id: str
     credential_id: str

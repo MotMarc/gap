@@ -1,5 +1,47 @@
 # GAP Reference Architecture
 
+## Sprint 12 transparency architecture
+
+The Transparency Log Operator is distinct from Providers and Registry
+Authorities and has its own Ed25519 key lifecycle. Active keys sign new tree
+heads, retired keys verify historical checkpoints, and revoked keys reject
+referenced checkpoints. Its public identity publishes the full key history plus
+SHA-256 and `GAP-RFC6962-SHA256-v1`.
+
+Only complete signed trust-decision attestations and accepted signed federation
+bundles are logged. Each typed entry binds its object ID, source authority,
+recording time and `SHA256(canonical signed object)`. Prompts, credentials,
+contacts, accounts, attribution/disclosure records, private keys and paths are
+outside the log.
+
+Entries are chronological and append-only. Atomic JSON files live in
+`runtime/transparency/entries`; signed checkpoint history lives in
+`runtime/transparency/tree-heads`. Startup loads in order, validates objects,
+excludes invalid state, and reports invalid counts through health data.
+
+The Merkle rules are exact:
+
+```text
+empty_hash = SHA256(b"")
+leaf_hash  = SHA256(b"\x00" + canonical_entry_bytes)
+node_hash  = SHA256(b"\x01" + left_hash + right_hash)
+```
+
+Trees use the RFC-6962 recursive split and never duplicate the last leaf.
+Inclusion proofs bind an exact entry to a signed checkpoint. Consistency proofs
+cryptographically bind an older root to an append-only newer root. Equal-size
+different roots are a potential split view.
+
+Local trust sources require the signed attestation entry. Federated sources
+require the accepted bundle entry. Artifact integrity, credential signature,
+authority/attestation validation, federation freshness/conflict resolution and
+transparency remain separate results. Issuance and final verification fail
+closed without valid transparency evidence.
+
+Read-only routes publish the log summary, identity, entries, checkpoints and
+proofs. Stateless verification routes mutate nothing. There is deliberately no
+unauthenticated append, import, signing, trust-configuration or deletion API.
+
 ## Signed registry trust
 
 Sprint 10 separates four independently visible checks:

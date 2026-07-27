@@ -1,5 +1,30 @@
 # Threat Model
 
+## Transparency threats
+
+An entry's local existence is not proof of inclusion, and an unsigned root is
+not authoritative. Verification therefore requires a typed entry with a
+recomputed object digest, a structurally valid Merkle audit path, a signed tree
+head, the exact trusted log identity/key, and known-consistent checkpoint state.
+Retired keys preserve historical verification; unknown and revoked keys fail.
+
+Inclusion proves membership but does not validate the underlying attestation or
+bundle. Consistency proves append-only extension but does not prevent an
+operator from presenting separate views without gossip. Same log and tree size
+with different roots is reported as `split-view-detected` and fails closed.
+
+Runtime objects are bounded, parsed as typed schemas, written atomically and
+never expose paths. Invalid startup objects are excluded and counted. Public
+entries cannot contain private onboarding contacts, accounts, prompts,
+attribution/disclosure records, generated artifacts, private keys or raw
+credentials.
+
+The reference implementation has no remote gossip, witness cosigning,
+multi-log quorum, blockchain anchoring, CT interoperability, production
+database, distributed consensus, OAuth, KMS/HSM support or automatic key
+rotation. Witness cosigning, checkpoint gossip and split-view monitoring are
+the recommended Sprint 13 direction.
+
 ## Registry trust boundary
 
 Provider-controlled credentials and identity documents cannot assert provider

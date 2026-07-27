@@ -72,12 +72,14 @@ class TrustRegistryService:
         authority_repository: RegistryAuthorityRepository | None = None,
         attestation_repository: TrustAttestationRepository | None = None,
         default_authority_id: str | None = None,
+        transparency_repository=None,
     ) -> None:
         self._trust_repository = trust_repository
         self._application_repository = application_repository
         self._authority_repository = authority_repository
         self._attestation_repository = attestation_repository
         self._default_authority_id = default_authority_id
+        self._transparency_repository = transparency_repository
 
     def get_current_decision(
         self,
@@ -280,11 +282,31 @@ class TrustRegistryService:
         ):
             authority = self._authority_repository.get(self._default_authority_id)
             attestation = issue_trust_decision_attestation(
-                decision, authority, issued_at=decision_time
+                decision,
+                authority,
+                issued_at=decision_time,
+                attestation_id=f"ta_{decision.decision_id}",
             )
         self._trust_repository.add(decision)
         if attestation is not None:
             self._attestation_repository.add(attestation)
+            if self._transparency_repository is not None:
+                from app.services.transparency_entry_service import (
+                    create_trust_attestation_log_entry,
+                )
+
+                binding = self._transparency_repository.find_object(
+                    "trust-attestation", attestation.payload.attestation_id
+                )
+                if binding is None:
+                    self._transparency_repository.append(
+                        create_trust_attestation_log_entry(
+                            attestation, recorded_at=decision_time
+                        )
+                    )
+                    self._transparency_repository.create_current_tree_head(
+                        timestamp=decision_time
+                    )
         self._finalise_active_application(provider_id, status)
 
         return decision

@@ -196,12 +196,24 @@ def verify_federation_bundle(
 
 
 def import_federation_bundle(
-    bundle, authority_repository, bundle_repository, now=None
+    bundle,
+    authority_repository,
+    bundle_repository,
+    now=None,
+    transparency_repository=None,
 ) -> FederationBundleImportResult:
     verification = verify_federation_bundle(
         bundle, authority_repository, bundle_repository, now
     )
     if not verification.valid:
         return FederationBundleImportResult(imported=False, verification=verification)
+    if transparency_repository is not None:
+        from app.services.transparency_entry_service import (
+            create_federation_bundle_log_entry,
+        )
+
+        entry = create_federation_bundle_log_entry(bundle)
+        transparency_repository.append(entry)
+        transparency_repository.create_current_tree_head()
     bundle_repository.add_verified(bundle)
     return FederationBundleImportResult(imported=True, verification=verification)
