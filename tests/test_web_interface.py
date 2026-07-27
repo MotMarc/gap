@@ -1,3 +1,4 @@
+import re
 import sys
 from pathlib import Path
 
@@ -134,19 +135,22 @@ def test_javascript_is_served() -> None:
     assert "timelineAuthorityKey" in response.text
     assert "timelineAttestation" in response.text
     assert "timelineOverall" in response.text
-    assert (
-        "setTimelineState(\n                        elements.timelineAuthorityIdentity"
-        in (response.text)
+    assert re.search(
+        r"setTimelineState\(\s*elements\.timelineAuthorityIdentity",
+        response.text,
     )
-    assert (
-        "setTimelineState(\n                elements.timelineAuthorityKey"
-        in response.text
+    assert re.search(
+        r"setTimelineState\(\s*elements\.timelineAuthorityKey",
+        response.text,
     )
-    assert (
-        "setTimelineState(\n                elements.timelineAttestation"
-        in response.text
+    assert re.search(
+        r"setTimelineState\(\s*elements\.timelineAttestation",
+        response.text,
     )
-    assert "setTimelineState(\n            elements.timelineOverall" in response.text
+    assert re.search(
+        r"setTimelineState\(\s*elements\.timelineOverall",
+        response.text,
+    )
     assert "signatureValid = verification.cryptographic_valid === true" in (
         response.text
     )
