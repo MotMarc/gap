@@ -1,5 +1,20 @@
 # Threat Model
 
+## Witness and gossip threats
+
+A signed checkpoint can be shown selectively. GAP therefore requires fresh
+statements from locally trusted independent witnesses and consistent gossip.
+Unknown witnesses/keys, revoked keys and stale evidence never count toward
+current quorum. One witness cannot count twice, and the log operator cannot
+witness itself.
+
+Contradictory evidence is retained instead of resolving by majority, timestamp
+or arrival order. Same-size different-root checkpoints fail as a split view; a
+witness signature on both is equivocation; tree-size regression is rollback.
+Invalid consistency fails, while absent proof is separately reported as
+consistency unproven. Packages are bounded, public-only and atomically
+persisted. There is no remote fetching, polling or unauthenticated import.
+
 ## Transparency threats
 
 An entry's local existence is not proof of inclusion, and an unsigned root is

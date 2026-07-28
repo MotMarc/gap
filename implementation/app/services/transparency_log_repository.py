@@ -40,6 +40,7 @@ class TransparencyLogRepository:
         self._tree_heads: dict[str, SignedTreeHead] = {}
         self.runtime_directory = runtime_directory
         self.invalid_runtime_object_count = 0
+        self.on_tree_head_created = None
         if runtime_directory is not None:
             self._load_runtime()
 
@@ -145,6 +146,8 @@ class TransparencyLogRepository:
             tree_head_id,
         )
         self.store_tree_head(tree_head)
+        if self.on_tree_head_created is not None:
+            self.on_tree_head_created(tree_head.model_copy(deep=True))
         return tree_head.model_copy(deep=True)
 
     def store_tree_head(self, tree_head: SignedTreeHead, persist: bool = True) -> None:

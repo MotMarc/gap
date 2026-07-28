@@ -227,3 +227,6 @@ __pycache__/
 implementation/keys/
 runtime/federation/accepted/*.json
 runtime/transparency/
+implementation/keys/transparency_witness_private.key
+runtime/witnesses/
+runtime/gossip/

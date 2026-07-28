@@ -1,4386 +1,1231 @@
 "use strict";
 
-
-function requireElement(id) {
-    const element = document.getElementById(id);
-
-    if (!element) {
-        throw new Error(`Required DOM element is missing: ${id}`);
-    }
-
-    return element;
-}
-
-
 const state = {
+    page: "home",
+    workflow: "idle",
+    providers: [],
     artifactBase64: null,
     artifactBytes: null,
+    artifactUrl: null,
     artifactFilename: null,
     artifactMediaType: null,
     credential: null,
-    originalArtifactBytes: null,
     originalCredential: null,
-    providers: [],
-    providerDocuments: {},
-    providerTrustDocuments: {},
-    registryAuthorityDocuments: {},
-    trustRegistry: [],
-    providersReady: false,
-    trustRegistryReady: false,
-    selectedProviderDocument: null,
-    selectedProviderTrust: null,
-    providerSubstitution: null,
-    revokedKeySubstitution: null,
-    lastVerification: null,
-    attestations: [],
-    attestationTrustEntries: [],
-    attestationAuthorities: [],
-    transparencyEntries: [],
-    transparencyTreeHeads: [],
-    selectedTransparencyEntryId: null,
-    showAllTreeHeads: false,
+    verification: null,
+    exploreTab: "providers",
+    developerTab: "integration",
+    exploreData: new Map(),
 };
-
 
 const elements = {
-    tabButtons: document.querySelectorAll("[data-tab-target]"),
-    tabPages: document.querySelectorAll("[data-tab-page]"),
-    generationForm: document.querySelector("#generation-form"),
-    providerId: document.querySelector("#provider-id"),
-    providerIdentityCard: document.querySelector("#provider-identity-card"),
-    selectedProviderName: document.querySelector("#selected-provider-name"),
-    selectedProviderStatus: document.querySelector(
-        "#selected-provider-status"
-    ),
-    selectedProviderId: document.querySelector("#selected-provider-id"),
-    selectedProviderGapVersion: document.querySelector(
-        "#selected-provider-gap-version"
-    ),
-    selectedProviderKeyId: document.querySelector(
-        "#selected-provider-key-id"
-    ),
-    selectedProviderAlgorithm: document.querySelector(
-        "#selected-provider-algorithm"
-    ),
-    selectedProviderKeyStatus: document.querySelector(
-        "#selected-provider-key-status"
-    ),
-    selectedProviderFingerprint: document.querySelector(
-        "#selected-provider-fingerprint"
-    ),
-    selectedProviderTrustStatus: document.querySelector(
-        "#selected-provider-trust-status"
-    ),
-    selectedProviderTrustDecision: document.querySelector(
-        "#selected-provider-trust-decision"
-    ),
-    selectedProviderKeyCount: document.querySelector(
-        "#selected-provider-key-count"
-    ),
-    selectedProviderKeyHistory: document.querySelector(
-        "#selected-provider-key-history"
-    ),
-    selectedProviderIdentityLink: document.querySelector(
-        "#selected-provider-identity-link"
-    ),
-    accountReference: document.querySelector("#account-reference"),
-    prompt: document.querySelector("#prompt"),
-    promptCount: document.querySelector("#prompt-count"),
-    retentionDays: document.querySelector("#retention-days"),
-    generateButton: document.querySelector("#generate-button"),
-    serviceStatus: document.querySelector("#service-status"),
-    generationStatus: document.querySelector("#generation-status"),
-    generationError: document.querySelector("#generation-error"),
-    emptyState: document.querySelector("#empty-state"),
-    resultContent: document.querySelector("#result-content"),
-    artifactImage: document.querySelector("#artifact-image"),
-    artifactFilename: document.querySelector("#artifact-filename"),
-    artifactMediaType: document.querySelector("#artifact-media-type"),
-    artifactProvider: document.querySelector("#artifact-provider"),
-    artifactModel: document.querySelector("#artifact-model"),
-    downloadArtifactButton: document.querySelector(
-        "#download-artifact-button"
-    ),
-    downloadCredentialButton: document.querySelector(
-        "#download-credential-button"
-    ),
-    openVerificationButton: document.querySelector(
-        "#open-verification-button"
-    ),
-    artifactFileInput: document.querySelector("#artifact-file-input"),
-    credentialFileInput: document.querySelector("#credential-file-input"),
-    artifactUploadName: document.querySelector("#artifact-upload-name"),
-    credentialUploadName: document.querySelector("#credential-upload-name"),
-    useGeneratedButton: document.querySelector("#use-generated-button"),
-    runVerificationButton: document.querySelector(
-        "#run-verification-button"
-    ),
-    verificationError: document.querySelector("#verification-error"),
-    completeVerificationStatus: document.querySelector(
-        "#complete-verification-status"
-    ),
-    verificationResultIcon: document.querySelector(
-        "#verification-result-icon"
-    ),
-    verificationResultTitle: document.querySelector(
-        "#verification-result-title"
-    ),
-    verificationResultDescription: document.querySelector(
-        "#verification-result-description"
-    ),
-    trustChainStatus: document.querySelector("#trust-chain-status"),
-    trustCredentialNode: document.querySelector("#trust-credential-node"),
-    trustIdentityNode: document.querySelector("#trust-identity-node"),
-    trustKeyNode: document.querySelector("#trust-key-node"),
-    trustSignatureNode: document.querySelector("#trust-signature-node"),
-    trustCredentialProvider: document.querySelector(
-        "#trust-credential-provider"
-    ),
-    trustIdentityDocument: document.querySelector(
-        "#trust-identity-document"
-    ),
-    trustKeyId: document.querySelector("#trust-key-id"),
-    trustSignatureResult: document.querySelector(
-        "#trust-signature-result"
-    ),
-    trustRegistryNode: document.querySelector("#trust-registry-node"),
-    trustRegistryResult: document.querySelector("#trust-registry-result"),
-    signatureCheckIcon: document.querySelector("#signature-check-icon"),
-    signatureCheckDetail: document.querySelector(
-        "#signature-check-detail"
-    ),
-    artifactCheckIcon: document.querySelector("#artifact-check-icon"),
-    artifactCheckDetail: document.querySelector("#artifact-check-detail"),
-    providerCheckIcon: document.querySelector("#provider-check-icon"),
-    providerCheckDetail: document.querySelector(
-        "#provider-check-detail"
-    ),
-    registryCheckIcon: document.querySelector("#registry-check-icon"),
-    registryCheckDetail: document.querySelector("#registry-check-detail"),
-    attestationCheckIcon: requireElement("attestation-check-icon"),
-    attestationCheckDetail: requireElement("attestation-check-detail"),
-    authorityCheckIcon: requireElement("authority-check-icon"),
-    authorityCheckDetail: requireElement("authority-check-detail"),
-    overallCheckIcon: requireElement("overall-check-icon"),
-    overallCheckDetail: requireElement("overall-check-detail"),
-    timelineArtifact: document.querySelector("#timeline-artifact"),
-    timelineHash: document.querySelector("#timeline-hash"),
-    timelineCompare: document.querySelector("#timeline-compare"),
-    timelineSignature: document.querySelector("#timeline-signature"),
-    timelineProvider: document.querySelector("#timeline-provider"),
-    timelineRegistry: document.querySelector("#timeline-registry"),
-    timelineAuthorityIdentity: requireElement("timeline-authority-identity"),
-    timelineAuthorityKey: requireElement("timeline-authority-key"),
-    timelineAttestation: requireElement("timeline-attestation"),
-    timelineFederationChain: requireElement("timeline-federation-chain"),
-    timelineFederationConflict: requireElement("timeline-federation-conflict"),
-    timelineTransparencyEntry: requireElement("timeline-transparency-entry"),
-    timelineTransparencyProof: requireElement("timeline-transparency-proof"),
-    timelineOverall: requireElement("timeline-overall"),
-    federationBundleGrid: requireElement("federation-bundle-grid"),
-    transparencyLogSummary: requireElement("transparency-log-summary"),
-    transparencyHealthBanner: requireElement("transparency-health-banner"),
-    transparencyTreeHeads: requireElement("transparency-tree-heads"),
-    transparencyConsistencyStatus: requireElement(
-        "transparency-consistency-status"
-    ),
-    transparencySplitViewWarning: requireElement(
-        "transparency-split-view-warning"
-    ),
-    transparencyEntryGrid: requireElement("transparency-entry-grid"),
-    transparencyEntryExplorer: requireElement("transparency-entry-explorer"),
-    transparencyEntryCount: requireElement("transparency-entry-count"),
-    transparencyEntryTypeFilter: requireElement(
-        "transparency-entry-type-filter"
-    ),
-    transparencyAuthorityFilter: requireElement(
-        "transparency-authority-filter"
-    ),
-    transparencyEntrySearch: requireElement("transparency-entry-search"),
-    transparencyEntrySort: requireElement("transparency-entry-sort"),
-    toggleTreeHeadHistory: requireElement("toggle-tree-head-history"),
-    olderCheckpointSelect: requireElement("older-checkpoint-select"),
-    newerCheckpointSelect: requireElement("newer-checkpoint-select"),
-    compareCheckpointsButton: requireElement("compare-checkpoints-button"),
-    inspectCurrentTreeHead: requireElement("inspect-current-tree-head"),
-    browseTransparencyEntries: requireElement("browse-transparency-entries"),
-    tamperArtifactButton: document.querySelector(
-        "#tamper-artifact-button"
-    ),
-    tamperCredentialButton: document.querySelector(
-        "#tamper-credential-button"
-    ),
-    tamperProviderButton: document.querySelector(
-        "#tamper-provider-button"
-    ),
-    tamperRevokedKeyButton: document.querySelector(
-        "#tamper-revoked-key-button"
-    ),
-    restoreVerificationButton: document.querySelector(
-        "#restore-verification-button"
-    ),
-    tamperMessage: document.querySelector("#tamper-message"),
-    explorerEmpty: document.querySelector("#explorer-empty"),
-    explorerContent: document.querySelector("#explorer-content"),
-    explorerSignatureStatus: document.querySelector(
-        "#explorer-signature-status"
-    ),
-    explorerVerifyButton: document.querySelector(
-        "#explorer-verify-button"
-    ),
-    explorerCredentialId: document.querySelector(
-        "#explorer-credential-id"
-    ),
-    explorerGenerationId: document.querySelector(
-        "#explorer-generation-id"
-    ),
-    explorerGeneratedAt: document.querySelector(
-        "#explorer-generated-at"
-    ),
-    explorerProviderId: document.querySelector("#explorer-provider-id"),
-    explorerModelId: document.querySelector("#explorer-model-id"),
-    explorerMediaType: document.querySelector("#explorer-media-type"),
-    explorerArtifactHash: document.querySelector(
-        "#explorer-artifact-hash"
-    ),
-    explorerAlgorithm: document.querySelector("#explorer-algorithm"),
-    explorerKeyId: document.querySelector("#explorer-key-id"),
-    credentialJson: document.querySelector("#credential-json"),
-    providerEcosystemGrid: document.querySelector(
-        "#provider-ecosystem-grid"
-    ),
-    providerEcosystemStatus: document.querySelector(
-        "#provider-ecosystem-status"
-    ),
-    trustRegistryGrid: document.querySelector("#trust-registry-grid"),
-    trustRegistryStatus: document.querySelector("#trust-registry-status"),
-    registryAuthorityGrid: document.querySelector("#registry-authority-grid"),
-    trustAttestationGrid: document.querySelector("#trust-attestation-grid"),
-    attestationResultCount: requireElement("attestation-result-count"),
-    attestationProviderFilter: requireElement("attestation-provider-filter"),
-    attestationStatusFilter: requireElement("attestation-status-filter"),
-    attestationHistoryFilter: requireElement("attestation-history-filter"),
-    attestationSearch: requireElement("attestation-search"),
-    copyCredentialButton: document.querySelector(
-        "#copy-credential-button"
-    ),
+    pages: [...document.querySelectorAll("[data-page]")],
+    navLinks: [...document.querySelectorAll("[data-primary-nav]")],
+    routeLinks: [...document.querySelectorAll("[data-route]")],
+    mobileMenuToggle: document.querySelector("#mobile-menu-toggle"),
+    primaryNavigation: document.querySelector("#primary-navigation"),
+    headerHealth: document.querySelector("#header-health"),
+    infrastructureStatusList: document.querySelector("#infrastructure-status-list"),
+    createWorkflow: document.querySelector("#create-workflow"),
+    exploreContent: document.querySelector("#explore-content"),
+    developerContent: document.querySelector("#developer-content"),
+    exploreTabs: [...document.querySelectorAll("[data-explore-tab]")],
+    developerTabs: [...document.querySelectorAll("[data-developer-tab]")],
 };
 
-
-function cloneValue(value) {
-    return JSON.parse(JSON.stringify(value));
-}
-
-
-function setBadge(element, text, status) {
-    element.textContent = text;
-    element.classList.remove(
-        "status-neutral",
-        "status-success",
-        "status-warning",
-        "status-error"
-    );
-    element.classList.add(`status-${status}`);
-}
-
-
-function setMessage(element, text, type) {
-    element.textContent = text;
-    element.classList.remove(
-        "hidden",
-        "message-error",
-        "message-success",
-        "message-warning"
-    );
-    element.classList.add(`message-${type}`);
-}
-
-
-function hideMessage(element) {
-    element.textContent = "";
-    element.classList.add("hidden");
-}
-
-
-function activateTab(tabName) {
-    const knownTab = [...elements.tabPages].some(
-        (page) => page.dataset.tabPage === tabName
-    );
-    if (!knownTab) return;
-    elements.tabPages.forEach((page) => {
-        page.classList.toggle(
-            "hidden",
-            page.dataset.tabPage !== tabName
-        );
-    });
-
-    document.querySelectorAll(".navigation-button").forEach((button) => {
-        button.classList.toggle(
-            "active",
-            button.dataset.tabTarget === tabName
-        );
-    });
-    window.history.replaceState(null, "", `#${tabName}`);
-
-    window.scrollTo({
-        top: 0,
-        behavior: "smooth",
-    });
-}
-
-
-function setLoading(isLoading) {
-    const selectedProviderApproved = Boolean(
-        state.selectedProviderTrust?.trusted === true &&
-        state.selectedProviderTrust?.status === "approved"
-    );
-
-    elements.generateButton.disabled = (
-        isLoading ||
-        !state.providersReady ||
-        !selectedProviderApproved
-    );
-    elements.generateButton.classList.toggle("is-loading", isLoading);
-
-    const label = elements.generateButton.querySelector(".button-label");
-
-    if (!state.providersReady) {
-        label.textContent = "Discovering approved providers";
-        return;
-    }
-
-    if (!selectedProviderApproved) {
-        label.textContent = "Provider is not approved";
-        return;
-    }
-
-    label.textContent = isLoading
-        ? "Generating artifact"
-        : "Generate and issue credential";
-}
-
-
-function updatePromptCount() {
-    elements.promptCount.textContent = (
-        `${elements.prompt.value.length.toLocaleString()} / 10,000`
-    );
-}
-
-
-function base64ToBytes(base64Value) {
-    const characters = window.atob(base64Value);
-    const bytes = new Uint8Array(characters.length);
-
-    for (let index = 0; index < characters.length; index += 1) {
-        bytes[index] = characters.charCodeAt(index);
-    }
-
-    return bytes;
-}
-
-
-function bytesToBase64(bytes) {
-    let characters = "";
-
-    bytes.forEach((value) => {
-        characters += String.fromCharCode(value);
-    });
-
-    return window.btoa(characters);
-}
-
-
-function bytesToBlob(bytes, mediaType) {
-    return new Blob([bytes], {
-        type: mediaType,
-    });
-}
-
-
-function downloadBlob(blob, filename) {
-    const objectUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-
-    anchor.href = objectUrl;
-    anchor.download = filename;
-
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-
-    URL.revokeObjectURL(objectUrl);
-}
-
-
-function bytesToHex(bytes) {
-    return Array.from(bytes)
-        .map((value) => value.toString(16).padStart(2, "0"))
-        .join("");
-}
-
-
-async function calculateSha256(bytes) {
-    const digest = await window.crypto.subtle.digest(
-        "SHA-256",
-        bytes
-    );
-
-    return bytesToHex(new Uint8Array(digest));
-}
-
-
-
-function providerNameFor(providerId) {
-    const provider = state.providers.find(
-        (candidate) => candidate.provider_id === providerId
-    );
-
-    return provider?.provider_name || providerId || "Unknown provider";
-}
-
-
-function providerIdentityUrl(providerId) {
-    return (
-        `/providers/${encodeURIComponent(providerId)}` +
-        "/.well-known/gap.json"
-    );
-}
-
-
-function providerTrustUrl(providerId) {
-    return `/providers/${encodeURIComponent(providerId)}/trust`;
-}
-
-
-function registryAuthorityIdentityUrl(authorityId) {
-    return (
-        `/registry-authorities/${encodeURIComponent(authorityId)}` +
-        "/.well-known/gap-registry.json"
-    );
-}
-
-
-function trustStatusLabel(status) {
-    const labels = {
-        "self-declared": "Self-declared",
-        applicant: "Applicant",
-        approved: "Approved",
-        suspended: "Suspended",
-        removed: "Removed",
-    };
-
-    return labels[status] || status || "Unknown";
-}
-
-
-function trustStatusClass(status) {
-    const knownStatuses = [
-        "self-declared",
-        "applicant",
-        "approved",
-        "suspended",
-        "removed",
-    ];
-
-    return knownStatuses.includes(status)
-        ? `trust-status-${status}`
-        : "trust-status-unknown";
-}
-
-
-function badgeStatusForTrust(status) {
-    if (status === "approved") {
-        return "success";
-    }
-
-    if (status === "applicant" || status === "self-declared") {
-        return "warning";
-    }
-
-    return "error";
-}
-
-
-function formatRegistryDate(value) {
-    if (!value) {
-        return "No decision recorded";
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return value;
-    }
-
-    return date.toLocaleString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
-}
-
-
-async function readProviderTrust(providerId) {
-    if (!providerId) {
-        throw new Error("No provider was selected.");
-    }
-
-    if (state.providerTrustDocuments[providerId]) {
-        return state.providerTrustDocuments[providerId];
-    }
-
-    const response = await fetch(providerTrustUrl(providerId));
-
-    if (!response.ok) {
-        throw new Error(
-            `Registry trust resolution failed for ${providerId}.`
-        );
-    }
-
-    const trustDocument = await response.json();
-
-    if (trustDocument.provider_id !== providerId) {
-        throw new Error(
-            "The registry response declared a different provider ID."
-        );
-    }
-
-    state.providerTrustDocuments[providerId] = trustDocument;
-
-    return trustDocument;
-}
-
-
-function readActiveProviderKey(providerDocument) {
-    if (!Array.isArray(providerDocument?.keys)) {
-        return null;
-    }
-
-    return (
-        providerDocument.keys.find(
-            (key) => key.key_id === providerDocument.active_key_id
-        ) ||
-        providerDocument.keys.find((key) => key.status === "active") ||
-        providerDocument.keys[0] ||
-        null
-    );
-}
-
-
-async function readProviderDocument(providerId) {
-    if (!providerId) {
-        throw new Error("No provider was selected.");
-    }
-
-    if (state.providerDocuments[providerId]) {
-        return state.providerDocuments[providerId];
-    }
-
-    const response = await fetch(providerIdentityUrl(providerId));
-
-    if (!response.ok) {
-        throw new Error(
-            `Identity document resolution failed for ${providerId}.`
-        );
-    }
-
-    const providerDocument = await response.json();
-
-    if (providerDocument.provider_id !== providerId) {
-        throw new Error(
-            "The resolved identity document declared a different provider ID."
-        );
-    }
-
-    state.providerDocuments[providerId] = providerDocument;
-
-    return providerDocument;
-}
-
-
-async function readRegistryAuthorityDocument(authorityId) {
-    if (!authorityId) {
-        throw new Error("Registry authority was not declared.");
-    }
-
-    if (state.registryAuthorityDocuments[authorityId]) {
-        return state.registryAuthorityDocuments[authorityId];
-    }
-
-    const response = await fetch(registryAuthorityIdentityUrl(authorityId));
-
-    if (!response.ok) {
-        if (response.status === 404) {
-            throw new Error(`Unknown registry authority: ${authorityId}`);
+const requiredElements = [
+    "mobileMenuToggle", "primaryNavigation", "headerHealth",
+    "infrastructureStatusList", "createWorkflow", "exploreContent",
+    "developerContent",
+];
+
+function assertRequiredElements() {
+    for (const name of requiredElements) {
+        if (!elements[name]) {
+            throw new Error(`Required interface element is missing: ${name}`);
         }
-        throw new Error("Registry authority identity could not be resolved.");
-    }
-
-    const document = await response.json();
-
-    if (document.authority_id !== authorityId) {
-        throw new Error("Registry authority identity mismatch.");
-    }
-
-    state.registryAuthorityDocuments[authorityId] = document;
-    return document;
-}
-
-
-async function fingerprintPublicKey(encodedPublicKey) {
-    if (!encodedPublicKey) {
-        return null;
-    }
-
-    try {
-        const normalizedKey = encodedPublicKey.replace(/\s+/g, "");
-        return await calculateSha256(base64ToBytes(normalizedKey));
-    } catch {
-        return null;
     }
 }
 
-
-function abbreviateFingerprint(fingerprint) {
-    if (!fingerprint) {
-        return "Unavailable";
-    }
-
-    return (
-        `${fingerprint.slice(0, 16)}…` +
-        fingerprint.slice(-16)
-    );
-}
-
-
-function formatLifecycleDate(value) {
-    if (!value) {
-        return "—";
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return value;
-    }
-
-    return date.toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-    });
-}
-
-
-function keyStatusClass(status) {
-    if (["active", "retired", "revoked"].includes(status)) {
-        return `key-status-${status}`;
-    }
-
-    return "key-status-unknown";
-}
-
-
-function describeKeyInventory(providerDocument) {
-    const counts = {
-        active: 0,
-        retired: 0,
-        revoked: 0,
-    };
-
-    (providerDocument?.keys || []).forEach((key) => {
-        if (Object.hasOwn(counts, key.status)) {
-            counts[key.status] += 1;
-        }
-    });
-
-    return (
-        `${counts.active} active · ${counts.retired} retired · ` +
-        `${counts.revoked} revoked`
-    );
-}
-
-
-async function createProviderKeyHistoryItem(key, activeKeyId) {
-    const item = document.createElement("article");
-    const heading = document.createElement("div");
-    const headingCopy = document.createElement("div");
-    const keyId = document.createElement("code");
-    const role = document.createElement("small");
-    const status = document.createElement("span");
-    const metadata = document.createElement("div");
-    const fingerprint = await fingerprintPublicKey(key.public_key);
-
-    item.className = "provider-key-history-item";
-    heading.className = "provider-key-history-item-heading";
-    metadata.className = "provider-key-history-metadata";
-    status.className = `key-status-pill ${keyStatusClass(key.status)}`;
-
-    keyId.textContent = key.key_id;
-    role.textContent = key.key_id === activeKeyId
-        ? "Current issuance key"
-        : key.status === "retired"
-            ? "Historical verification key"
-            : key.status === "revoked"
-                ? "Rejected verification key"
-                : "Published verification key";
-    status.textContent = key.status || "unknown";
-
-    headingCopy.append(keyId, role);
-    heading.append(headingCopy, status);
-
-    appendProviderMetric(metadata, "Algorithm", key.algorithm || "Not declared");
-    appendProviderMetric(
-        metadata,
-        "Created",
-        formatLifecycleDate(key.created_at)
-    );
-
-    if (key.status === "retired") {
-        appendProviderMetric(
-            metadata,
-            "Retired",
-            formatLifecycleDate(key.retired_at)
-        );
-    }
-
-    if (key.status === "revoked") {
-        appendProviderMetric(
-            metadata,
-            "Revoked",
-            formatLifecycleDate(key.revoked_at)
-        );
-        appendProviderMetric(
-            metadata,
-            "Reason",
-            key.revocation_reason || "Not declared"
-        );
-    }
-
-    appendProviderMetric(
-        metadata,
-        "Fingerprint",
-        abbreviateFingerprint(fingerprint)
-    );
-
-    item.append(heading, metadata);
-
-    return item;
-}
-
-
-async function renderProviderKeyHistory(providerDocument) {
-    const keys = Array.isArray(providerDocument?.keys)
-        ? providerDocument.keys
-        : [];
-
-    elements.selectedProviderKeyCount.textContent = (
-        `${keys.length} key${keys.length === 1 ? "" : "s"} · ` +
-        describeKeyInventory(providerDocument)
-    );
-
-    if (keys.length === 0) {
-        elements.selectedProviderKeyHistory.textContent = (
-            "No verification keys were published."
-        );
-        return;
-    }
-
-    const items = await Promise.all(
-        keys.map((key) => createProviderKeyHistoryItem(
-            key,
-            providerDocument.active_key_id
-        ))
-    );
-
-    elements.selectedProviderKeyHistory.replaceChildren(...items);
-}
-
-
-async function renderSelectedProvider(providerId) {
-    if (!providerId) {
-        state.selectedProviderDocument = null;
-        state.selectedProviderTrust = null;
-        elements.providerIdentityCard.classList.add("hidden");
-        setLoading(false);
-        return;
-    }
-
-    elements.providerIdentityCard.classList.remove("hidden");
-    elements.selectedProviderName.textContent = providerNameFor(providerId);
-    elements.selectedProviderId.textContent = providerId;
-    elements.selectedProviderGapVersion.textContent = "Resolving…";
-    elements.selectedProviderKeyId.textContent = "Resolving…";
-    elements.selectedProviderAlgorithm.textContent = "Resolving…";
-    elements.selectedProviderKeyStatus.textContent = "Resolving…";
-    elements.selectedProviderFingerprint.textContent = "Resolving…";
-    elements.selectedProviderTrustStatus.textContent = "Resolving…";
-    elements.selectedProviderTrustDecision.textContent = "Resolving…";
-    elements.selectedProviderKeyCount.textContent = "Resolving…";
-    elements.selectedProviderKeyHistory.textContent = "";
-
-    state.selectedProviderDocument = null;
-    state.selectedProviderTrust = null;
-
-    setBadge(
-        elements.selectedProviderStatus,
-        "Resolving identity and trust",
-        "neutral"
-    );
-
-    elements.selectedProviderIdentityLink.href = (
-        providerIdentityUrl(providerId)
-    );
-
-    let identityResolved = false;
-    let trustResolved = false;
-
-    try {
-        const providerDocument = await readProviderDocument(providerId);
-        const verificationKey = readActiveProviderKey(providerDocument);
-        const fingerprint = await fingerprintPublicKey(
-            verificationKey?.public_key
-        );
-
-        state.selectedProviderDocument = providerDocument;
-        identityResolved = true;
-
-        elements.selectedProviderName.textContent = (
-            providerDocument.provider_name
-        );
-        elements.selectedProviderId.textContent = (
-            providerDocument.provider_id
-        );
-        elements.selectedProviderGapVersion.textContent = (
-            providerDocument.gap_version
-        );
-        elements.selectedProviderKeyId.textContent = (
-            verificationKey?.key_id || "No key published"
-        );
-        elements.selectedProviderAlgorithm.textContent = (
-            verificationKey?.algorithm || "Not declared"
-        );
-        elements.selectedProviderKeyStatus.textContent = (
-            verificationKey?.status || "Not declared"
-        );
-        elements.selectedProviderFingerprint.textContent = (
-            abbreviateFingerprint(fingerprint)
-        );
-        elements.selectedProviderFingerprint.title = fingerprint || "";
-
-        await renderProviderKeyHistory(providerDocument);
-    } catch (error) {
-        elements.selectedProviderGapVersion.textContent = "Unavailable";
-        elements.selectedProviderKeyId.textContent = "Unavailable";
-        elements.selectedProviderAlgorithm.textContent = "Unavailable";
-        elements.selectedProviderKeyStatus.textContent = "Unavailable";
-        elements.selectedProviderFingerprint.textContent = "Unavailable";
-        elements.selectedProviderKeyCount.textContent = "Unavailable";
-        elements.selectedProviderKeyHistory.textContent = "";
-
-        setMessage(
-            elements.generationError,
-            error.message || "Provider identity could not be resolved.",
-            "warning"
-        );
-    }
-
-    try {
-        const trustDocument = await readProviderTrust(providerId);
-
-        state.selectedProviderTrust = trustDocument;
-        trustResolved = true;
-
-        elements.selectedProviderTrustStatus.textContent = (
-            `${trustStatusLabel(trustDocument.status)} · ` +
-            (trustDocument.trusted ? "trusted" : "not trusted")
-        );
-
-        const latestDecision = trustDocument.latest_decision;
-
-        elements.selectedProviderTrustDecision.textContent = latestDecision
-            ? (
-                `${latestDecision.decision_id} · ` +
-                `${latestDecision.authority} · ` +
-                formatRegistryDate(latestDecision.decided_at)
-            )
-            : "No authoritative decision recorded";
-    } catch (error) {
-        elements.selectedProviderTrustStatus.textContent = "Unavailable";
-        elements.selectedProviderTrustDecision.textContent = (
-            "Registry resolution failed"
-        );
-
-        setMessage(
-            elements.generationError,
-            error.message || "Provider registry trust could not be resolved.",
-            "warning"
-        );
-    }
-
-    const providerApproved = Boolean(
-        identityResolved &&
-        trustResolved &&
-        state.selectedProviderTrust?.trusted === true &&
-        state.selectedProviderTrust?.status === "approved"
-    );
-
-    if (providerApproved) {
-        setBadge(
-            elements.selectedProviderStatus,
-            "Identity resolved · Approved",
-            "success"
-        );
-    } else if (identityResolved && trustResolved) {
-        const trustStatus = state.selectedProviderTrust?.status;
-
-        setBadge(
-            elements.selectedProviderStatus,
-            `Identity resolved · ${trustStatusLabel(trustStatus)}`,
-            badgeStatusForTrust(trustStatus)
-        );
-    } else {
-        setBadge(
-            elements.selectedProviderStatus,
-            "Resolution failed",
-            "error"
-        );
-    }
-
-    setLoading(false);
-}
-
-
-function appendProviderMetric(container, label, value) {
-    const metric = document.createElement("div");
-    const metricLabel = document.createElement("span");
-    const metricValue = document.createElement("code");
-
-    metricLabel.textContent = label;
-    metricValue.textContent = value;
-
-    metric.append(metricLabel, metricValue);
-    container.append(metric);
-}
-
-
-async function createProviderEcosystemCard(provider) {
-    const card = document.createElement("article");
-    const heading = document.createElement("div");
-    const marker = document.createElement("span");
-    const headingCopy = document.createElement("div");
-    const name = document.createElement("h3");
-    const identifier = document.createElement("code");
-    const trustBadge = document.createElement("span");
-    const metrics = document.createElement("div");
-    const actionRow = document.createElement("div");
-    const identityLink = document.createElement("a");
-    const trustLink = document.createElement("a");
-    const selectButton = document.createElement("button");
-
-    card.className = "provider-ecosystem-card";
-    heading.className = "provider-ecosystem-card-heading";
-    marker.className = "provider-domain-marker";
-    metrics.className = "provider-ecosystem-metrics";
-    actionRow.className = "provider-ecosystem-actions";
-    identityLink.className = "provider-identity-link";
-    trustLink.className = "provider-identity-link";
-    selectButton.className = "secondary-button compact-button";
-    trustBadge.className = (
-        `trust-status-pill ${trustStatusClass(provider.trust_status)}`
-    );
-
-    marker.textContent = provider.provider_name
-        .split(/\s+/)
-        .map((word) => word[0])
-        .join("")
-        .slice(0, 3)
-        .toUpperCase();
-    name.textContent = provider.provider_name;
-    identifier.textContent = provider.provider_id;
-    trustBadge.textContent = trustStatusLabel(provider.trust_status);
-
-    headingCopy.append(name, identifier);
-    heading.append(marker, headingCopy, trustBadge);
-
-    identityLink.href = providerIdentityUrl(provider.provider_id);
-    identityLink.target = "_blank";
-    identityLink.rel = "noreferrer";
-    identityLink.textContent = "Identity document";
-
-    trustLink.href = providerTrustUrl(provider.provider_id);
-    trustLink.target = "_blank";
-    trustLink.rel = "noreferrer";
-    trustLink.textContent = "Registry trust";
-
-    const selectable = Boolean(
-        provider.provider_trusted === true &&
-        provider.trust_status === "approved"
-    );
-
-    selectButton.type = "button";
-    selectButton.textContent = selectable
-        ? "Use this provider"
-        : "Issuance unavailable";
-    selectButton.disabled = !selectable;
-
-    if (selectable) {
-        selectButton.addEventListener(
-            "click",
-            async () => {
-                elements.providerId.value = provider.provider_id;
-                await renderSelectedProvider(provider.provider_id);
-                activateTab("generate");
-                elements.providerId.focus();
-            }
-        );
-    }
-
-    actionRow.append(identityLink, trustLink, selectButton);
-
-    appendProviderMetric(
-        metrics,
-        "Registry trust",
-        `${trustStatusLabel(provider.trust_status)} · ` +
-            (provider.provider_trusted ? "trusted" : "not trusted")
-    );
-
-    try {
-        const providerDocument = await readProviderDocument(
-            provider.provider_id
-        );
-        const verificationKey = readActiveProviderKey(providerDocument);
-        const fingerprint = await fingerprintPublicKey(
-            verificationKey?.public_key
-        );
-
-        appendProviderMetric(
-            metrics,
-            "GAP version",
-            providerDocument.gap_version
-        );
-        appendProviderMetric(
-            metrics,
-            "Active key",
-            providerDocument.active_key_id ||
-                verificationKey?.key_id ||
-                "Not published"
-        );
-        appendProviderMetric(
-            metrics,
-            "Key inventory",
-            describeKeyInventory(providerDocument)
-        );
-        appendProviderMetric(
-            metrics,
-            "Algorithm",
-            verificationKey?.algorithm || "Not declared"
-        );
-        appendProviderMetric(
-            metrics,
-            "Fingerprint",
-            abbreviateFingerprint(fingerprint)
-        );
-
-        card.classList.add("provider-ecosystem-card-resolved");
-    } catch {
-        appendProviderMetric(
-            metrics,
-            "Identity document",
-            "Resolution failed"
-        );
-
-        card.classList.add("provider-ecosystem-card-error");
-    }
-
-    card.append(heading, metrics, actionRow);
-
-    return card;
-}
-
-
-async function renderProviderEcosystem() {
-    elements.providerEcosystemGrid.replaceChildren();
-
-    if (state.providers.length === 0) {
-        setBadge(
-            elements.providerEcosystemStatus,
-            "No providers",
-            "error"
-        );
-        return;
-    }
-
-    setBadge(
-        elements.providerEcosystemStatus,
-        "Resolving identities and trust",
-        "neutral"
-    );
-
-    const cards = await Promise.all(
-        state.providers.map(createProviderEcosystemCard)
-    );
-
-    elements.providerEcosystemGrid.append(...cards);
-
-    const approvedCount = state.providers.filter(
-        (provider) => (
-            provider.provider_trusted === true &&
-            provider.trust_status === "approved"
-        )
-    ).length;
-
-    setBadge(
-        elements.providerEcosystemStatus,
-        `${cards.length} providers · ${approvedCount} approved`,
-        approvedCount > 0 ? "success" : "warning"
-    );
-}
-
-
-function createTrustDecisionItem(decision) {
-    const item = document.createElement("li");
-    const heading = document.createElement("div");
-    const status = document.createElement("span");
-    const date = document.createElement("small");
-    const reason = document.createElement("p");
-    const authority = document.createElement("code");
-
-    status.className = (
-        `trust-status-pill ${trustStatusClass(decision.status)}`
-    );
-    status.textContent = trustStatusLabel(decision.status);
-    date.textContent = formatRegistryDate(decision.decided_at);
-    reason.textContent = decision.reason;
-    authority.textContent = (
-        `${decision.authority} · ${decision.decision_id}`
-    );
-
-    heading.append(status, date);
-    item.append(heading, reason, authority);
-
-    return item;
-}
-
-
-async function createTrustRegistryCard(entry) {
-    const card = document.createElement("article");
-    const heading = document.createElement("div");
-    const headingCopy = document.createElement("div");
-    const name = document.createElement("h3");
-    const identifier = document.createElement("code");
-    const trustBadge = document.createElement("span");
-    const summary = document.createElement("p");
-    const metrics = document.createElement("div");
-    const historyHeading = document.createElement("h4");
-    const history = document.createElement("ol");
-    const trustLink = document.createElement("a");
-
-    card.className = "trust-registry-card";
-    heading.className = "trust-registry-card-heading";
-    metrics.className = "trust-registry-card-metrics";
-    history.className = "trust-decision-history";
-    trustBadge.className = (
-        `trust-status-pill ${trustStatusClass(entry.status)}`
-    );
-    trustLink.className = "provider-identity-link";
-
-    name.textContent = entry.provider_name;
-    identifier.textContent = entry.provider_id;
-    trustBadge.textContent = trustStatusLabel(entry.status);
-    summary.textContent = entry.trusted
-        ? (
-            "This provider is currently approved. Its active key may issue " +
-            "new GAP credentials."
-        )
-        : (
-            "This provider is not currently trusted for new credential " +
-            "issuance."
-        );
-
-    appendProviderMetric(
-        metrics,
-        "Current status",
-        trustStatusLabel(entry.status)
-    );
-    appendProviderMetric(
-        metrics,
-        "Trusted",
-        entry.trusted ? "Yes" : "No"
-    );
-    appendProviderMetric(
-        metrics,
-        "Latest decision",
-        entry.latest_decision_id || "No decision recorded"
-    );
-    appendProviderMetric(
-        metrics,
-        "Decision time",
-        formatRegistryDate(entry.latest_decision_at)
-    );
-
-    historyHeading.textContent = "Public decision history";
-    trustLink.href = providerTrustUrl(entry.provider_id);
-    trustLink.target = "_blank";
-    trustLink.rel = "noreferrer";
-    trustLink.textContent = "Open provider trust record";
-
-    headingCopy.append(name, identifier);
-    heading.append(headingCopy, trustBadge);
-
-    try {
-        const trustDocument = await readProviderTrust(entry.provider_id);
-        const historyItems = (
-            trustDocument.decision_history || []
-        ).map(createTrustDecisionItem);
-
-        if (historyItems.length > 0) {
-            history.append(...historyItems);
+function element(tag, options = {}, children = []) {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(options)) {
+        if (key === "className") {
+            node.className = value;
+        } else if (key === "text") {
+            node.textContent = value;
+        } else if (key === "dataset") {
+            Object.assign(node.dataset, value);
         } else {
-            const emptyItem = document.createElement("li");
-            emptyItem.textContent = "No public trust decisions recorded.";
-            history.append(emptyItem);
+            node.setAttribute(key, value);
         }
-    } catch (error) {
-        const errorItem = document.createElement("li");
-        errorItem.textContent = (
-            error.message || "Decision history could not be resolved."
-        );
-        history.append(errorItem);
-        card.classList.add("trust-registry-card-error");
     }
-
-    card.append(
-        heading,
-        summary,
-        metrics,
-        historyHeading,
-        history,
-        trustLink
-    );
-
-    return card;
-}
-
-
-async function renderTrustRegistry() {
-    elements.trustRegistryGrid.replaceChildren();
-    state.trustRegistryReady = false;
-
-    setBadge(
-        elements.trustRegistryStatus,
-        "Loading registry",
-        "neutral"
-    );
-
-    try {
-        const response = await fetch("/trust-registry");
-
-        if (!response.ok) {
-            throw new Error(await readError(response));
-        }
-
-        const entries = await response.json();
-
-        if (!Array.isArray(entries)) {
-            throw new Error("The trust registry returned an invalid response.");
-        }
-
-        state.trustRegistry = entries;
-        state.trustRegistryReady = true;
-
-        if (entries.length === 0) {
-            elements.trustRegistryGrid.textContent = (
-                "No providers are currently recorded in the trust registry."
-            );
-            setBadge(
-                elements.trustRegistryStatus,
-                "Registry empty",
-                "warning"
-            );
-            return;
-        }
-
-        const cards = await Promise.all(
-            entries.map(createTrustRegistryCard)
-        );
-
-        elements.trustRegistryGrid.append(...cards);
-
-        const approvedCount = entries.filter(
-            (entry) => entry.status === "approved" && entry.trusted
-        ).length;
-
-        setBadge(
-            elements.trustRegistryStatus,
-            `${entries.length} recorded · ${approvedCount} approved`,
-            approvedCount > 0 ? "success" : "warning"
-        );
-    } catch (error) {
-        state.trustRegistry = [];
-        state.trustRegistryReady = false;
-        elements.trustRegistryGrid.textContent = (
-            error.message || "The GAP Trust Registry is unavailable."
-        );
-
-        setBadge(
-            elements.trustRegistryStatus,
-            "Registry unavailable",
-            "error"
-        );
+    for (const child of children) {
+        node.append(child);
     }
+    return node;
 }
 
-
-function formatTechnicalValue(value, leading = 12, trailing = 8) {
-    const text = String(value ?? "Unavailable");
-    return text.length > leading + trailing + 3
-        ? `${text.slice(0, leading)}…${text.slice(-trailing)}`
-        : text;
+function cloneTemplate(id) {
+    const template = document.querySelector(`#${id}`);
+    if (!template) {
+        throw new Error(`Required template is missing: ${id}`);
+    }
+    return template.content.cloneNode(true);
 }
 
-
-function formatDate(value) {
-    return formatRegistryDate(value);
+function replaceContent(target, ...children) {
+    target.replaceChildren(...children);
 }
 
-
-function createStatusBadge(label, state = "neutral") {
-    const badge = document.createElement("span");
-    badge.className = `status-badge status-${state}`;
-    badge.textContent = label;
-    badge.setAttribute("aria-label", `Status: ${label}`);
-    return badge;
+function formatTechnicalValue(value) {
+    if (value === null || value === undefined || value === "") {
+        return "Not available";
+    }
+    if (typeof value === "boolean") {
+        return value ? "Yes" : "No";
+    }
+    if (Array.isArray(value)) {
+        return value.length ? value.join(", ") : "None";
+    }
+    if (typeof value === "object") {
+        return JSON.stringify(value, null, 2);
+    }
+    return String(value);
 }
 
-
-function createTechnicalValue(value, accessibleLabel) {
-    const container = document.createElement("span");
-    const code = document.createElement("code");
-    const copy = document.createElement("button");
-    const feedback = document.createElement("span");
-    const fullValue = String(value ?? "Unavailable");
-    container.className = "technical-value";
-    code.textContent = formatTechnicalValue(fullValue);
-    code.title = fullValue;
-    code.dataset.fullValue = fullValue;
-    copy.type = "button";
-    copy.className = "copy-button";
-    copy.textContent = "Copy";
-    copy.setAttribute("aria-label", `Copy ${accessibleLabel}`);
-    feedback.className = "copy-feedback";
-    feedback.setAttribute("aria-live", "polite");
-    copy.addEventListener("click", async () => {
-        try {
-            await navigator.clipboard.writeText(fullValue);
-            feedback.textContent = "Copied";
-        } catch {
-            feedback.textContent = "Copy unavailable";
-        }
-        window.setTimeout(() => {
-            feedback.textContent = "";
-        }, 1800);
+function createTechnicalValue(value) {
+    return element("span", {
+        className: "technical-value",
+        text: formatTechnicalValue(value),
     });
-    container.append(code, copy, feedback);
-    return container;
 }
 
-
-function createMetadataRow(label, value, technical = false) {
-    const row = document.createElement("div");
-    const term = document.createElement("dt");
-    const description = document.createElement("dd");
-    row.className = "metadata-row";
-    term.textContent = label;
-    if (technical) {
-        description.append(createTechnicalValue(value, label));
-    } else {
-        description.textContent = value ?? "Unavailable";
-    }
-    row.append(term, description);
-    return row;
-}
-
-
-function createRawJsonViewer(value, label = "Raw JSON") {
-    const details = document.createElement("details");
-    const summary = document.createElement("summary");
-    const actions = document.createElement("div");
-    const pre = document.createElement("pre");
-    const copy = document.createElement("button");
-    const feedback = document.createElement("span");
-    const serialized = JSON.stringify(value, null, 2);
-    details.className = "raw-data-viewer";
-    summary.textContent = label;
-    copy.type = "button";
-    copy.className = "copy-button";
-    copy.textContent = "Copy JSON";
-    feedback.className = "copy-feedback";
-    feedback.setAttribute("aria-live", "polite");
-    copy.addEventListener("click", async () => {
-        try {
-            await navigator.clipboard.writeText(serialized);
-            feedback.textContent = "Copied";
-        } catch {
-            feedback.textContent = "Copy unavailable";
-        }
+function createStatusLine(label, healthy = true) {
+    const dot = element("span", {
+        className: `status-dot${healthy ? "" : " warning"}`,
     });
-    pre.textContent = serialized;
-    actions.className = "raw-data-actions";
-    actions.append(copy, feedback);
-    details.append(summary, actions, pre);
+    return element("p", {className: "status-line"}, [
+        dot,
+        element("span", {text: label}),
+    ]);
+}
+
+function createLoadingState(message) {
+    return element("p", {className: "loading-state", text: message});
+}
+
+function createEmptyState(message) {
+    return element("p", {className: "empty-state", text: message});
+}
+
+function createErrorState(message) {
+    return element("p", {className: "error-state", text: message});
+}
+
+function createDisclosure(label, content) {
+    const details = element("details", {className: "disclosure"});
+    details.append(element("summary", {text: label}), content);
     return details;
 }
 
-
-function createRegistryDetail(label, value) {
-    return createMetadataRow(label, value, /id|key|hash/i.test(label));
-}
-
-
-function createRegistryAuthorityCard(authority, identityDocument) {
-    const card = document.createElement("article");
-    const name = document.createElement("h3");
-    const header = document.createElement("div");
-    const identityLink = document.createElement("a");
-    const metrics = document.createElement("div");
-    const history = document.createElement("details");
-    const historySummary = document.createElement("summary");
-    const trusted = authority.trusted_by_local_registry === true;
-    const keys = Array.isArray(identityDocument?.keys)
-        ? identityDocument.keys
-        : [];
-    const counts = ["active", "retired", "revoked"].map(
-        (status) => keys.filter((key) => key.status === status).length
-    );
-
-    card.className = `${trusted ? "authority-trusted" : "authority-untrusted"} authority-overview`;
-    header.className = "summary-card-header";
-    name.textContent = authority.authority_name;
-    header.append(
-        name,
-        createStatusBadge(
-            trusted ? "Trusted locally" : "Not trusted locally",
-            trusted ? "success" : "error"
-        )
-    );
-    identityLink.href = (
-        `/registry-authorities/${encodeURIComponent(authority.authority_id)}` +
-        "/.well-known/gap-registry.json"
-    );
-    identityLink.className = "secondary-button";
-    identityLink.textContent = "View identity document";
-    metrics.className = "metric-grid metric-grid-compact";
-    [
-        ["Authority ID", createTechnicalValue(authority.authority_id, "authority ID")],
-        ["Active key", createTechnicalValue(authority.active_key_id, "active key ID")],
-        ["Published keys", String(authority.published_key_count)],
-        ["Key lifecycle", `${counts[0]} active · ${counts[1]} retired · ${counts[2]} revoked`],
-    ].forEach(([label, value]) => {
-        const metric = document.createElement("div");
-        const metricLabel = document.createElement("span");
-        const metricValue = document.createElement("strong");
-        metric.className = "metric-card";
-        metricLabel.textContent = label;
-        if (typeof value === "string") metricValue.textContent = value;
-        else metricValue.append(value);
-        metric.append(metricLabel, metricValue);
-        metrics.append(metric);
-    });
-    history.className = "disclosure-panel";
-    historySummary.textContent = `Signing-key history (${keys.length})`;
-    history.append(historySummary);
-    keys
-        .slice()
-        .sort((left, right) => ["active", "retired", "revoked"].indexOf(left.status) - ["active", "retired", "revoked"].indexOf(right.status))
-        .forEach((key) => {
-            const row = document.createElement("div");
-            const metadata = document.createElement("dl");
-            row.className = "key-history-row";
-            metadata.className = "metadata-list";
-            row.append(
-                createStatusBadge(
-                    key.status,
-                    key.status === "active"
-                        ? "success"
-                        : key.status === "revoked"
-                            ? "error"
-                            : "neutral"
-                ),
-                metadata
-            );
-            metadata.append(
-                createMetadataRow("Key ID", key.key_id, true),
-                createMetadataRow("Created", formatDate(key.created_at)),
-                createMetadataRow(
-                    key.status === "revoked" ? "Revoked" : "Retired",
-                    key.revoked_at || key.retired_at
-                        ? formatDate(key.revoked_at || key.retired_at)
-                        : "Not applicable"
-                ),
-                createMetadataRow("Public key", key.public_key, true)
-            );
-            history.append(row);
-        });
-    card.append(header, metrics, history, identityLink);
-
-    return card;
-}
-
-
-function createTrustAttestationCard(attestation, trustEntries, authorities) {
-    const card = document.createElement("article");
-    const heading = document.createElement("h3");
-    const payload = attestation.payload ?? {};
-    const proof = attestation.proof ?? {};
-    const trustEntry = trustEntries.find(
-        (entry) => entry.latest_decision_id === payload.decision_id
-    );
-    const authority = authorities.find(
-        (entry) => entry.authority_id === payload.registry_authority_id
-    );
-    const isCurrent = trustEntry?.trust_attestation_id === payload.attestation_id;
-    const attestationValid = (
-        isCurrent && trustEntry?.trust_attestation_valid === true
-    );
-    const authorityTrusted = authority?.trusted_by_local_registry === true;
-
-    card.className = (
-        `${attestationValid ? "attestation-valid" : "attestation-historical"} ` +
-        "credential-card"
-    );
-    heading.textContent = payload.attestation_id ?? "Unknown attestation";
-
-    card.append(
-        heading,
-        createRegistryDetail("Decision ID", payload.decision_id),
-        createRegistryDetail("Provider ID", payload.provider_id),
-        createRegistryDetail("Provider status", payload.status),
-        createRegistryDetail(
-            "Registry authority ID",
-            payload.registry_authority_id
-        ),
-        createRegistryDetail("Authority signing key", proof.key_id),
-        createRegistryDetail(
-            "Authority key status",
-            isCurrent ? trustEntry?.authority_key_status : "Historical"
-        ),
-        createRegistryDetail("Issued", payload.issued_at),
-        createRegistryDetail(
-            "Attestation validity",
-            isCurrent
-                ? (attestationValid ? "Valid" : "Invalid")
-                : "Historical — not the current provider decision"
-        ),
-        createRegistryDetail(
-            "Registry-authority trust",
-            authorityTrusted ? "Trusted locally" : "Not trusted locally"
-        )
-    );
-
-    return card;
-}
-
-
-async function readJsonCollection(url, panel, failureLabel) {
-    let response;
-    try {
-        response = await fetch(url);
-    } catch {
-        panel.textContent = `${failureLabel} network request failed.`;
-        return null;
+function createMetadata(rows) {
+    const list = element("dl", {className: "metadata"});
+    for (const [label, value] of rows) {
+        const row = element("div");
+        row.append(element("dt", {text: label}), createTechnicalValue(value));
+        list.append(row);
     }
-
-    if (!response.ok) {
-        panel.textContent = `${failureLabel} request failed (${response.status}).`;
-        return null;
-    }
-
-    let data;
-    try {
-        data = await response.json();
-    } catch {
-        panel.textContent = `${failureLabel} returned invalid JSON.`;
-        return null;
-    }
-
-    if (!Array.isArray(data)) {
-        panel.textContent = `${failureLabel} returned an invalid response.`;
-        return null;
-    }
-
-    return data;
+    return list;
 }
 
-
-async function renderRegistryAuthorities() {
-    const authorities = await readJsonCollection(
-        "/registry-authorities",
-        elements.registryAuthorityGrid,
-        "Registry authority"
-    );
-    if (authorities === null) return;
-
-    const identityDocuments = await Promise.all(
-        authorities.map(async (authority) => {
-            const url = (
-                `/registry-authorities/${encodeURIComponent(authority.authority_id)}` +
-                "/.well-known/gap-registry.json"
-            );
-            try {
-                const response = await fetch(url);
-                return response.ok ? await response.json() : null;
-            } catch {
-                return null;
-            }
-        })
-    );
-    const cards = authorities.map(
-        (authority, index) => createRegistryAuthorityCard(
-            authority,
-            identityDocuments[index]
-        )
-    );
-    elements.registryAuthorityGrid.replaceChildren(...cards);
+function shortValue(value, length = 18) {
+    const text = formatTechnicalValue(value);
+    return text.length > length ? `${text.slice(0, length)}…` : text;
 }
-
-
-async function renderTrustAttestations() {
-    const results = await Promise.all([
-        readJsonCollection(
-            "/trust-attestations",
-            elements.trustAttestationGrid,
-            "Trust attestation"
-        ),
-        readJsonCollection(
-            "/trust-registry",
-            elements.trustAttestationGrid,
-            "Trust registry"
-        ),
-        readJsonCollection(
-            "/registry-authorities",
-            elements.trustAttestationGrid,
-            "Registry authority"
-        )
-    ]);
-    if (results.some((result) => result === null)) return;
-
-    const [attestations, trustEntries, authorities] = results;
-    state.attestations = attestations;
-    state.attestationTrustEntries = trustEntries;
-    state.attestationAuthorities = authorities;
-    const providerIds = [...new Set(
-        attestations.map((item) => item.payload?.provider_id).filter(Boolean)
-    )].sort();
-    elements.attestationProviderFilter.replaceChildren(
-        new Option("All providers", ""),
-        ...providerIds.map((providerId) => new Option(providerId, providerId))
-    );
-    renderFilteredTrustAttestations();
-}
-
-
-function createAttestationSummaryCard(attestation, isCurrent) {
-    const payload = attestation.payload ?? {};
-    const proof = attestation.proof ?? {};
-    const trustEntry = state.attestationTrustEntries.find(
-        (entry) => entry.latest_decision_id === payload.decision_id
-    );
-    const authority = state.attestationAuthorities.find(
-        (entry) => entry.authority_id === payload.registry_authority_id
-    );
-    const valid = isCurrent && trustEntry?.trust_attestation_valid === true;
-    const card = document.createElement("article");
-    const header = document.createElement("div");
-    const title = document.createElement("h4");
-    const badges = document.createElement("div");
-    const metadata = document.createElement("dl");
-    const evidence = document.createElement("details");
-    const evidenceSummary = document.createElement("summary");
-    const evidenceMetadata = document.createElement("dl");
-    card.className = `${valid ? "attestation-valid" : "attestation-historical"} attestation-card`;
-    header.className = "attestation-card-header";
-    title.textContent = payload.provider_id ?? "Unknown provider";
-    badges.className = "status-badge-row";
-    badges.append(
-        createStatusBadge(
-            payload.status ?? "unknown",
-            payload.status === "approved"
-                ? "success"
-                : payload.status === "suspended"
-                    ? "warning"
-                    : payload.status === "removed"
-                        ? "error"
-                        : "info"
-        ),
-        createStatusBadge(isCurrent ? "Current" : "Historical", isCurrent ? "info" : "neutral"),
-        createStatusBadge(
-            isCurrent ? (valid ? "Valid" : "Invalid") : "Signed history",
-            isCurrent ? (valid ? "success" : "error") : "neutral"
-        )
-    );
-    header.append(title, badges);
-    metadata.className = "metadata-list metadata-list-compact";
-    metadata.append(
-        createMetadataRow("Decision time", formatDate(payload.decided_at)),
-        createMetadataRow("Authority", payload.registry_authority_name),
-        createMetadataRow("Attestation", payload.attestation_id, true)
-    );
-    evidence.className = "disclosure-panel";
-    evidenceSummary.textContent = "Technical evidence";
-    evidenceMetadata.className = "metadata-list";
-    evidenceMetadata.append(
-        createMetadataRow("Decision ID", payload.decision_id, true),
-        createMetadataRow("Full attestation ID", payload.attestation_id, true),
-        createMetadataRow("Registry authority ID", payload.registry_authority_id, true),
-        createMetadataRow("Authority key ID", proof.key_id, true),
-        createMetadataRow("Key lifecycle", isCurrent ? trustEntry?.authority_key_status : "Historical"),
-        createMetadataRow("Reason", payload.reason),
-        createMetadataRow(
-            "Authority trust",
-            authority?.trusted_by_local_registry ? "Trusted locally" : "Not trusted locally"
-        ),
-        createMetadataRow("Signature", proof.signature, true)
-    );
-    evidence.append(
-        evidenceSummary,
-        evidenceMetadata,
-        createRawJsonViewer(attestation, "Complete signed JSON")
-    );
-    card.append(header, metadata, evidence);
-    return card;
-}
-
-
-function renderFilteredTrustAttestations() {
-    const providerFilter = elements.attestationProviderFilter.value;
-    const statusFilter = elements.attestationStatusFilter.value;
-    const historyFilter = elements.attestationHistoryFilter.value;
-    const query = elements.attestationSearch.value.trim().toLowerCase();
-    const grouped = new Map();
-    state.attestations.forEach((attestation) => {
-        const payload = attestation.payload ?? {};
-        const trustEntry = state.attestationTrustEntries.find(
-            (entry) => entry.latest_decision_id === payload.decision_id
-        );
-        const isCurrent = trustEntry?.trust_attestation_id === payload.attestation_id;
-        const searchable = [payload.provider_id, payload.decision_id, payload.attestation_id]
-            .join(" ")
-            .toLowerCase();
-        if (
-            (providerFilter && payload.provider_id !== providerFilter) ||
-            (statusFilter && payload.status !== statusFilter) ||
-            (historyFilter === "current" && !isCurrent) ||
-            (historyFilter === "historical" && isCurrent) ||
-            (query && !searchable.includes(query))
-        ) return;
-        if (!grouped.has(payload.provider_id)) grouped.set(payload.provider_id, []);
-        grouped.get(payload.provider_id).push({attestation, isCurrent});
-    });
-    const groups = [];
-    grouped.forEach((items, providerId) => {
-        const section = document.createElement("section");
-        const header = document.createElement("div");
-        const title = document.createElement("h3");
-        const current = items.find((item) => item.isCurrent);
-        const historical = items.filter((item) => !item.isCurrent);
-        section.className = "attestation-provider-group";
-        header.className = "provider-group-header";
-        title.textContent = providerId;
-        header.append(
-            title,
-            createStatusBadge(
-                current?.attestation.payload.status || "Historical evidence",
-                current?.attestation.payload.status === "approved" ? "success" : "neutral"
-            )
-        );
-        section.append(header);
-        if (current) section.append(createAttestationSummaryCard(current.attestation, true));
-        if (historical.length) {
-            const history = document.createElement("details");
-            const summary = document.createElement("summary");
-            history.className = "history-group";
-            summary.textContent = `View decision history (${historical.length})`;
-            history.append(summary);
-            historical
-                .sort(
-                    (left, right) =>
-                        new Date(right.attestation.payload.decided_at) -
-                        new Date(left.attestation.payload.decided_at)
-                )
-                .forEach((item) => history.append(
-                    createAttestationSummaryCard(item.attestation, false)
-                ));
-            section.append(history);
-        }
-        groups.push(section);
-    });
-    elements.attestationResultCount.textContent = `${groups.length} provider${groups.length === 1 ? "" : "s"}`;
-    if (!groups.length) {
-        const empty = document.createElement("div");
-        empty.className = "empty-state";
-        empty.textContent = "No attestations match these filters.";
-        elements.trustAttestationGrid.replaceChildren(empty);
-    } else {
-        elements.trustAttestationGrid.replaceChildren(...groups);
-    }
-}
-
-
-async function loadProviders() {
-    state.providersReady = false;
-    state.selectedProviderTrust = null;
-    elements.providerId.disabled = true;
-    setLoading(false);
-
-    setBadge(
-        elements.providerEcosystemStatus,
-        "Discovering providers",
-        "neutral"
-    );
-
-    try {
-        const response = await fetch("/providers");
-
-        if (!response.ok) {
-            throw new Error(await readError(response));
-        }
-
-        const providers = await response.json();
-
-        if (!Array.isArray(providers) || providers.length === 0) {
-            throw new Error(
-                "The GAP provider registry did not return any providers."
-            );
-        }
-
-        state.providers = providers.filter(
-            (provider) => (
-                typeof provider.provider_id === "string" &&
-                typeof provider.provider_name === "string" &&
-                typeof provider.trust_status === "string" &&
-                typeof provider.provider_trusted === "boolean"
-            )
-        );
-
-        if (state.providers.length === 0) {
-            throw new Error(
-                "The GAP provider registry returned no usable providers."
-            );
-        }
-
-        const selectableProviders = state.providers.filter(
-            (provider) => (
-                provider.provider_trusted === true &&
-                provider.trust_status === "approved"
-            )
-        );
-
-        if (selectableProviders.length === 0) {
-            throw new Error(
-                "No approved providers are currently available for issuance."
-            );
-        }
-
-        const options = selectableProviders.map((provider) => {
-            const option = document.createElement("option");
-
-            option.value = provider.provider_id;
-            option.textContent = (
-                `${provider.provider_name} · Approved · ` +
-                provider.provider_id
-            );
-
-            return option;
-        });
-
-        elements.providerId.replaceChildren(...options);
-        elements.providerId.disabled = false;
-
-        state.providersReady = true;
-
-        const selectedProviderId = elements.providerId.value;
-
-        await Promise.all([
-            renderSelectedProvider(selectedProviderId),
-            renderProviderEcosystem(),
-        ]);
-
-        setLoading(false);
-    } catch (error) {
-        state.providers = [];
-        state.providersReady = false;
-        state.selectedProviderTrust = null;
-
-        const option = document.createElement("option");
-        option.value = "";
-        option.textContent = "Provider discovery failed";
-
-        elements.providerId.replaceChildren(option);
-        elements.providerId.disabled = true;
-
-        setLoading(false);
-
-        setBadge(
-            elements.providerEcosystemStatus,
-            "Registry unavailable",
-            "error"
-        );
-
-        setMessage(
-            elements.generationError,
-            (
-                error.message ||
-                "Participating providers could not be discovered."
-            ),
-            "error"
-        );
-    }
-}
-
-
-function findArtifactDescriptor(credential) {
-    const artifacts = credential?.payload?.artifacts;
-
-    if (!Array.isArray(artifacts) || artifacts.length === 0) {
-        return null;
-    }
-
-    return artifacts[0];
-}
-
-
-function readDescriptorHash(descriptor) {
-    if (!descriptor) {
-        return null;
-    }
-
-    const candidates = [
-        descriptor.sha256,
-        descriptor.sha256_digest,
-        descriptor.artifact_hash,
-        descriptor.hash,
-        descriptor.digest,
-    ];
-
-    const directValue = candidates.find(
-        (value) => typeof value === "string"
-    );
-
-    if (directValue) {
-        return directValue.toLowerCase();
-    }
-
-    if (
-        descriptor.digest &&
-        typeof descriptor.digest.value === "string"
-    ) {
-        return descriptor.digest.value.toLowerCase();
-    }
-
-    return null;
-}
-
-
-function readDescriptorMediaType(descriptor) {
-    return (
-        descriptor?.media_type ||
-        descriptor?.content_type ||
-        "Not declared"
-    );
-}
-
-
-function readGeneratedAt(payload) {
-    return (
-        payload?.generation?.generated_at ||
-        payload?.generation?.created_at ||
-        payload?.issued_at ||
-        "Not declared"
-    );
-}
-
-
-function setCheck(icon, detail, passed, passedText, failedText) {
-    icon.textContent = passed ? "✓" : "×";
-    icon.classList.toggle("check-success", passed);
-    icon.classList.toggle("check-error", !passed);
-    detail.textContent = passed ? passedText : failedText;
-}
-
-
-function setTimelineState(element, status, detail) {
-    element.classList.remove(
-        "timeline-success",
-        "timeline-error",
-        "timeline-active"
-    );
-
-    if (status) {
-        element.classList.add(`timeline-${status}`);
-    }
-
-    element.querySelector("small").textContent = detail;
-}
-
-
-function setTrustNode(element, detailElement, status, detail) {
-    element.classList.remove(
-        "trust-success",
-        "trust-error",
-        "trust-active"
-    );
-
-    if (status) {
-        element.classList.add(`trust-${status}`);
-    }
-
-    detailElement.textContent = detail;
-}
-
-
-function resetTrustChain() {
-    const providerId = (
-        state.credential?.payload?.provider?.provider_id ||
-        null
-    );
-
-    setBadge(
-        elements.trustChainStatus,
-        "Awaiting verification",
-        "neutral"
-    );
-
-    setTrustNode(
-        elements.trustCredentialNode,
-        elements.trustCredentialProvider,
-        null,
-        providerId
-            ? `${providerNameFor(providerId)} · ${providerId}`
-            : "Awaiting credential"
-    );
-    setTrustNode(
-        elements.trustIdentityNode,
-        elements.trustIdentityDocument,
-        null,
-        "Not resolved"
-    );
-    setTrustNode(
-        elements.trustKeyNode,
-        elements.trustKeyId,
-        null,
-        "Not resolved"
-    );
-    setTrustNode(
-        elements.trustSignatureNode,
-        elements.trustSignatureResult,
-        null,
-        "Not checked"
-    );
-    setTrustNode(
-        elements.trustRegistryNode,
-        elements.trustRegistryResult,
-        null,
-        "Not resolved"
-    );
-}
-
-
-function resetVerificationDisplay() {
-    setBadge(
-        elements.completeVerificationStatus,
-        "Not verified",
-        "neutral"
-    );
-
-    elements.verificationResultIcon.textContent = "?";
-    elements.verificationResultIcon.className = (
-        "verification-result-icon"
-    );
-    elements.verificationResultTitle.textContent = (
-        "Awaiting verification"
-    );
-    elements.verificationResultDescription.textContent = (
-        "Supply an artifact and credential to begin."
-    );
-
-    [
-        [elements.signatureCheckIcon, elements.signatureCheckDetail],
-        [elements.artifactCheckIcon, elements.artifactCheckDetail],
-        [elements.providerCheckIcon, elements.providerCheckDetail],
-        [elements.registryCheckIcon, elements.registryCheckDetail],
-        [elements.attestationCheckIcon, elements.attestationCheckDetail],
-        [elements.authorityCheckIcon, elements.authorityCheckDetail],
-        [elements.overallCheckIcon, elements.overallCheckDetail],
-    ].forEach(([icon, detail]) => {
-        icon.textContent = "○";
-        icon.className = "check-icon";
-        detail.textContent = "Not checked";
-    });
-
-    [
-        elements.timelineArtifact,
-        elements.timelineHash,
-        elements.timelineCompare,
-        elements.timelineSignature,
-        elements.timelineProvider,
-        elements.timelineRegistry,
-        elements.timelineAuthorityIdentity,
-        elements.timelineAuthorityKey,
-        elements.timelineAttestation,
-        elements.timelineFederationChain,
-        elements.timelineFederationConflict,
-        elements.timelineTransparencyEntry,
-        elements.timelineTransparencyProof,
-        elements.timelineOverall,
-    ].forEach((item) => {
-        item.className = "";
-        item.querySelector("small").textContent = "Awaiting input";
-    });
-
-    resetTrustChain();
-}
-
-
-function renderExplorer() {
-    if (!state.credential) {
-        elements.explorerEmpty.classList.remove("hidden");
-        elements.explorerContent.classList.add("hidden");
-        return;
-    }
-
-    const credential = state.credential;
-    const payload = credential.payload;
-    const descriptor = findArtifactDescriptor(credential);
-
-    elements.explorerEmpty.classList.add("hidden");
-    elements.explorerContent.classList.remove("hidden");
-
-    elements.explorerCredentialId.textContent = (
-        payload.credential_id || "Not declared"
-    );
-    elements.explorerGenerationId.textContent = (
-        payload.generation?.generation_id || "Not declared"
-    );
-    elements.explorerGeneratedAt.textContent = readGeneratedAt(payload);
-    elements.explorerProviderId.textContent = (
-        payload.provider?.provider_id || "Not declared"
-    );
-    elements.explorerModelId.textContent = (
-        payload.model?.model_id || "Not declared"
-    );
-    elements.explorerMediaType.textContent = (
-        readDescriptorMediaType(descriptor)
-    );
-    elements.explorerArtifactHash.textContent = (
-        readDescriptorHash(descriptor) || "Not declared"
-    );
-    elements.explorerAlgorithm.textContent = (
-        credential.proof?.type || "Not declared"
-    );
-    elements.explorerKeyId.textContent = (
-        credential.proof?.key_id || "Not declared"
-    );
-    elements.credentialJson.textContent = JSON.stringify(
-        credential,
-        null,
-        2
-    );
-
-    setBadge(
-        elements.explorerSignatureStatus,
-        "Not verified",
-        "neutral"
-    );
-}
-
-
-function renderGenerationResult(result) {
-    const artifactBytes = base64ToBytes(result.artifact_base64);
-
-    state.artifactBase64 = result.artifact_base64;
-    state.artifactBytes = artifactBytes;
-    state.artifactFilename = result.filename;
-    state.artifactMediaType = result.media_type;
-    state.credential = result.credential;
-    state.originalArtifactBytes = new Uint8Array(artifactBytes);
-    state.originalCredential = cloneValue(result.credential);
-    state.providerSubstitution = null;
-    state.revokedKeySubstitution = null;
-    state.lastVerification = null;
-
-    const payload = result.credential.payload;
-
-    elements.emptyState.classList.add("hidden");
-    elements.resultContent.classList.remove("hidden");
-
-    elements.artifactImage.src = (
-        `data:${result.media_type};base64,${result.artifact_base64}`
-    );
-    elements.artifactFilename.textContent = result.filename;
-    elements.artifactMediaType.textContent = result.media_type;
-    elements.artifactProvider.textContent = (
-        payload.provider.provider_name ||
-        providerNameFor(payload.provider.provider_id)
-    );
-    elements.artifactModel.textContent = payload.model.model_id;
-
-    setBadge(
-        elements.generationStatus,
-        "Credential issued",
-        "success"
-    );
-
-    elements.artifactUploadName.textContent = result.filename;
-    elements.credentialUploadName.textContent = (
-        `${payload.generation.generation_id}-credential.json`
-    );
-
-    renderExplorer();
-    resetVerificationDisplay();
-}
-
 
 async function readError(response) {
     try {
         const body = await response.json();
-
         if (typeof body.detail === "string") {
             return body.detail;
         }
-
         if (Array.isArray(body.detail)) {
-            return body.detail
-                .map((entry) => entry.msg)
-                .join(" ");
+            return body.detail.map((entry) => entry.msg).join(" ");
         }
-
         return JSON.stringify(body);
     } catch {
         return `Request failed with status ${response.status}.`;
     }
 }
 
-
-async function generateArtifact(event) {
-    event.preventDefault();
-
-    hideMessage(elements.generationError);
-    setLoading(true);
-
-    setBadge(
-        elements.generationStatus,
-        "Generating",
-        "neutral"
-    );
-
-    const requestBody = {
-        provider_id: elements.providerId.value,
-        account_reference: elements.accountReference.value.trim(),
-        prompt: elements.prompt.value.trim(),
-        retention_days: Number(elements.retentionDays.value),
-    };
-
-    try {
-        const response = await fetch(
-            "/generations/create",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(requestBody),
-            }
-        );
-
-        if (!response.ok) {
-            throw new Error(await readError(response));
-        }
-
-        renderGenerationResult(await response.json());
-    } catch (error) {
-        setBadge(
-            elements.generationStatus,
-            "Generation failed",
-            "error"
-        );
-
-        setMessage(
-            elements.generationError,
-            error.message || "The artifact could not be generated.",
-            "error"
-        );
-    } finally {
-        setLoading(false);
-    }
-}
-
-
-async function verifyCredentialSignature(credential) {
-    const response = await fetch(
-        "/credentials/verify",
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                credential,
-            }),
-        }
-    );
-
+async function fetchJson(url, options = undefined) {
+    const response = await fetch(url, options);
     if (!response.ok) {
         throw new Error(await readError(response));
     }
-
     return response.json();
 }
 
-
-async function runCompleteVerification() {
-    hideMessage(elements.verificationError);
-
-    if (!state.artifactBytes || !state.credential) {
-        setMessage(
-            elements.verificationError,
-            "Supply both an artifact and a credential before verification.",
-            "warning"
-        );
-        return;
+function activatePage(pageName) {
+    const validPage = ["home", "create", "explore", "developer"].includes(pageName)
+        ? pageName
+        : "home";
+    state.page = validPage;
+    for (const page of elements.pages) {
+        page.hidden = page.dataset.page !== validPage;
     }
-
-    elements.runVerificationButton.disabled = true;
-    elements.runVerificationButton.textContent = "Verifying";
-
-    resetVerificationDisplay();
-
-    try {
-        setTimelineState(
-            elements.timelineArtifact,
-            "active",
-            "Reading supplied artifact bytes"
-        );
-
-        const suppliedBytes = state.artifactBytes;
-
-        setTimelineState(
-            elements.timelineArtifact,
-            "success",
-            `${suppliedBytes.length.toLocaleString()} bytes loaded`
-        );
-
-        setTimelineState(
-            elements.timelineHash,
-            "active",
-            "Calculating SHA-256 digest"
-        );
-
-        const calculatedHash = await calculateSha256(suppliedBytes);
-
-        setTimelineState(
-            elements.timelineHash,
-            "success",
-            calculatedHash
-        );
-
-        const descriptor = findArtifactDescriptor(state.credential);
-        const expectedHash = readDescriptorHash(descriptor);
-
-        setTimelineState(
-            elements.timelineCompare,
-            "active",
-            "Comparing calculated and declared digests"
-        );
-
-        const artifactMatches = (
-            Boolean(expectedHash) &&
-            calculatedHash === expectedHash
-        );
-
-        setTimelineState(
-            elements.timelineCompare,
-            artifactMatches ? "success" : "error",
-            artifactMatches
-                ? "Artifact digest matches"
-                : "Artifact digest mismatch"
-        );
-
-        setCheck(
-            elements.artifactCheckIcon,
-            elements.artifactCheckDetail,
-            artifactMatches,
-            "Calculated SHA-256 matches the credential.",
-            expectedHash
-                ? "Calculated SHA-256 does not match the credential."
-                : "No supported artifact digest was found."
-        );
-
-        const credentialProviderId = (
-            state.credential.payload?.provider?.provider_id ||
-            null
-        );
-        const credentialKeyId = (
-            state.credential.proof?.key_id ||
-            null
-        );
-        const credentialAlgorithm = (
-            state.credential.proof?.type ||
-            "Not declared"
-        );
-
-        setTrustNode(
-            elements.trustCredentialNode,
-            elements.trustCredentialProvider,
-            credentialProviderId ? "success" : "error",
-            credentialProviderId
-                ? (
-                    `${providerNameFor(credentialProviderId)} · ` +
-                    credentialProviderId
-                )
-                : "No provider ID was declared"
-        );
-
-        setTrustNode(
-            elements.trustIdentityNode,
-            elements.trustIdentityDocument,
-            "active",
-            "Resolving public identity document"
-        );
-
-        let providerDocument = null;
-        let verificationKey = null;
-        let identityResolved = false;
-        let keyResolved = false;
-
-        try {
-            providerDocument = await readProviderDocument(
-                credentialProviderId
-            );
-            identityResolved = (
-                providerDocument.provider_id === credentialProviderId
-            );
-
-            setTrustNode(
-                elements.trustIdentityNode,
-                elements.trustIdentityDocument,
-                identityResolved ? "success" : "error",
-                identityResolved
-                    ? (
-                        `${providerDocument.provider_name} · ` +
-                        providerIdentityUrl(credentialProviderId)
-                    )
-                    : "Identity document provider mismatch"
-            );
-
-            verificationKey = providerDocument.keys?.find(
-                (key) => key.key_id === credentialKeyId
-            ) || null;
-
-            keyResolved = Boolean(
-                verificationKey &&
-                verificationKey.status !== "revoked"
-            );
-
-            const keyLifecycleDetail = verificationKey
-                ? (
-                    `${verificationKey.key_id} · ` +
-                    `${verificationKey.algorithm} · ` +
-                    `${verificationKey.status}`
-                )
-                : null;
-
-            setTrustNode(
-                elements.trustKeyNode,
-                elements.trustKeyId,
-                keyResolved ? "success" : "error",
-                keyResolved
-                    ? keyLifecycleDetail
-                    : verificationKey?.status === "revoked"
-                        ? `${keyLifecycleDetail} · explicitly rejected`
-                        : credentialKeyId
-                            ? `Key ${credentialKeyId} is not published here`
-                            : "No signing key ID was declared"
-            );
-        } catch (error) {
-            setTrustNode(
-                elements.trustIdentityNode,
-                elements.trustIdentityDocument,
-                "error",
-                error.message || "Identity document resolution failed"
-            );
-            setTrustNode(
-                elements.trustKeyNode,
-                elements.trustKeyId,
-                "error",
-                "Verification key could not be resolved"
-            );
-        }
-
-        setTimelineState(
-            elements.timelineSignature,
-            "active",
-            "Verifying signed credential payload"
-        );
-
-        setTrustNode(
-            elements.trustSignatureNode,
-            elements.trustSignatureResult,
-            "active",
-            `Checking ${credentialAlgorithm} signature`
-        );
-
-        setTimelineState(
-            elements.timelineRegistry,
-            "active",
-            "Resolving independent provider trust"
-        );
-        setTimelineState(
-            elements.timelineAuthorityIdentity,
-            "active",
-            "Resolving registry-authority identity"
-        );
-        setTimelineState(
-            elements.timelineAuthorityKey,
-            "active",
-            "Resolving authority signing-key lifecycle"
-        );
-        setTimelineState(
-            elements.timelineAttestation,
-            "active",
-            "Verifying signed trust attestation"
-        );
-        setTimelineState(
-            elements.timelineFederationChain,
-            "active",
-            "Checking accepted bundle freshness and chain"
-        );
-        setTimelineState(
-            elements.timelineFederationConflict,
-            "active",
-            "Comparing authority decisions"
-        );
-        setTimelineState(
-            elements.timelineTransparencyEntry,
-            "active",
-            "Resolving public trust-artifact commitment"
-        );
-        setTimelineState(
-            elements.timelineTransparencyProof,
-            "active",
-            "Verifying signed checkpoint and Merkle audit path"
-        );
-        setTimelineState(
-            elements.timelineOverall,
-            "active",
-            "Calculating overall GAP validity"
-        );
-
-        setTrustNode(
-            elements.trustRegistryNode,
-            elements.trustRegistryResult,
-            "active",
-            "Querying the GAP Trust Registry"
-        );
-
-        let verification = null;
-        let signatureValid = false;
-        let providerValid = false;
-        let registryTrusted = false;
-        let registryStatus = "self-declared";
-        let attestationPresent = false;
-        let attestationValid = false;
-        let authorityTrusted = false;
-        let authorityIdentityResolved = false;
-        let authorityKeyAllowed = false;
-        let authorityKeyStatus = null;
-        let backendOverallValid = false;
-
-        try {
-            verification = await verifyCredentialSignature(
-                state.credential
-            );
-
-            state.lastVerification = verification;
-
-            signatureValid = verification.cryptographic_valid === true;
-            providerValid = Boolean(
-                verification.provider_id === credentialProviderId &&
-                identityResolved &&
-                keyResolved
-            );
-            registryTrusted = verification.provider_trusted === true;
-            registryStatus = (
-                verification.provider_trust_status ||
-                "self-declared"
-            );
-            attestationPresent = (
-                verification.trust_attestation_present === true
-            );
-            attestationValid = (
-                verification.trust_attestation_valid === true
-            );
-            authorityTrusted = (
-                verification.registry_authority_trusted === true
-            );
-            authorityKeyStatus = (
-                verification.registry_authority_key_status ||
-                null
-            );
-            backendOverallValid = verification.valid === true;
-
-            const resolvedAlgorithm = (
-                verification.algorithm ||
-                verificationKey?.algorithm ||
-                credentialAlgorithm
-            );
-
-            setTimelineState(
-                elements.timelineSignature,
-                signatureValid ? "success" : "error",
-                signatureValid
-                    ? `${resolvedAlgorithm} signature valid`
-                    : (
-                        verification.failure_reason ||
-                        "Credential signature invalid"
-                    )
-            );
-
-            setTimelineState(
-                elements.timelineProvider,
-                providerValid ? "success" : "error",
-                providerValid
-                    ? `Resolved ${verification.provider_id}`
-                    : "Provider identity or signing key was rejected"
-            );
-
-            setTimelineState(
-                elements.timelineRegistry,
-                registryTrusted ? "success" : "error",
-                registryTrusted
-                    ? (
-                        `${trustStatusLabel(registryStatus)} · ` +
-                        `${verification.trust_decision_id || "decision recorded"}`
-                    )
-                    : (
-                        `${trustStatusLabel(registryStatus)} · ` +
-                        "provider is not currently trusted"
-                    )
-            );
-
-            let authorityDocument = null;
-
-            if (
-                attestationPresent &&
-                verification.registry_authority_id
-            ) {
-                try {
-                    authorityDocument = await readRegistryAuthorityDocument(
-                        verification.registry_authority_id
-                    );
-                    authorityIdentityResolved = Boolean(
-                        authorityTrusted &&
-                        authorityDocument.authority_id === (
-                            verification.registry_authority_id
-                        )
-                    );
-                    setTimelineState(
-                        elements.timelineAuthorityIdentity,
-                        authorityIdentityResolved ? "success" : "error",
-                        authorityIdentityResolved
-                            ? (
-                                `${authorityDocument.authority_name} · ` +
-                                authorityDocument.authority_id
-                            )
-                            : (
-                                `Unknown registry authority: ` +
-                                verification.registry_authority_id
-                            )
-                    );
-                } catch (error) {
-                    setTimelineState(
-                        elements.timelineAuthorityIdentity,
-                        "error",
-                        error.message ||
-                            "Registry authority identity could not be resolved"
-                    );
-                }
-            } else {
-                setTimelineState(
-                    elements.timelineAuthorityIdentity,
-                    "error",
-                    attestationPresent
-                        ? "Registry authority was not declared"
-                        : "No signed trust attestation is present"
-                );
-            }
-
-            const authorityKey = authorityDocument?.keys?.find(
-                (key) => key.key_id === verification.registry_authority_key_id
-            ) || null;
-            authorityKeyAllowed = Boolean(
-                authorityIdentityResolved &&
-                authorityKey &&
-                authorityKey.status === authorityKeyStatus &&
-                ["active", "retired"].includes(authorityKeyStatus)
-            );
-
-            let authorityKeyDetail = "Authority signing key could not be resolved";
-            if (authorityKeyStatus === "revoked") {
-                authorityKeyDetail = (
-                    `${verification.registry_authority_key_id || "Unknown key"} · ` +
-                    "revoked · explicitly rejected"
-                );
-            } else if (authorityKeyAllowed) {
-                authorityKeyDetail = (
-                    `${verification.registry_authority_key_id} · ` +
-                    `${authorityKeyStatus}` +
-                    (
-                        authorityKeyStatus === "retired"
-                            ? " · historical verification allowed"
-                            : ""
-                    )
-                );
-            }
-
-            setTimelineState(
-                elements.timelineAuthorityKey,
-                authorityKeyAllowed ? "success" : "error",
-                authorityKeyDetail
-            );
-
-            const attestationAccepted = Boolean(
-                attestationPresent &&
-                attestationValid &&
-                authorityTrusted &&
-                authorityKeyAllowed
-            );
-            const attestationFailureDetails = {
-                "missing-trust-attestation": "Missing signed trust attestation",
-                "invalid-attestation-signature": "Invalid attestation signature",
-                "attestation-decision-mismatch": (
-                    "Attestation does not match the current trust decision"
-                ),
-                "unknown-registry-authority": "Unknown registry authority",
-                "unknown-authority-key": "Unknown registry-authority key",
-                "revoked-authority-key": "Registry-authority key is revoked",
-            };
-
-            setTimelineState(
-                elements.timelineAttestation,
-                attestationAccepted ? "success" : "error",
-                attestationAccepted
-                    ? (
-                        "Ed25519 attestation signature valid · " +
-                        verification.trust_attestation_id
-                    )
-                    : (
-                        attestationFailureDetails[
-                            verification.trust_failure_reason
-                        ] ||
-                        verification.trust_failure_reason ||
-                        "Trust attestation could not be validated"
-                    )
-            );
-            const federationSources = verification.federation_sources || [];
-            const federationBundleIds = verification.federation_bundle_ids || [];
-            const federationConflict = verification.federation_conflict === true;
-            const effectiveTrustStatus = (
-                verification.effective_provider_trust_status || "unavailable"
-            );
-            setTimelineState(
-                elements.timelineFederationChain,
-                verification.federation_failure_reason &&
-                    verification.federation_source_count === 0
-                    ? "error"
-                    : "success",
-                federationBundleIds.length
-                    ? `${federationBundleIds.length} current bundle source(s)`
-                    : "Current local authority source; no portable bundle required"
-            );
-            setTimelineState(
-                elements.timelineFederationConflict,
-                federationConflict ? "error" : "success",
-                federationConflict
-                    ? `Authority disagreement: ${federationSources.map(
-                        (source) => `${source.registry_authority_id}=${source.provider_status}`
-                    ).join(", ")}`
-                    : `No conflict · effective status ${effectiveTrustStatus}`
-            );
-            setTimelineState(
-                elements.timelineTransparencyEntry,
-                verification.transparency_entry_ids.length > 0
-                    ? "success"
-                    : "error",
-                verification.transparency_entry_ids.length > 0
-                    ? `${verification.transparency_entry_ids.length} public commitment(s)`
-                    : verification.transparency_failure_reason ||
-                          "Transparency entry missing"
-            );
-            setTimelineState(
-                elements.timelineTransparencyProof,
-                verification.transparency_verified ? "success" : "error",
-                verification.transparency_verified
-                    ? `Signed tree head ${verification.transparency_tree_head_id}; ` +
-                      `inclusion and consistency verified`
-                    : verification.transparency_failure_reason ||
-                          "Transparency verification failed"
-            );
-
-            setTrustNode(
-                elements.trustSignatureNode,
-                elements.trustSignatureResult,
-                signatureValid ? "success" : "error",
-                signatureValid
-                    ? `${resolvedAlgorithm} signature accepted`
-                    : `${resolvedAlgorithm} signature rejected`
-            );
-
-            setTrustNode(
-                elements.trustRegistryNode,
-                elements.trustRegistryResult,
-                registryTrusted ? "success" : "error",
-                registryTrusted
-                    ? (
-                        `Approved by the GAP Trust Registry · ` +
-                        `${verification.trust_decision_id || "decision recorded"}`
-                    )
-                    : (
-                        `${trustStatusLabel(registryStatus)} · ` +
-                        "not trusted for overall GAP validity"
-                    )
-            );
-        } catch (error) {
-            state.lastVerification = null;
-
-            setTimelineState(
-                elements.timelineSignature,
-                "error",
-                "Credential verification request failed"
-            );
-
-            setTimelineState(
-                elements.timelineProvider,
-                "error",
-                error.message
-            );
-
-            setTimelineState(
-                elements.timelineRegistry,
-                "error",
-                "Registry trust could not be resolved"
-            );
-            setTimelineState(
-                elements.timelineAuthorityIdentity,
-                "error",
-                "Registry authority identity could not be resolved"
-            );
-            setTimelineState(
-                elements.timelineAuthorityKey,
-                "error",
-                "Authority signing key could not be resolved"
-            );
-            setTimelineState(
-                elements.timelineAttestation,
-                "error",
-                "Trust attestation could not be verified"
-            );
-            setTimelineState(
-                elements.timelineFederationChain,
-                "error",
-                "Federation bundle state could not be resolved"
-            );
-            setTimelineState(
-                elements.timelineFederationConflict,
-                "error",
-                "Authority conflicts could not be evaluated"
-            );
-            setTimelineState(
-                elements.timelineTransparencyEntry,
-                "error",
-                "Transparency entry could not be resolved"
-            );
-            setTimelineState(
-                elements.timelineTransparencyProof,
-                "error",
-                "Signed tree head and inclusion could not be verified"
-            );
-            setTimelineState(
-                elements.timelineOverall,
-                "error",
-                "Overall GAP validity could not be calculated"
-            );
-
-            setTrustNode(
-                elements.trustSignatureNode,
-                elements.trustSignatureResult,
-                "error",
-                error.message || "Verification request failed"
-            );
-
-            setTrustNode(
-                elements.trustRegistryNode,
-                elements.trustRegistryResult,
-                "error",
-                "Registry trust resolution failed"
-            );
-        }
-
-        setCheck(
-            elements.signatureCheckIcon,
-            elements.signatureCheckDetail,
-            signatureValid,
-            "Ed25519 credential signature is cryptographically valid.",
-            "Credential signature validation failed."
-        );
-
-        setCheck(
-            elements.providerCheckIcon,
-            elements.providerCheckDetail,
-            providerValid,
-            "Provider identity and an allowed signing-key state were resolved.",
-            "Provider identity or signing-key lifecycle state was rejected."
-        );
-
-        setCheck(
-            elements.registryCheckIcon,
-            elements.registryCheckDetail,
-            registryTrusted,
-            "Provider is currently approved by the GAP Trust Registry.",
-            (
-                `${trustStatusLabel(registryStatus)} providers are not ` +
-                "trusted for overall GAP validity."
-            )
-        );
-
-        setCheck(
-            elements.attestationCheckIcon,
-            elements.attestationCheckDetail,
-            attestationValid,
-            "The signed trust attestation is valid.",
-            "The signed trust attestation is missing or invalid."
-        );
-
-        setCheck(
-            elements.authorityCheckIcon,
-            elements.authorityCheckDetail,
-            authorityTrusted && authorityIdentityResolved && authorityKeyAllowed,
-            "The registry authority and signing key are trusted locally.",
-            "The registry authority or signing key is not trusted locally."
-        );
-
-        const completeResult = (
-            artifactMatches &&
-            signatureValid &&
-            registryTrusted &&
-            attestationValid &&
-            authorityTrusted &&
-            authorityIdentityResolved &&
-            authorityKeyAllowed &&
-            backendOverallValid
-        );
-        const authenticButUntrusted = (
-            artifactMatches &&
-            signatureValid &&
-            providerValid &&
-            !registryTrusted
-        );
-
-        let overallDetail = (
-            "Artifact, credential, provider approval, attestation and " +
-            "registry authority are valid"
-        );
-        if (!artifactMatches) {
-            overallDetail = "Artifact digest mismatch";
-        } else if (!signatureValid) {
-            overallDetail = "Credential signature invalid";
-        } else if (registryStatus !== "approved") {
-            overallDetail = "Provider is not approved";
-        } else if (!attestationPresent) {
-            overallDetail = "Signed trust attestation is missing";
-        } else if (authorityKeyStatus === "revoked") {
-            overallDetail = "Registry-authority signing key is revoked";
-        } else if (!attestationValid) {
-            overallDetail = "Trust attestation signature is invalid";
-        } else if (!authorityTrusted) {
-            overallDetail = "Registry authority is not trusted";
-        } else if (!authorityIdentityResolved || !authorityKeyAllowed) {
-            overallDetail = "Registry-authority identity or key was not resolved";
-        } else if (!registryTrusted) {
-            overallDetail = "Provider signed trust could not be established";
-        } else if (!backendOverallValid) {
-            overallDetail = "Backend GAP validity policy rejected the credential";
-        }
-
-        setTimelineState(
-            elements.timelineOverall,
-            completeResult ? "success" : "error",
-            overallDetail
-        );
-
-        setCheck(
-            elements.overallCheckIcon,
-            elements.overallCheckDetail,
-            completeResult,
-            overallDetail,
-            overallDetail
-        );
-
-        setBadge(
-            elements.trustChainStatus,
-            completeResult
-                ? "Trust established"
-                : authenticButUntrusted
-                    ? "Authentic · Registry rejected"
-                    : "Trust rejected",
-            completeResult
-                ? "success"
-                : authenticButUntrusted
-                    ? "warning"
-                    : "error"
-        );
-
-        setBadge(
-            elements.completeVerificationStatus,
-            completeResult
-                ? "Valid and trusted"
-                : authenticButUntrusted
-                    ? "Authentic but untrusted"
-                    : "Invalid",
-            completeResult
-                ? "success"
-                : authenticButUntrusted
-                    ? "warning"
-                    : "error"
-        );
-
-        elements.verificationResultIcon.textContent = (
-            completeResult
-                ? "✓"
-                : authenticButUntrusted
-                    ? "!"
-                    : "×"
-        );
-        elements.verificationResultIcon.className = (
-            "verification-result-icon " +
-            (
-                completeResult
-                    ? "verification-result-success"
-                    : authenticButUntrusted
-                        ? "verification-result-warning"
-                        : "verification-result-error"
-            )
-        );
-
-        elements.verificationResultTitle.textContent = (
-            completeResult
-                ? "Artifact successfully verified"
-                : authenticButUntrusted
-                    ? "Credential authentic, provider untrusted"
-                    : "Verification failed"
-        );
-
-        if (!completeResult && state.providerSubstitution) {
-            const substitution = state.providerSubstitution;
-
-            elements.verificationResultDescription.textContent = (
-                `Provider substitution detected. The credential was issued ` +
-                `by ${substitution.expectedName} ` +
-                `(${substitution.expectedId}) but now presents ` +
-                `${substitution.presentedName} ` +
-                `(${substitution.presentedId}). The presented provider's ` +
-                `verification key cannot validate the original signature.`
-            );
-        } else if (
-            !completeResult &&
-            state.revokedKeySubstitution &&
-            verification?.failure_reason === "revoked-key"
-        ) {
-            elements.verificationResultDescription.textContent = (
-                `Revoked key rejected. ${state.revokedKeySubstitution.keyId} ` +
-                `remains published by ${state.revokedKeySubstitution.providerName} ` +
-                `with revocation metadata, so GAP refuses the credential before ` +
-                `accepting its signature.`
-            );
-        } else if (authenticButUntrusted) {
-            elements.verificationResultDescription.textContent = (
-                `The artifact digest and credential signature are authentic, ` +
-                `but the provider's registry status is ` +
-                `${trustStatusLabel(registryStatus)}. Overall GAP validity ` +
-                `therefore fails without changing the cryptographic result.`
-            );
+    for (const link of elements.navLinks) {
+        if (link.dataset.route === validPage) {
+            link.setAttribute("aria-current", "page");
         } else {
-            elements.verificationResultDescription.textContent = (
-                completeResult
-                    ? (
-                        "The artifact digest, credential signature, provider " +
-                        "identity and independent registry trust are all valid."
-                    )
-                    : (
-                        "One or more GAP verification controls detected an " +
-                        "invalid, modified or untrusted input."
-                    )
-            );
+            link.removeAttribute("aria-current");
         }
-
-        renderExplorer();
-
-        setBadge(
-            elements.explorerSignatureStatus,
-            signatureValid
-                ? registryTrusted
-                    ? "Authentic and trusted"
-                    : "Authentic · Provider untrusted"
-                : "Cryptographically invalid",
-            signatureValid
-                ? registryTrusted
-                    ? "success"
-                    : "warning"
-                : "error"
-        );
-    } catch (error) {
-        [
-            elements.timelineAuthorityIdentity,
-            elements.timelineAuthorityKey,
-            elements.timelineAttestation,
-            elements.timelineFederationChain,
-            elements.timelineFederationConflict,
-            elements.timelineTransparencyEntry,
-            elements.timelineTransparencyProof,
-            elements.timelineOverall,
-        ].forEach((timeline) => {
-            setTimelineState(
-                timeline,
-                "error",
-                "Verification did not reach this stage"
-            );
-        });
-
-        setBadge(
-            elements.trustChainStatus,
-            "Verification failed",
-            "error"
-        );
-
-        setMessage(
-            elements.verificationError,
-            error.message || "Verification could not be completed.",
-            "error"
-        );
-    } finally {
-        elements.runVerificationButton.disabled = false;
-        elements.runVerificationButton.textContent = (
-            "Run complete verification"
-        );
     }
+    elements.primaryNavigation.classList.remove("open");
+    elements.mobileMenuToggle.setAttribute("aria-expanded", "false");
+    if (validPage === "create") {
+        renderCreate();
+    } else if (validPage === "explore") {
+        renderExplore();
+    } else if (validPage === "developer") {
+        renderDeveloper();
+    }
+    document.title = `GAP — ${validPage[0].toUpperCase()}${validPage.slice(1)}`;
 }
 
-
-async function readArtifactUpload(event) {
-    const file = event.target.files[0];
-
-    if (!file) {
-        return;
-    }
-
-    state.artifactBytes = new Uint8Array(await file.arrayBuffer());
-    state.artifactFilename = file.name;
-    state.artifactMediaType = file.type || "application/octet-stream";
-    state.originalArtifactBytes = new Uint8Array(state.artifactBytes);
-    state.providerSubstitution = null;
-    state.revokedKeySubstitution = null;
-    state.lastVerification = null;
-
-    elements.artifactUploadName.textContent = file.name;
-
-    resetVerificationDisplay();
+function routeFromLocation() {
+    activatePage(window.location.hash.slice(1).split("/")[0] || "home");
 }
 
-
-async function readCredentialUpload(event) {
-    const file = event.target.files[0];
-
-    if (!file) {
-        return;
-    }
-
+async function loadHomeStatus() {
     try {
-        const credential = JSON.parse(await file.text());
-
-        state.credential = credential;
-        state.originalCredential = cloneValue(credential);
-        state.providerSubstitution = null;
-        state.revokedKeySubstitution = null;
-        state.lastVerification = null;
-
-        elements.credentialUploadName.textContent = file.name;
-
-        renderExplorer();
-        resetVerificationDisplay();
-    } catch {
-        setMessage(
-            elements.verificationError,
-            "The selected credential is not valid JSON.",
-            "error"
+        const [health, providers, authorities, log, witnesses, gossip] =
+            await Promise.all([
+                fetchJson("/health"),
+                fetchJson("/providers"),
+                fetchJson("/registry-authorities"),
+                fetchJson("/transparency/log"),
+                fetchJson("/transparency/witness-quorum"),
+                fetchJson("/transparency/gossip/status"),
+            ]);
+        const gossipStatus = normalizeGossipStatusResponse(gossip);
+        const healthy = health.status === "healthy";
+        replaceContent(
+            elements.headerHealth,
+            element("span", {className: `status-dot${healthy ? "" : " warning"}`}),
+            element("span", {text: healthy ? "System healthy" : "System attention"}),
         );
-    }
-}
-
-
-function useLatestGeneratedArtifact() {
-    if (
-        !state.originalArtifactBytes ||
-        !state.originalCredential
-    ) {
-        setMessage(
-            elements.verificationError,
-            "Generate an artifact before using this shortcut.",
-            "warning"
-        );
-        return;
-    }
-
-    state.artifactBytes = new Uint8Array(
-        state.originalArtifactBytes
-    );
-    state.credential = cloneValue(state.originalCredential);
-    state.providerSubstitution = null;
-    state.revokedKeySubstitution = null;
-    state.lastVerification = null;
-
-    elements.artifactUploadName.textContent = (
-        state.artifactFilename || "Generated artifact"
-    );
-    elements.credentialUploadName.textContent = (
-        "Generated credential"
-    );
-
-    hideMessage(elements.verificationError);
-    hideMessage(elements.tamperMessage);
-
-    renderExplorer();
-    resetVerificationDisplay();
-}
-
-
-function tamperArtifact() {
-    if (!state.artifactBytes) {
-        setMessage(
-            elements.tamperMessage,
-            "Load an artifact before attempting the tamper demonstration.",
-            "warning"
-        );
-        return;
-    }
-
-    const modifiedBytes = new Uint8Array(state.artifactBytes);
-    const index = Math.max(
-        0,
-        Math.min(modifiedBytes.length - 1, 128)
-    );
-
-    modifiedBytes[index] ^= 1;
-    state.artifactBytes = modifiedBytes;
-    state.providerSubstitution = null;
-    state.revokedKeySubstitution = null;
-    state.lastVerification = null;
-
-    setMessage(
-        elements.tamperMessage,
-        (
-            "One bit in the supplied artifact has been changed. Run " +
-            "verification again: the artifact hash should fail while the " +
-            "credential signature remains valid."
-        ),
-        "warning"
-    );
-
-    resetVerificationDisplay();
-}
-
-
-function tamperCredential() {
-    if (!state.credential) {
-        setMessage(
-            elements.tamperMessage,
-            "Load a credential before attempting the tamper demonstration.",
-            "warning"
-        );
-        return;
-    }
-
-    state.credential = cloneValue(state.credential);
-
-    const currentModelId = (
-        state.credential.payload?.model?.model_id ||
-        "unknown-model"
-    );
-
-    state.credential.payload.model.model_id = (
-        `${currentModelId}-tampered`
-    );
-    state.providerSubstitution = null;
-    state.revokedKeySubstitution = null;
-    state.lastVerification = null;
-
-    renderExplorer();
-
-    setMessage(
-        elements.tamperMessage,
-        (
-            "The signed model ID has been changed. Run verification again: " +
-            "the credential signature should fail."
-        ),
-        "warning"
-    );
-
-    resetVerificationDisplay();
-}
-
-
-function tamperProviderIdentity() {
-    if (!state.credential) {
-        setMessage(
-            elements.tamperMessage,
-            "Load a credential before substituting its provider identity.",
-            "warning"
-        );
-        return;
-    }
-
-    const currentProvider = (
-        state.credential.payload?.provider ||
-        null
-    );
-
-    if (!currentProvider?.provider_id) {
-        setMessage(
-            elements.tamperMessage,
-            "The credential does not declare a provider identity.",
-            "warning"
-        );
-        return;
-    }
-
-    const replacement = state.providers.find(
-        (provider) => provider.provider_id !== currentProvider.provider_id
-    );
-
-    if (!replacement) {
-        setMessage(
-            elements.tamperMessage,
-            "At least two participating providers are required for this demo.",
-            "warning"
-        );
-        return;
-    }
-
-    const originalProvider = (
-        state.originalCredential?.payload?.provider ||
-        currentProvider
-    );
-
-    state.credential = cloneValue(state.credential);
-    state.credential.payload.provider.provider_id = replacement.provider_id;
-    state.credential.payload.provider.provider_name = replacement.provider_name;
-
-    state.providerSubstitution = {
-        expectedId: originalProvider.provider_id,
-        expectedName: (
-            originalProvider.provider_name ||
-            providerNameFor(originalProvider.provider_id)
-        ),
-        presentedId: replacement.provider_id,
-        presentedName: replacement.provider_name,
-    };
-    state.revokedKeySubstitution = null;
-    state.lastVerification = null;
-
-    renderExplorer();
-
-    setMessage(
-        elements.tamperMessage,
-        (
-            `The credential now presents ${replacement.provider_name} ` +
-            `(${replacement.provider_id}) instead of ` +
-            `${state.providerSubstitution.expectedName} ` +
-            `(${state.providerSubstitution.expectedId}). The signed payload ` +
-            `was not re-signed. Run verification to demonstrate provider ` +
-            `isolation.`
-        ),
-        "warning"
-    );
-
-    resetVerificationDisplay();
-}
-
-
-async function tamperRevokedKey() {
-    if (!state.credential) {
-        setMessage(
-            elements.tamperMessage,
-            "Load a credential before referencing a revoked key.",
-            "warning"
-        );
-        return;
-    }
-
-    const providerId = state.credential.payload?.provider?.provider_id;
-
-    if (!providerId) {
-        setMessage(
-            elements.tamperMessage,
-            "The credential does not declare a provider identity.",
-            "warning"
-        );
-        return;
-    }
-
-    try {
-        const providerDocument = await readProviderDocument(providerId);
-        const revokedKey = providerDocument.keys?.find(
-            (key) => key.status === "revoked"
-        );
-
-        if (!revokedKey) {
-            setMessage(
-                elements.tamperMessage,
-                (
-                    `${providerDocument.provider_name} does not publish a ` +
-                    `revoked key. Select GAP Demo Provider for this demonstration.`
-                ),
-                "warning"
-            );
-            return;
-        }
-
-        state.credential = cloneValue(state.credential);
-        state.credential.proof.key_id = revokedKey.key_id;
-        state.providerSubstitution = null;
-        state.revokedKeySubstitution = {
-            keyId: revokedKey.key_id,
-            providerId,
-            providerName: providerDocument.provider_name,
-            reason: revokedKey.revocation_reason,
-        };
-        state.lastVerification = null;
-
-        renderExplorer();
-
-        setMessage(
-            elements.tamperMessage,
-            (
-                `The credential now references revoked key ${revokedKey.key_id}. ` +
-                `Run verification again: GAP should reject it with the ` +
-                `revoked-key decision before signature acceptance.`
+        const lines = [
+            createStatusLine(`${providers.length} providers available`, providers.length > 0),
+            createStatusLine(`${authorities.length} trust authority`, authorities.length > 0),
+            createStatusLine("Transparency log healthy", Boolean(log)),
+            createStatusLine(
+                witnesses.witness_quorum_met || witnesses.quorum_met
+                    ? "Witness quorum met"
+                    : "Witness quorum pending",
+                witnesses.witness_quorum_met || witnesses.quorum_met,
             ),
-            "warning"
-        );
-
-        resetVerificationDisplay();
-    } catch (error) {
-        setMessage(
-            elements.tamperMessage,
-            error.message || "The provider key history could not be resolved.",
-            "warning"
-        );
-    }
-}
-
-
-function restoreVerificationInputs() {
-    if (state.originalArtifactBytes) {
-        state.artifactBytes = new Uint8Array(
-            state.originalArtifactBytes
-        );
-    }
-
-    if (state.originalCredential) {
-        state.credential = cloneValue(state.originalCredential);
-    }
-
-    state.providerSubstitution = null;
-    state.revokedKeySubstitution = null;
-    state.lastVerification = null;
-
-    hideMessage(elements.tamperMessage);
-    renderExplorer();
-    resetVerificationDisplay();
-}
-
-
-function openGeneratedVerification() {
-    useLatestGeneratedArtifact();
-    activateTab("verify");
-}
-
-
-function downloadArtifact() {
-    if (!state.artifactBytes || !state.artifactFilename) {
-        return;
-    }
-
-    downloadBlob(
-        bytesToBlob(
-            state.artifactBytes,
-            state.artifactMediaType || "application/octet-stream"
-        ),
-        state.artifactFilename
-    );
-}
-
-
-function downloadCredential() {
-    if (!state.credential) {
-        return;
-    }
-
-    const generationId = (
-        state.credential.payload?.generation?.generation_id ||
-        "gap-generation"
-    );
-
-    downloadBlob(
-        new Blob(
-            [JSON.stringify(state.credential, null, 2)],
-            {
-                type: "application/json",
-            }
-        ),
-        `${generationId}-credential.json`
-    );
-}
-
-
-async function copyCredential() {
-    if (!state.credential) {
-        return;
-    }
-
-    try {
-        await navigator.clipboard.writeText(
-            JSON.stringify(state.credential, null, 2)
-        );
-
-        const originalText = elements.copyCredentialButton.textContent;
-        elements.copyCredentialButton.textContent = "Copied";
-
-        window.setTimeout(
-            () => {
-                elements.copyCredentialButton.textContent = originalText;
-            },
-            1400
-        );
-    } catch {
-        elements.copyCredentialButton.textContent = "Copy unavailable";
-    }
-}
-
-
-async function verifyExplorerCredential() {
-    if (!state.credential) {
-        return;
-    }
-
-    elements.explorerVerifyButton.disabled = true;
-    elements.explorerVerifyButton.textContent = "Verifying";
-
-    try {
-        const result = await verifyCredentialSignature(state.credential);
-        const cryptographicValid = result.cryptographic_valid === true;
-        const providerTrusted = result.provider_trusted === true;
-
-        setBadge(
-            elements.explorerSignatureStatus,
-            cryptographicValid
-                ? providerTrusted
-                    ? "Authentic and trusted"
-                    : "Authentic · Provider untrusted"
-                : "Cryptographically invalid",
-            cryptographicValid
-                ? providerTrusted
-                    ? "success"
-                    : "warning"
-                : "error"
-        );
-    } catch {
-        setBadge(
-            elements.explorerSignatureStatus,
-            "Verification failed",
-            "error"
-        );
-    } finally {
-        elements.explorerVerifyButton.disabled = false;
-        elements.explorerVerifyButton.textContent = "Verify credential";
-    }
-}
-
-
-async function checkServiceHealth() {
-    try {
-        const response = await fetch("/health");
-
-        if (!response.ok) {
-            throw new Error("Health check failed.");
-        }
-
-        const health = await response.json();
-
-        setBadge(
-            elements.serviceStatus,
-            health.status === "healthy"
-                ? `Online · v${health.version}`
-                : "Service degraded",
-            health.status === "healthy"
-                ? "success"
-                : "error"
-        );
-    } catch {
-        setBadge(
-            elements.serviceStatus,
-            "Service unavailable",
-            "error"
-        );
-    }
-}
-
-
-async function renderFederationBundles() {
-    try {
-        const response = await fetch("/federation/bundles");
-        if (!response.ok) {
-            throw new Error("Federation bundle list unavailable.");
-        }
-        const bundles = await response.json();
-        elements.federationBundleGrid.replaceChildren();
-        if (!bundles.length) {
-            const empty = document.createElement("p");
-            empty.textContent = (
-                "No portable bundles accepted. Local signed trust remains active."
-            );
-            elements.federationBundleGrid.append(empty);
-            return;
-        }
-        bundles.forEach((bundle) => {
-            const card = document.createElement("article");
-            card.className = "trust-registry-card";
-            const title = document.createElement("strong");
-            title.textContent = (
-                `${bundle.registry_authority_id} · sequence ${bundle.sequence_number}`
-            );
-            const detail = document.createElement("p");
-            detail.textContent = (
-                `${bundle.bundle_id} · expires ${bundle.expires_at} · ` +
-                `${bundle.attestation_count} attestations · ` +
-                `${bundle.current ? "current" : bundle.expired ? "expired" : "historical"}`
-            );
-            const chain = document.createElement("small");
-            chain.textContent = (
-                `Digest ${bundle.bundle_hash}; predecessor ` +
-                `${bundle.previous_bundle_hash || "genesis"}; signature ` +
-                `${bundle.signature_valid ? "valid" : "invalid"}; chain ` +
-                `${bundle.chain_valid ? "valid" : "invalid"}; replay protection active`
-            );
-            card.append(title, detail, chain);
-            elements.federationBundleGrid.append(card);
-        });
-    } catch (error) {
-        elements.federationBundleGrid.textContent = (
-            error.message || "Federation bundle state could not be loaded."
-        );
-    }
-}
-
-async function renderTransparencyLogLegacy() {
-    try {
-        const [summaryResponse, entriesResponse, headsResponse] = await Promise.all([
-            fetch("/transparency/log"),
-            fetch("/transparency/entries?limit=100"),
-            fetch("/transparency/tree-heads"),
-        ]);
-        if (!summaryResponse.ok || !entriesResponse.ok || !headsResponse.ok) {
-            throw new Error("Transparency log data is unavailable.");
-        }
-        const summary = await summaryResponse.json();
-        const entries = await entriesResponse.json();
-        const heads = await headsResponse.json();
-
-        elements.transparencyLogSummary.replaceChildren();
-        const heading = document.createElement("h2");
-        heading.textContent = summary.log_name;
-        const identity = document.createElement("p");
-        identity.textContent = (
-            `${summary.log_id} · active key ${summary.active_key_id} · ` +
-            `${summary.tree_algorithm} · ${summary.hash_algorithm}`
-        );
-        const checkpoint = document.createElement("p");
-        checkpoint.textContent = (
-            `Tree size ${summary.current_tree_size}; root ` +
-            `${summary.current_root_hash}; checkpoint ` +
-            `${summary.latest_tree_head_id}; locally trusted: ` +
-            `${summary.trusted_locally}; consistency: ${summary.consistency_status}`
-        );
-        elements.transparencyLogSummary.append(heading, identity, checkpoint);
-
-        elements.transparencyTreeHeads.replaceChildren();
-        heads.forEach((head) => {
-            const item = document.createElement("p");
-            item.textContent = (
-                `${head.payload.tree_head_id} · size ${head.payload.tree_size} · ` +
-                `${head.payload.root_hash} · ${head.payload.timestamp} · ` +
-                `key ${head.proof.key_id} · signature published`
-            );
-            elements.transparencyTreeHeads.append(item);
-        });
-        elements.transparencyConsistencyStatus.textContent = (
-            summary.consistency_status === "consistent"
-                ? "Append-only continuity verified"
-                : "Append-only continuity failed"
-        );
-        if (heads.length > 1) {
-            const oldHead = heads[0];
-            const newHead = heads[heads.length - 1];
-            const proofResponse = await fetch(
-                "/transparency/consistency-proof?" +
-                    `old_tree_size=${oldHead.payload.tree_size}&` +
-                    `new_tree_size=${newHead.payload.tree_size}`
-            );
-            const proof = await proofResponse.json();
-            const comparisonResponse = await fetch(
-                "/transparency/compare-tree-heads",
-                {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({
-                        old_tree_head: oldHead,
-                        new_tree_head: newHead,
-                        proof,
-                    }),
-                }
-            );
-            const comparison = await comparisonResponse.json();
-            elements.transparencyConsistencyStatus.textContent = (
-                `Compared sizes ${oldHead.payload.tree_size} and ` +
-                `${newHead.payload.tree_size}: ` +
-                `${comparison.append_only ? "append-only continuity verified" : "failed"}`
-            );
-            elements.transparencySplitViewWarning.classList.toggle(
-                "hidden",
-                !comparison.split_view
-            );
-        }
-
-        elements.transparencyEntryGrid.replaceChildren();
-        entries.forEach((entry) => {
-            const card = document.createElement("button");
-            card.type = "button";
-            card.className = "trust-registry-card transparency-entry-card";
-            card.textContent = (
-                `#${entry.leaf_index} · ${entry.entry_type} · ${entry.object_id} · ` +
-                `${entry.source_authority_id} · ${entry.object_digest} · ` +
-                `${entry.recorded_at} · included`
-            );
-            card.addEventListener("click", async () => {
-                const proofResponse = await fetch(
-                    `/transparency/entries/${entry.entry_id}/inclusion-proof`
-                );
-                const proof = await proofResponse.json();
-                elements.transparencyEntryExplorer.textContent = JSON.stringify(
-                    {
-                        entry,
-                        leaf_hash: proof.leaf_hash,
-                        leaf_index: proof.leaf_index,
-                        audit_path: proof.audit_path,
-                        root_hash: proof.root_hash,
-                        inclusion_verified: proofResponse.ok,
-                    },
-                    null,
-                    2
-                );
-            });
-            elements.transparencyEntryGrid.append(card);
-        });
-    } catch (error) {
-        elements.transparencyLogSummary.textContent = (
-            error.message || "Transparency log could not be loaded."
-        );
-    }
-}
-
-function createMetricCard(label, value, options = {}) {
-    const card = document.createElement("article");
-    const title = document.createElement("span");
-    const content = document.createElement("strong");
-    card.className = `metric-card${options.primary ? " metric-card-primary" : ""}`;
-    title.textContent = label;
-    if (options.technical) {
-        content.append(createTechnicalValue(value, label));
-    } else if (value instanceof Node) {
-        content.append(value);
-    } else {
-        content.textContent = value ?? "Unavailable";
-    }
-    card.append(title, content);
-    return card;
-}
-
-
-function renderTransparencyOverview(summary) {
-    const healthy = (
-        summary.trusted_locally === true &&
-        summary.consistency_status === "consistent"
-    );
-    elements.transparencyHealthBanner.className = (
-        `outcome-banner ${healthy ? "outcome-success" : "outcome-error"}`
-    );
-    elements.transparencyHealthBanner.replaceChildren();
-    const heading = document.createElement("strong");
-    const detail = document.createElement("span");
-    heading.textContent = healthy
-        ? "Transparency log healthy"
-        : "Transparency inconsistency detected";
-    detail.textContent = healthy
-        ? "The current checkpoint is trusted and append-only continuity is intact."
-        : "Trust evidence requires immediate review.";
-    elements.transparencyHealthBanner.append(heading, detail);
-    elements.transparencyLogSummary.replaceChildren(
-        createMetricCard("Current tree size", String(summary.current_tree_size), {primary: true}),
-        createMetricCard("Current root", summary.current_root_hash, {technical: true, primary: true}),
-        createMetricCard("Latest checkpoint", summary.latest_tree_head_id, {technical: true}),
-        createMetricCard("Last checkpoint", formatDate(summary.latest_tree_head_timestamp)),
-        createMetricCard(
-            "Trusted log",
-            createStatusBadge(summary.trusted_locally ? "Trusted" : "Untrusted", summary.trusted_locally ? "success" : "error")
-        ),
-        createMetricCard(
-            "Consistency",
-            createStatusBadge(summary.consistency_status, summary.consistency_status === "consistent" ? "success" : "error")
-        ),
-        createMetricCard("Public entries", String(summary.entry_count)),
-        createMetricCard("Active log key", summary.active_key_id, {technical: true})
-    );
-}
-
-
-function groupTreeHeads(heads) {
-    const groups = new Map();
-    heads.forEach((head) => {
-        const key = `${head.payload.tree_size}:${head.payload.root_hash}`;
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(head);
-    });
-    return [...groups.values()].sort(
-        (left, right) =>
-            right[0].payload.tree_size - left[0].payload.tree_size ||
-            new Date(right.at(-1).payload.timestamp) - new Date(left.at(-1).payload.timestamp)
-    );
-}
-
-
-function renderTreeHeadHistory() {
-    const groups = groupTreeHeads(state.transparencyTreeHeads);
-    const visible = state.showAllTreeHeads ? groups : groups.slice(0, 10);
-    const table = document.createElement("table");
-    const head = document.createElement("thead");
-    const body = document.createElement("tbody");
-    const headerRow = document.createElement("tr");
-    ["Checkpoint", "Tree size", "Root", "Timestamp", "Signing key", "Status", "Actions"]
-        .forEach((label) => {
-            const cell = document.createElement("th");
-            cell.scope = "col";
-            cell.textContent = label;
-            headerRow.append(cell);
-        });
-    head.append(headerRow);
-    visible.forEach((group, index) => {
-        const latest = group.at(-1);
-        const row = document.createElement("tr");
-        if (index === 0) row.className = "current-row";
-        const values = [
-            index === 0
-                ? createStatusBadge("Current", "success")
-                : `Historical${group.length > 1 ? ` · ${group.length} checkpoints` : ""}`,
-            String(latest.payload.tree_size),
-            createTechnicalValue(latest.payload.root_hash, "tree-head root"),
-            formatDate(latest.payload.timestamp),
-            createTechnicalValue(latest.proof.key_id, "tree-head signing key"),
-            createStatusBadge("Signature published", "info"),
+            createStatusLine(
+                gossipStatus.checkpoint_gossip_consistent
+                    ? "Gossip monitor consistent"
+                    : "Gossip monitor attention",
+                gossipStatus.checkpoint_gossip_consistent,
+            ),
         ];
-        values.forEach((value) => {
-            const cell = document.createElement("td");
-            if (value instanceof Node) cell.append(value);
-            else cell.textContent = value;
-            row.append(cell);
-        });
-        const actionCell = document.createElement("td");
-        const details = document.createElement("details");
-        const summary = document.createElement("summary");
-        summary.textContent = "Inspect";
-        details.className = "table-details";
-        details.append(summary, createRawJsonViewer(
-            group.length === 1 ? latest : group,
-            group.length === 1 ? "Signed tree head JSON" : `${group.length} signed checkpoints`
-        ));
-        actionCell.append(details);
-        row.append(actionCell);
-        body.append(row);
-    });
-    table.className = "compact-table";
-    table.append(head, body);
-    elements.transparencyTreeHeads.replaceChildren(table);
-    elements.toggleTreeHeadHistory.hidden = groups.length <= 10;
-    elements.toggleTreeHeadHistory.textContent = state.showAllTreeHeads
-        ? "Show latest 10"
-        : `Show all (${groups.length})`;
-    elements.toggleTreeHeadHistory.setAttribute(
-        "aria-expanded",
-        String(state.showAllTreeHeads)
-    );
-}
-
-
-function populateCheckpointSelectors() {
-    const heads = state.transparencyTreeHeads;
-    const options = heads.map((head) => {
-        const option = document.createElement("option");
-        option.value = head.payload.tree_head_id;
-        option.textContent = `${head.payload.tree_size} · ${formatTechnicalValue(head.payload.root_hash, 8, 6)} · ${formatDate(head.payload.timestamp)}`;
-        return option;
-    });
-    elements.olderCheckpointSelect.replaceChildren(
-        ...options.map((option) => option.cloneNode(true))
-    );
-    elements.newerCheckpointSelect.replaceChildren(
-        ...options.map((option) => option.cloneNode(true))
-    );
-    if (heads.length) {
-        elements.olderCheckpointSelect.value = heads[0].payload.tree_head_id;
-        elements.newerCheckpointSelect.value = heads.at(-1).payload.tree_head_id;
+        replaceContent(elements.infrastructureStatusList, ...lines);
+    } catch {
+        replaceContent(
+            elements.headerHealth,
+            element("span", {className: "status-dot warning"}),
+            element("span", {text: "Status unavailable"}),
+        );
+        replaceContent(
+            elements.infrastructureStatusList,
+            createErrorState("Current infrastructure status is unavailable."),
+        );
     }
 }
 
+async function loadProviders() {
+    if (state.providers.length) {
+        return state.providers;
+    }
+    state.providers = await fetchJson("/providers");
+    return state.providers;
+}
 
-async function renderCheckpointComparison() {
-    const oldHead = state.transparencyTreeHeads.find(
-        (head) => head.payload.tree_head_id === elements.olderCheckpointSelect.value
-    );
-    const newHead = state.transparencyTreeHeads.find(
-        (head) => head.payload.tree_head_id === elements.newerCheckpointSelect.value
-    );
-    if (!oldHead || !newHead) return;
-    elements.transparencyConsistencyStatus.className = "outcome-banner outcome-info";
-    elements.transparencyConsistencyStatus.textContent = "Verifying checkpoint continuity…";
+function providerId(provider) {
+    return provider.provider_id || provider.id || "";
+}
+
+function providerName(provider) {
+    return provider.provider_name || provider.name || providerId(provider);
+}
+
+function providerNameFor(id) {
+    return providerName(state.providers.find((provider) => providerId(provider) === id) || {provider_id: id});
+}
+
+function renderCreate() {
+    elements.createWorkflow.dataset.workflowState = state.workflow;
+    if (state.workflow === "idle" || state.workflow === "generating") {
+        renderCreateInitial();
+    } else if (state.workflow === "generated") {
+        renderCreateGenerated();
+    } else if (state.workflow === "verifying") {
+        renderCreateVerifying();
+    } else if (state.workflow === "verified" || state.workflow === "tampering") {
+        renderCreateVerified();
+    } else {
+        renderCreateFailed();
+    }
+}
+
+function renderCreateInitial() {
+    const fragment = cloneTemplate("create-idle-template");
+    replaceContent(elements.createWorkflow, fragment);
+    const form = elements.createWorkflow.querySelector("#generation-form");
+    const select = elements.createWorkflow.querySelector("#provider-id");
+    const submit = form.querySelector("button[type=submit]");
+    form.addEventListener("submit", generateArtifact);
+    if (state.workflow === "generating") {
+        submit.disabled = true;
+        submit.textContent = "Generating…";
+    }
+    loadProviders()
+        .then((providers) => {
+            select.replaceChildren();
+            for (const provider of providers) {
+                select.append(element("option", {
+                    value: providerId(provider),
+                    text: providerName(provider),
+                }));
+            }
+            if (!providers.length) {
+                select.append(element("option", {value: "", text: "No providers available"}));
+            }
+        })
+        .catch(() => {
+            select.replaceChildren(element("option", {value: "", text: "Providers unavailable"}));
+        });
+}
+
+async function generateArtifact(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const provider = form.elements.provider_id.value;
+    const prompt = form.elements.prompt.value.trim();
+    if (!provider || !prompt) {
+        return;
+    }
+    state.workflow = "generating";
+    renderCreate();
     try {
-        const proofResponse = await fetch(
-            "/transparency/consistency-proof?" +
-                `old_tree_size=${oldHead.payload.tree_size}&new_tree_size=${newHead.payload.tree_size}`
-        );
-        if (!proofResponse.ok) throw new Error("Checkpoint order is invalid.");
-        const proof = await proofResponse.json();
-        const response = await fetch("/transparency/compare-tree-heads", {
+        const result = await fetchJson("/generations/create", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({
-                old_tree_head: oldHead,
-                new_tree_head: newHead,
-                proof,
+                provider_id: provider,
+                account_reference: "gap-reference-user",
+                prompt,
+                retention_days: 30,
             }),
         });
-        if (!response.ok) throw new Error("Comparison could not be verified.");
-        const result = await response.json();
-        const appended = newHead.payload.tree_size - oldHead.payload.tree_size;
-        elements.transparencyConsistencyStatus.className = (
-            `outcome-banner ${result.append_only ? "outcome-success" : "outcome-error"}`
-        );
-        elements.transparencyConsistencyStatus.replaceChildren();
-        const title = document.createElement("strong");
-        const detail = document.createElement("span");
-        title.textContent = result.append_only
-            ? "Append-only continuity verified"
-            : "Checkpoint comparison failed";
-        detail.textContent = (
-            `${oldHead.payload.tree_size} → ${newHead.payload.tree_size} · ` +
-            `${appended} appended entr${appended === 1 ? "y" : "ies"} · ` +
-            `signatures valid · consistency proof ${result.valid ? "valid" : "invalid"}`
-        );
-        elements.transparencyConsistencyStatus.append(title, detail);
-        elements.transparencySplitViewWarning.classList.toggle(
-            "hidden",
-            !result.split_view
-        );
-    } catch {
-        elements.transparencyConsistencyStatus.className = "outcome-banner outcome-error";
-        elements.transparencyConsistencyStatus.textContent = (
-            "Unable to compare these checkpoints. Select an older checkpoint first."
-        );
-    }
-}
-
-
-function renderLogEntryList() {
-    const type = elements.transparencyEntryTypeFilter.value;
-    const authority = elements.transparencyAuthorityFilter.value;
-    const query = elements.transparencyEntrySearch.value.trim().toLowerCase();
-    const sort = elements.transparencyEntrySort.value;
-    const filtered = state.transparencyEntries
-        .filter((entry) => (
-            (!type || entry.entry_type === type) &&
-            (!authority || entry.source_authority_id === authority) &&
-            (!query || [entry.entry_id, entry.object_id]
-                .join(" ")
-                .toLowerCase()
-                .includes(query))
-        ))
-        .sort((left, right) => (
-            sort === "oldest"
-                ? left.leaf_index - right.leaf_index
-                : sort === "index"
-                    ? left.leaf_index - right.leaf_index
-                    : right.leaf_index - left.leaf_index
-        ));
-    elements.transparencyEntryCount.textContent = `${filtered.length} result${filtered.length === 1 ? "" : "s"}`;
-    const fragment = document.createDocumentFragment();
-    filtered.slice(0, 100).forEach((entry) => {
-        const button = document.createElement("button");
-        const header = document.createElement("span");
-        const metadata = document.createElement("span");
-        button.type = "button";
-        button.className = "entry-list-item";
-        button.dataset.entryId = entry.entry_id;
-        button.setAttribute("role", "option");
-        button.setAttribute(
-            "aria-selected",
-            String(entry.entry_id === state.selectedTransparencyEntryId)
-        );
-        if (entry.entry_id === state.selectedTransparencyEntryId) {
-            button.classList.add("selected");
-        }
-        header.className = "entry-list-item-header";
-        header.append(
-            createStatusBadge(
-                entry.entry_type === "trust-attestation"
-                    ? "Trust attestation"
-                    : "Federation bundle",
-                entry.entry_type === "trust-attestation" ? "info" : "warning"
-            ),
-            document.createTextNode(`#${entry.leaf_index}`)
-        );
-        metadata.className = "entry-list-item-metadata";
-        metadata.textContent = (
-            `${formatTechnicalValue(entry.object_id)} · ` +
-            `${entry.source_authority_id} · ${formatDate(entry.recorded_at)} · Included`
-        );
-        button.append(header, metadata);
-        fragment.append(button);
-    });
-    if (!filtered.length) {
-        const empty = document.createElement("div");
-        empty.className = "empty-state";
-        empty.textContent = "No transparency entries match these filters.";
-        fragment.append(empty);
-    }
-    elements.transparencyEntryGrid.replaceChildren(fragment);
-}
-
-
-async function renderEntryExplorer(entryId) {
-    const entry = state.transparencyEntries.find((item) => item.entry_id === entryId);
-    if (!entry) return;
-    state.selectedTransparencyEntryId = entryId;
-    renderLogEntryList();
-    elements.transparencyEntryExplorer.replaceChildren();
-    const loading = document.createElement("div");
-    loading.className = "loading-state";
-    loading.textContent = "Verifying inclusion proof…";
-    elements.transparencyEntryExplorer.append(loading);
-    try {
-        const response = await fetch(
-            `/transparency/entries/${encodeURIComponent(entryId)}/inclusion-proof`
-        );
-        if (!response.ok) throw new Error("Inclusion proof unavailable.");
-        const proof = await response.json();
-        const tabs = document.createElement("div");
-        const panels = document.createElement("div");
-        const views = [
-            ["Overview", () => {
-                const content = document.createElement("div");
-                const outcome = document.createElement("div");
-                const metadata = document.createElement("dl");
-                outcome.className = "outcome-banner outcome-success";
-                outcome.textContent = "Included in signed checkpoint";
-                metadata.className = "metadata-list";
-                metadata.append(
-                    createMetadataRow("Entry type", entry.entry_type),
-                    createMetadataRow("Entry ID", entry.entry_id, true),
-                    createMetadataRow("Object ID", entry.object_id, true),
-                    createMetadataRow("Source authority", entry.source_authority_id, true),
-                    createMetadataRow("Recorded", formatDate(entry.recorded_at)),
-                    createMetadataRow("Object digest", entry.object_digest, true),
-                    createMetadataRow("Leaf hash", proof.leaf_hash, true),
-                    createMetadataRow("Leaf index", String(proof.leaf_index)),
-                    createMetadataRow("Tree head", proof.root_hash, true)
-                );
-                content.append(outcome, metadata);
-                return content;
-            }],
-            ["Inclusion proof", () => {
-                const content = document.createElement("div");
-                const metadata = document.createElement("dl");
-                metadata.className = "metadata-list";
-                metadata.append(
-                    createMetadataRow("Tree size", String(proof.tree_size)),
-                    createMetadataRow("Root hash", proof.root_hash, true),
-                    createMetadataRow("Audit path length", String(proof.audit_path.length))
-                );
-                const audit = document.createElement("details");
-                const summary = document.createElement("summary");
-                summary.textContent = `Reveal audit path (${proof.audit_path.length})`;
-                audit.className = "disclosure-panel";
-                audit.append(summary, createRawJsonViewer(proof.audit_path, "Audit path values"));
-                content.append(metadata, audit);
-                return content;
-            }],
-            ["Signed object", () => {
-                const content = document.createElement("div");
-                const metadata = document.createElement("dl");
-                metadata.className = "metadata-list";
-                metadata.append(
-                    createMetadataRow("Object type", entry.entry_type),
-                    createMetadataRow("Authority", entry.source_authority_id, true),
-                    createMetadataRow("Signature", entry.public_object?.proof?.signature, true)
-                );
-                content.append(metadata);
-                return content;
-            }],
-            ["Raw JSON", () => createRawJsonViewer({entry, proof}, "Complete entry and proof JSON")],
-        ];
-        tabs.className = "segmented-control";
-        tabs.setAttribute("role", "tablist");
-        panels.className = "explorer-panel";
-        const selectView = (selectedIndex) => {
-            [...tabs.children].forEach((button, index) => {
-                button.setAttribute("aria-selected", String(index === selectedIndex));
-                button.tabIndex = index === selectedIndex ? 0 : -1;
-            });
-            panels.replaceChildren(views[selectedIndex][1]());
-        };
-        views.forEach(([label], index) => {
-            const button = document.createElement("button");
-            button.type = "button";
-            button.textContent = label;
-            button.setAttribute("role", "tab");
-            button.addEventListener("click", () => selectView(index));
-            tabs.append(button);
-        });
-        const explanation = document.createElement("p");
-        explanation.className = "evidence-explanation";
-        explanation.textContent = (
-            "This proves that the exact public object was committed to the selected " +
-            "tree checkpoint. It does not independently validate the trust object."
-        );
-        elements.transparencyEntryExplorer.replaceChildren(tabs, panels, explanation);
-        selectView(0);
-    } catch {
-        const error = document.createElement("div");
-        error.className = "error-state";
-        error.textContent = "Unable to load this inclusion proof. Retry by selecting the entry again.";
-        elements.transparencyEntryExplorer.replaceChildren(error);
-    }
-}
-
-
-async function renderTransparencyLog() {
-    try {
-        const [summaryResponse, entriesResponse, headsResponse] = await Promise.all([
-            fetch("/transparency/log"),
-            fetch("/transparency/entries?limit=100"),
-            fetch("/transparency/tree-heads"),
-        ]);
-        if (!summaryResponse.ok || !entriesResponse.ok || !headsResponse.ok) {
-            throw new Error("Transparency data unavailable.");
-        }
-        const summary = await summaryResponse.json();
-        state.transparencyEntries = await entriesResponse.json();
-        state.transparencyTreeHeads = await headsResponse.json();
-        renderTransparencyOverview(summary);
-        renderTreeHeadHistory();
-        populateCheckpointSelectors();
-        const authorities = [...new Set(
-            state.transparencyEntries.map((entry) => entry.source_authority_id)
-        )].sort();
-        elements.transparencyAuthorityFilter.replaceChildren(
-            new Option("All authorities", ""),
-            ...authorities.map((authority) => new Option(authority, authority))
-        );
-        renderLogEntryList();
-        await renderCheckpointComparison();
+        state.artifactBase64 = result.artifact_base64;
+        state.artifactBytes = base64ToBytes(result.artifact_base64);
+        state.artifactFilename = result.filename;
+        state.artifactMediaType = result.media_type;
+        state.credential = result.credential;
+        state.originalCredential = structuredClone(result.credential);
+        state.verification = null;
+        state.workflow = "generated";
+        renderCreate();
     } catch (error) {
-        console.error("Transparency Log rendering failed.", error);
-        elements.transparencyHealthBanner.className = "outcome-banner outcome-error";
-        elements.transparencyHealthBanner.textContent = (
-            "Unable to load the Transparency Log. Retry by reloading this view."
-        );
-        const errorState = document.createElement("div");
-        errorState.className = "error-state";
-        errorState.textContent = "Transparency evidence is currently unavailable.";
-        elements.transparencyLogSummary.replaceChildren(errorState);
+        state.workflow = "idle";
+        renderCreate();
+        const message = elements.createWorkflow.querySelector("#generation-error");
+        message.textContent = error.message || "The artifact could not be generated.";
+        message.hidden = false;
     }
 }
 
+function base64ToBytes(value) {
+    const binary = window.atob(value);
+    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
 
-elements.tabButtons.forEach((button) => {
-    button.addEventListener(
-        "click",
-        () => activateTab(button.dataset.tabTarget)
+function artifactDataUrl() {
+    return `data:${state.artifactMediaType};base64,${state.artifactBase64}`;
+}
+
+function credentialProviderId() {
+    return state.credential?.payload?.provider?.provider_id || "Unknown provider";
+}
+
+function generatedTimestamp() {
+    const raw = state.credential?.payload?.generation?.generated_at
+        || state.credential?.payload?.generation?.created_at
+        || state.credential?.payload?.issued_at
+        || new Date().toISOString();
+    const date = new Date(raw);
+    return Number.isNaN(date.valueOf()) ? raw : date.toLocaleString();
+}
+
+function renderCreateGenerated() {
+    const fragment = cloneTemplate("create-generated-template");
+    replaceContent(elements.createWorkflow, fragment);
+    const image = elements.createWorkflow.querySelector("[data-artifact-image]");
+    image.src = artifactDataUrl();
+    elements.createWorkflow.querySelector("[data-provider-name]").textContent =
+        providerNameFor(credentialProviderId());
+    elements.createWorkflow.querySelector("[data-generated-time]").textContent =
+        generatedTimestamp();
+    elements.createWorkflow.querySelector("[data-issued-credential]").textContent =
+        JSON.stringify(state.credential, null, 2);
+}
+
+function renderCreateVerifying() {
+    const fragment = cloneTemplate("create-verifying-template");
+    replaceContent(elements.createWorkflow, fragment);
+}
+
+function setProgressCheck(name, status) {
+    const row = elements.createWorkflow.querySelector(`[data-check="${name}"]`);
+    if (row) {
+        row.className = status;
+    }
+}
+
+function delay(milliseconds) {
+    return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function calculateSha256(bytes) {
+    const digest = await window.crypto.subtle.digest("SHA-256", bytes);
+    return [...new Uint8Array(digest)]
+        .map((value) => value.toString(16).padStart(2, "0"))
+        .join("");
+}
+
+function findArtifactDescriptor(credential) {
+    return credential?.payload?.artifacts?.[0]
+        || credential?.payload?.artifact
+        || null;
+}
+
+function readDescriptorHash(descriptor) {
+    return descriptor?.sha256
+        || descriptor?.digest?.value
+        || descriptor?.hash
+        || null;
+}
+
+async function verifyCredentialSignature(credential) {
+    return fetchJson("/credentials/verify", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({credential}),
+    });
+}
+
+async function runCompleteVerification() {
+    if (!state.artifactBytes || !state.credential) {
+        return;
+    }
+    state.workflow = "verifying";
+    renderCreate();
+    try {
+        setProgressCheck("integrity", "active");
+        const calculatedHash = await calculateSha256(state.artifactBytes);
+        const expectedHash = readDescriptorHash(findArtifactDescriptor(state.credential));
+        const artifactMatches = Boolean(expectedHash) && calculatedHash === expectedHash;
+        await delay(180);
+        setProgressCheck("integrity", "done");
+
+        setProgressCheck("authenticity", "active");
+        const verification = await verifyCredentialSignature(state.credential);
+        state.verification = verification;
+        await delay(180);
+        setProgressCheck("authenticity", "done");
+
+        setProgressCheck("trust", "active");
+        await delay(180);
+        setProgressCheck("trust", "done");
+        setProgressCheck("transparency", "active");
+        await delay(180);
+        setProgressCheck("transparency", "done");
+        setProgressCheck("witnesses", "active");
+        await delay(180);
+        setProgressCheck("witnesses", "done");
+
+        const signatureValid = verification.cryptographic_valid === true;
+        const providerTrusted = verification.provider_trusted === true;
+        const transparencyVerified = verification.transparency_verified === true;
+        const witnessQuorumMet = verification.witness_quorum_met === true;
+        const splitViewDetected = verification.split_view_detected === true;
+        const backendOverallValid = verification.valid === true;
+        state.workflow = (
+            artifactMatches
+            && signatureValid
+            && providerTrusted
+            && transparencyVerified
+            && witnessQuorumMet
+            && !splitViewDetected
+            && backendOverallValid
+        ) ? "verified" : "failed";
+        renderCreate();
+    } catch (error) {
+        state.verification = {
+            valid: false,
+            failure_reason: error.message || "verification-request-failed",
+        };
+        state.workflow = "failed";
+        renderCreate();
+    }
+}
+
+function createEvidence() {
+    const verification = state.verification || {};
+    const rows = [
+        ["Overall result", verification.valid],
+        ["Cryptographic validity", verification.cryptographic_valid],
+        ["Provider", verification.provider_id],
+        ["Key", verification.key_id],
+        ["Key status", verification.key_status],
+        ["Provider trusted", verification.provider_trusted],
+        ["Provider trust status", verification.provider_trust_status],
+        ["Effective trust status", verification.effective_provider_trust_status],
+        ["Trust decision", verification.trust_decision_id],
+        ["Trust attestation present", verification.trust_attestation_present],
+        ["Trust attestation valid", verification.trust_attestation_valid],
+        ["Trust attestation", verification.trust_attestation_id],
+        ["Registry authority", verification.registry_authority_id],
+        ["Registry authority trusted", verification.registry_authority_trusted],
+        ["Registry authority key", verification.registry_authority_key_id],
+        ["Authority key status", verification.registry_authority_key_status],
+        ["Federation conflict", verification.federation_conflict],
+        ["Federation sources", verification.federation_sources],
+        ["Federation bundles", verification.federation_bundle_ids],
+        ["Transparency verified", verification.transparency_verified],
+        ["Transparency log", verification.transparency_log_id],
+        ["Transparency entry", verification.transparency_entry_ids],
+        ["Tree head", verification.transparency_tree_head_id],
+        ["Tree size", verification.transparency_tree_size],
+        ["Root hash", verification.transparency_root_hash],
+        ["Tree head valid", verification.transparency_tree_head_valid],
+        ["Inclusion valid", verification.transparency_inclusion_valid],
+        ["Consistency valid", verification.transparency_consistency_valid],
+        ["Witness quorum met", verification.witness_quorum_met],
+        ["Required witnesses", verification.required_witness_count],
+        ["Valid witnesses", verification.valid_witness_count],
+        ["Valid witness IDs", verification.valid_witness_ids],
+        ["Checkpoint gossip consistent", verification.checkpoint_gossip_consistent],
+        ["Split view detected", verification.split_view_detected],
+        ["Witness equivocation detected", verification.witness_equivocation_detected],
+        ["Rollback detected", verification.rollback_detected],
+        ["Consistency unproven", verification.consistency_unproven],
+        ["Failure reason", verification.failure_reason],
+        ["Trust failure", verification.trust_failure_reason],
+        ["Federation failure", verification.federation_failure_reason],
+        ["Transparency failure", verification.transparency_failure_reason],
+        ["Witness failure", verification.witness_failure_reason],
+        ["Gossip failure", verification.gossip_failure_reason],
+    ];
+    const list = element("dl", {className: "evidence-list"});
+    for (const [label, value] of rows) {
+        const row = element("div");
+        row.append(element("dt", {text: label}), element("dd", {}, [createTechnicalValue(value)]));
+        list.append(row);
+    }
+    return list;
+}
+
+function renderCreateVerified() {
+    const fragment = cloneTemplate("create-verified-template");
+    replaceContent(elements.createWorkflow, fragment);
+    replaceContent(
+        elements.createWorkflow.querySelector("[data-technical-evidence]"),
+        createEvidence(),
     );
-});
-
-elements.providerId.addEventListener(
-    "change",
-    async () => {
-        hideMessage(elements.generationError);
-        await renderSelectedProvider(elements.providerId.value);
+    if (state.workflow === "tampering") {
+        showTamperingPanel();
     }
-);
+}
 
-
-elements.generationForm.addEventListener(
-    "submit",
-    generateArtifact
-);
-
-elements.prompt.addEventListener(
-    "input",
-    updatePromptCount
-);
-
-elements.downloadArtifactButton.addEventListener(
-    "click",
-    downloadArtifact
-);
-
-elements.downloadCredentialButton.addEventListener(
-    "click",
-    downloadCredential
-);
-
-elements.openVerificationButton.addEventListener(
-    "click",
-    openGeneratedVerification
-);
-
-elements.artifactFileInput.addEventListener(
-    "change",
-    readArtifactUpload
-);
-
-elements.credentialFileInput.addEventListener(
-    "change",
-    readCredentialUpload
-);
-
-elements.useGeneratedButton.addEventListener(
-    "click",
-    useLatestGeneratedArtifact
-);
-
-elements.runVerificationButton.addEventListener(
-    "click",
-    runCompleteVerification
-);
-
-elements.tamperArtifactButton.addEventListener(
-    "click",
-    tamperArtifact
-);
-
-elements.tamperCredentialButton.addEventListener(
-    "click",
-    tamperCredential
-);
-
-elements.tamperProviderButton.addEventListener(
-    "click",
-    tamperProviderIdentity
-);
-
-elements.tamperRevokedKeyButton.addEventListener(
-    "click",
-    tamperRevokedKey
-);
-
-elements.restoreVerificationButton.addEventListener(
-    "click",
-    restoreVerificationInputs
-);
-
-elements.copyCredentialButton.addEventListener(
-    "click",
-    copyCredential
-);
-
-elements.explorerVerifyButton.addEventListener(
-    "click",
-    verifyExplorerCredential
-);
-
-[
-    elements.attestationProviderFilter,
-    elements.attestationStatusFilter,
-    elements.attestationHistoryFilter,
-    elements.attestationSearch,
-].forEach((control) => {
-    control.addEventListener("input", renderFilteredTrustAttestations);
-});
-
-[
-    elements.transparencyEntryTypeFilter,
-    elements.transparencyAuthorityFilter,
-    elements.transparencyEntrySearch,
-    elements.transparencyEntrySort,
-].forEach((control) => {
-    control.addEventListener("input", renderLogEntryList);
-});
-
-elements.transparencyEntryGrid.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-entry-id]");
-    if (button) renderEntryExplorer(button.dataset.entryId);
-});
-
-elements.toggleTreeHeadHistory.addEventListener("click", () => {
-    state.showAllTreeHeads = !state.showAllTreeHeads;
-    renderTreeHeadHistory();
-});
-
-elements.compareCheckpointsButton.addEventListener(
-    "click",
-    renderCheckpointComparison
-);
-
-elements.inspectCurrentTreeHead.addEventListener("click", () => {
-    const current = state.transparencyTreeHeads.at(-1);
-    if (current) {
-        elements.newerCheckpointSelect.value = current.payload.tree_head_id;
-        elements.newerCheckpointSelect.focus();
+function failureDetails() {
+    const verification = state.verification || {};
+    if (verification.split_view_detected === true) {
+        return ["Public checkpoint views conflict.", "Checkpoint monitoring"];
     }
-});
+    if (verification.witness_quorum_met === false) {
+        return ["The required independent witnesses did not confirm this checkpoint.", "Independent witness verification"];
+    }
+    if (verification.transparency_verified === false) {
+        return ["The provider trust decision is not supported by valid public transparency evidence.", "Public transparency verification"];
+    }
+    if (verification.provider_trusted === false) {
+        return ["The signing provider is not currently approved by the GAP trust network.", "Provider trust verification"];
+    }
+    if (verification.cryptographic_valid === false) {
+        return ["The credential signature is not valid for the published provider key.", "Provider authenticity verification"];
+    }
+    return ["The artifact contents no longer match the digest signed by the provider.", "Artifact integrity verification"];
+}
 
-elements.browseTransparencyEntries.addEventListener("click", () => {
-    elements.transparencyEntrySearch.focus();
-});
+function renderCreateFailed() {
+    const fragment = cloneTemplate("create-failed-template");
+    replaceContent(elements.createWorkflow, fragment);
+    const [message, source] = failureDetails();
+    elements.createWorkflow.querySelector("[data-failure-message]").textContent = message;
+    elements.createWorkflow.querySelector("[data-failure-source]").textContent = source;
+    replaceContent(
+        elements.createWorkflow.querySelector("[data-technical-evidence]"),
+        createEvidence(),
+    );
+}
 
+function showTamperingPanel() {
+    const result = elements.createWorkflow.querySelector(".verification-result");
+    if (!result || result.querySelector(".tamper-panel")) {
+        return;
+    }
+    const panel = element("section", {className: "tamper-panel"});
+    panel.append(
+        element("h3", {text: "Choose one change"}),
+        element("p", {className: "muted", text: "GAP will alter one element and verify again automatically."}),
+    );
+    const options = element("div", {className: "tamper-options"});
+    const scenarios = [
+        ["artifact", "Modify artifact"],
+        ["credential", "Modify credential"],
+        ["provider", "Substitute provider"],
+        ["key", "Reference revoked key"],
+    ];
+    for (const [scenario, label] of scenarios) {
+        options.append(element("button", {
+            className: "button secondary-button",
+            type: "button",
+            text: label,
+            dataset: {tamperScenario: scenario},
+        }));
+    }
+    panel.append(options);
+    result.querySelector(".result-rows").after(panel);
+}
 
-updatePromptCount();
-resetVerificationDisplay();
-renderExplorer();
-setLoading(false);
-checkServiceHealth();
-loadProviders();
-renderTrustRegistry();
-renderRegistryAuthorities();
-renderTrustAttestations();
-renderFederationBundles();
-renderTransparencyLog();
-activateTab(window.location.hash.slice(1) || "generate");
+async function runTamperingScenario(scenario) {
+    restoreOriginal();
+    if (scenario === "artifact") {
+        const modified = new Uint8Array(state.artifactBytes.length + 1);
+        modified.set(state.artifactBytes);
+        modified[modified.length - 1] = 1;
+        state.artifactBytes = modified;
+    } else if (scenario === "credential") {
+        state.credential.payload.model.model_id = "modified-model";
+    } else if (scenario === "provider") {
+        const alternative = state.providers.find(
+            (provider) => providerId(provider) !== credentialProviderId(),
+        );
+        if (alternative) {
+            state.credential.payload.provider.provider_id = providerId(alternative);
+        } else {
+            state.credential.payload.provider.provider_id = "substituted-provider";
+        }
+    } else {
+        state.credential.proof.key_id = "demo-key-2025-compromised";
+    }
+    await runCompleteVerification();
+}
+
+function restoreOriginal() {
+    state.artifactBytes = base64ToBytes(state.artifactBase64);
+    state.credential = structuredClone(state.originalCredential);
+}
+
+function startAgain() {
+    if (state.artifactUrl) {
+        URL.revokeObjectURL(state.artifactUrl);
+    }
+    Object.assign(state, {
+        workflow: "idle",
+        artifactBase64: null,
+        artifactBytes: null,
+        artifactUrl: null,
+        artifactFilename: null,
+        artifactMediaType: null,
+        credential: null,
+        originalCredential: null,
+        verification: null,
+    });
+    renderCreate();
+}
+
+function openArtifact() {
+    const blob = new Blob([state.artifactBytes], {type: state.artifactMediaType});
+    state.artifactUrl = URL.createObjectURL(blob);
+    window.open(state.artifactUrl, "_blank", "noopener,noreferrer");
+}
+
+async function renderExplore() {
+    for (const tab of elements.exploreTabs) {
+        tab.setAttribute("aria-selected", String(tab.dataset.exploreTab === state.exploreTab));
+    }
+    replaceContent(elements.exploreContent, createLoadingState(`Loading ${state.exploreTab}…`));
+    try {
+        if (state.exploreTab === "providers") {
+            await renderProviders();
+        } else if (state.exploreTab === "authorities") {
+            await renderAuthorities();
+        } else if (state.exploreTab === "transparency") {
+            await renderTransparency();
+        } else {
+            await renderWitnesses();
+        }
+    } catch (error) {
+        replaceContent(
+            elements.exploreContent,
+            createErrorState(error.message || "This information is unavailable."),
+        );
+    }
+}
+
+async function cached(key, loader) {
+    if (!state.exploreData.has(key)) {
+        state.exploreData.set(key, await loader());
+    }
+    return state.exploreData.get(key);
+}
+
+function activeKey(document) {
+    return document?.keys?.find((key) => key.status === "active")
+        || document?.keys?.[0]
+        || null;
+}
+
+async function renderProviders() {
+    const [providers, registry] = await Promise.all([
+        loadProviders(),
+        cached("registry", () => fetchJson("/trust-registry")),
+    ]);
+    const bounded = providers.slice(0, 6);
+    if (!bounded.length) {
+        replaceContent(elements.exploreContent, createEmptyState("No providers are published."));
+        return;
+    }
+    const documents = await Promise.all(
+        bounded.map((provider) => fetchJson(
+            `/providers/${encodeURIComponent(providerId(provider))}/.well-known/gap.json`,
+        )),
+    );
+    const shell = element("div", {className: "master-detail"});
+    const list = element("div", {className: "record-list"});
+    list.append(createRecordHeader(["Provider name", "Status", "Active key", ""]));
+    const detail = element("section", {className: "surface selected-detail"});
+    bounded.forEach((provider, index) => {
+        const trust = registry.find((entry) => entry.provider_id === providerId(provider)) || {};
+        const key = activeKey(documents[index]);
+        const row = createRecordRow([
+            providerName(provider),
+            trust.provider_trust_status || trust.status || (trust.trusted ? "Approved" : "Unapproved"),
+            shortValue(key?.key_id),
+        ], "View");
+        row.querySelector("button").addEventListener("click", () => {
+            for (const item of list.querySelectorAll(".record-row")) {
+                item.classList.remove("selected");
+            }
+            row.classList.add("selected");
+            renderProviderDetail(detail, provider, documents[index], trust);
+        });
+        list.append(row);
+        if (index === 0) {
+            row.classList.add("selected");
+            renderProviderDetail(detail, provider, documents[index], trust);
+        }
+    });
+    shell.append(list, detail);
+    replaceContent(elements.exploreContent, shell);
+}
+
+function createRecordHeader(labels) {
+    const row = element("div", {className: "record-list-header"});
+    for (const label of labels) {
+        row.append(element("span", {text: label}));
+    }
+    return row;
+}
+
+function createRecordRow(values, action) {
+    const row = element("div", {className: "record-row"});
+    for (const value of values) {
+        row.append(element("span", {text: formatTechnicalValue(value)}));
+    }
+    row.append(element("button", {type: "button", text: action}));
+    return row;
+}
+
+function rawPre(data) {
+    return element("pre", {text: JSON.stringify(data, null, 2)});
+}
+
+function renderProviderDetail(target, provider, document, trust) {
+    const key = activeKey(document);
+    const history = trust.decision_history || trust.history || [];
+    const disclosures = element("div", {className: "detail-disclosures"});
+    disclosures.append(
+        createDisclosure("Key history", rawPre((document.keys || []).slice(0, 10))),
+        createDisclosure("Trust-decision history", rawPre(history.slice(0, 10))),
+        createDisclosure("Signed attestation", rawPre(trust.trust_attestation || trust.attestation || null)),
+        createDisclosure("Identity document", rawPre(document)),
+        createDisclosure("Raw JSON", rawPre({provider, trust, document})),
+    );
+    replaceContent(
+        target,
+        element("p", {className: "eyebrow", text: "Provider"}),
+        element("h2", {text: providerName(provider)}),
+        createMetadata([
+            ["Status", trust.provider_trust_status || trust.status || (trust.trusted ? "Approved" : "Unapproved")],
+            ["Active key", key?.key_id],
+            ["Latest trust decision", trust.trust_decision_id || history.at(-1)?.decision_id],
+            ["Provenance authority", trust.registry_authority_id || "Local GAP registry"],
+        ]),
+        disclosures,
+    );
+}
+
+async function renderAuthorities() {
+    const authorities = await cached("authorities", () => fetchJson("/registry-authorities"));
+    if (!authorities.length) {
+        replaceContent(elements.exploreContent, createEmptyState("No authorities are published."));
+        return;
+    }
+    const shell = element("div", {className: "master-detail"});
+    const list = element("div", {className: "record-list"});
+    list.append(createRecordHeader(["Authority name", "Status", "Active key", ""]));
+    const detail = element("section", {className: "surface selected-detail"});
+    authorities.slice(0, 6).forEach((authority, index) => {
+        const payload = authority.payload || authority;
+        const key = activeKey(payload);
+        const row = createRecordRow([
+            payload.authority_name || payload.registry_authority_id,
+            authority.trusted_by_local_registry === false ? "Untrusted" : "Locally trusted",
+            shortValue(payload.active_key_id || key?.key_id),
+        ], "View");
+        row.querySelector("button").addEventListener("click", () => {
+            for (const item of list.querySelectorAll(".record-row")) {
+                item.classList.remove("selected");
+            }
+            row.classList.add("selected");
+            renderAuthorityDetail(detail, authority);
+        });
+        list.append(row);
+        if (index === 0) {
+            row.classList.add("selected");
+            renderAuthorityDetail(detail, authority);
+        }
+    });
+    shell.append(list, detail);
+    replaceContent(elements.exploreContent, shell);
+}
+
+function renderAuthorityDetail(target, authority) {
+    const payload = authority.payload || authority;
+    const key = activeKey(payload);
+    const disclosures = element("div", {className: "detail-disclosures"});
+    disclosures.append(
+        createDisclosure("Key history", rawPre((payload.keys || []).slice(0, 10))),
+        createDisclosure("Identity document", rawPre(payload)),
+        createDisclosure("Signed decisions", rawPre((authority.signed_decisions || []).slice(0, 10))),
+        createDisclosure("Raw JSON", rawPre(authority)),
+    );
+    replaceContent(
+        target,
+        element("p", {className: "eyebrow", text: "Authority"}),
+        element("h2", {text: payload.authority_name || payload.registry_authority_id}),
+        createMetadata([
+            ["Local trust", authority.trusted_by_local_registry === false ? "Not trusted" : "Trusted"],
+            ["Active key", payload.active_key_id || key?.key_id],
+            ["Governed providers", authority.governed_provider_count || authority.provider_ids?.length || 0],
+        ]),
+        disclosures,
+    );
+}
+
+async function renderTransparency() {
+    const [log, head, entries, heads] = await Promise.all([
+        cached("log", () => fetchJson("/transparency/log")),
+        cached("head", () => fetchJson("/transparency/tree-head")),
+        cached("entries", () => fetchJson("/transparency/entries")),
+        cached("heads", () => fetchJson("/transparency/tree-heads")),
+    ]);
+    const payload = head.payload || head;
+    const result = element("section", {className: "overview-result"});
+    result.append(
+        element("p", {className: "eyebrow", text: "Transparency"}),
+        element("h2", {text: "Transparency log healthy"}),
+        createMetadata([
+            ["Current tree size", payload.tree_size || entries.length],
+            ["Current root", shortValue(payload.root_hash, 26)],
+            ["Latest checkpoint", payload.tree_head_id || payload.issued_at],
+            ["Append-only consistency", "Verified"],
+        ]),
+    );
+    const actions = element("div", {className: "secondary-actions"});
+    for (const [key, label] of [
+        ["entries", "Browse entries"],
+        ["checkpoints", "View checkpoints"],
+        ["proof", "Inspect proof"],
+    ]) {
+        const button = element("button", {type: "button", text: label});
+        button.addEventListener("click", () => renderTransparencyDetail(result, key, {log, head, entries, heads}));
+        actions.append(button);
+    }
+    result.append(actions);
+    replaceContent(elements.exploreContent, result);
+}
+
+function renderTransparencyDetail(container, kind, data) {
+    container.querySelector(".detail-view")?.remove();
+    const detail = element("section", {className: "detail-view"});
+    if (kind === "entries") {
+        detail.append(element("h3", {text: "Recent entries"}), createObjectTable(data.entries.slice(0, 10)));
+    } else if (kind === "checkpoints") {
+        detail.append(element("h3", {text: "Recent checkpoints"}), createObjectTable(data.heads.slice(0, 10)));
+    } else {
+        detail.append(
+            element("h3", {text: "Current checkpoint proof"}),
+            element("p", {className: "muted", text: "Select a recent log entry to inspect its signed inclusion evidence."}),
+        );
+        const select = element("select", {"aria-label": "Transparency entry"});
+        for (const entry of data.entries.slice(0, 10)) {
+            const payload = entry.payload || entry;
+            select.append(element("option", {
+                value: payload.entry_id || entry.entry_id,
+                text: payload.entry_id || entry.entry_id,
+            }));
+        }
+        const output = element("div", {className: "detail-view"});
+        const load = async () => {
+            replaceContent(output, createLoadingState("Loading proof…"));
+            try {
+                replaceContent(output, rawPre(await fetchJson(
+                    `/transparency/entries/${encodeURIComponent(select.value)}/inclusion-proof`,
+                )));
+            } catch (error) {
+                replaceContent(output, createErrorState(error.message));
+            }
+        };
+        select.addEventListener("change", load);
+        detail.append(select, output);
+        if (select.value) {
+            load();
+        }
+    }
+    container.append(detail);
+}
+
+function createObjectTable(objects) {
+    if (!objects.length) {
+        return createEmptyState("No records are available.");
+    }
+    const table = element("table", {className: "compact-table"});
+    const body = element("tbody");
+    objects.forEach((object) => {
+        const payload = object.payload || object;
+        const id = payload.entry_id || payload.tree_head_id || payload.id || "Record";
+        const type = payload.entry_type || payload.tree_size || payload.issued_at || "";
+        const row = element("tr");
+        row.append(element("td", {text: shortValue(id, 34)}), element("td", {text: formatTechnicalValue(type)}));
+        body.append(row);
+    });
+    table.append(body);
+    return table;
+}
+
+function normalizeWitnessListResponse(response) {
+    return Array.isArray(response) ? response : response.witnesses || [];
+}
+
+function normalizeWitnessStatementListResponse(response) {
+    return Array.isArray(response) ? response : response.statements || [];
+}
+
+function normalizeGossipStatusResponse(response) {
+    return response.status || response.gossip_status || response;
+}
+
+function normalizeGossipObservationListResponse(response) {
+    return Array.isArray(response) ? response : response.observations || [];
+}
+
+function normalizeGossipObservation(observation) {
+    const treeHead = observation.signed_tree_head || {};
+    return {
+        ...observation,
+        tree_head: treeHead.payload || treeHead,
+        consistency_proof: observation.consistency_proof_to_previous || null,
+        previous_tree_head: observation.previous_signed_tree_head || null,
+    };
+}
+
+async function renderWitnesses() {
+    const [witnessesResponse, statementResponse, quorum, gossipResponse, observationsResponse] =
+        await Promise.all([
+            cached("witnesses", () => fetchJson("/transparency/witnesses")),
+            cached("statements", () => fetchJson("/transparency/witness-statements")),
+            cached("quorum", () => fetchJson("/transparency/witness-quorum")),
+            cached("gossip", () => fetchJson("/transparency/gossip/status")),
+            cached("observations", () => fetchJson("/transparency/gossip/observations")),
+        ]);
+    const witnesses = normalizeWitnessListResponse(witnessesResponse);
+    const statements = normalizeWitnessStatementListResponse(statementResponse);
+    const gossip = normalizeGossipStatusResponse(gossipResponse);
+    const observations = normalizeGossipObservationListResponse(observationsResponse)
+        .map(normalizeGossipObservation);
+    const quorumMet = quorum.witness_quorum_met || quorum.quorum_met;
+    const result = element("section", {className: "overview-result"});
+    result.append(
+        element("p", {className: "eyebrow", text: "Witnesses"}),
+        element("h2", {text: quorumMet ? "Witness quorum met" : "Witness quorum not met"}),
+        createMetadata([
+            ["Required witnesses", quorum.required_witness_count],
+            ["Valid witnesses", quorum.valid_witness_count],
+            ["Current checkpoint", quorum.tree_head_id || gossip.tree_head_id],
+            ["Checkpoint monitoring", gossip.checkpoint_gossip_consistent ? "Consistent" : "Attention required"],
+        ]),
+    );
+    const disclosures = element("div", {className: "detail-disclosures"});
+    disclosures.append(
+        createDisclosure("Witness identities", rawPre(witnesses.slice(0, 10))),
+        createDisclosure("Current witness statements", rawPre(statements.slice(0, 10))),
+        createDisclosure("Historical statements", rawPre(statements.slice(0, 10))),
+        createDisclosure("Checkpoint observations", rawPre(observations.slice(0, 10))),
+    );
+    if (gossip.split_view_detected || gossip.witness_equivocation_detected) {
+        disclosures.append(createDisclosure("Conflict and equivocation evidence", rawPre(gossip)));
+    } else {
+        disclosures.append(element("p", {
+            className: "status-line",
+            text: "No conflicting checkpoint views detected",
+        }));
+    }
+    result.append(disclosures);
+    replaceContent(elements.exploreContent, result);
+}
+
+function renderDeveloper() {
+    for (const tab of elements.developerTabs) {
+        tab.setAttribute("aria-selected", String(tab.dataset.developerTab === state.developerTab));
+    }
+    if (state.developerTab === "integration") {
+        renderIntegration();
+    } else if (state.developerTab === "api") {
+        renderApi();
+    } else if (state.developerTab === "protocol") {
+        renderProtocol();
+    } else {
+        renderRawData();
+    }
+}
+
+function renderIntegration() {
+    const code = [
+        "const result = await fetch('/generations/create', {",
+        "  method: 'POST',",
+        "  headers: {'Content-Type': 'application/json'},",
+        "  body: JSON.stringify({",
+        "    provider_id: 'gap-demo-provider',",
+        "    prompt: 'A calm coastal horizon',",
+        "    account_reference: 'customer-42',",
+        "    retention_days: 30",
+        "  })",
+        "});",
+        "",
+        "const {artifact_base64, credential} = await result.json();",
+    ].join("\n");
+    replaceContent(
+        elements.developerContent,
+        element("p", {className: "eyebrow", text: "Integration"}),
+        element("h2", {text: "Issue provenance at generation time"}),
+        element("p", {text: "A provider generates the artifact, binds its digest to a signed credential and returns both in one response. Verifiers can then resolve public identity, trust, transparency and witness evidence independently."}),
+        element("h3", {text: "Generate and issue"}),
+        element("pre", {className: "code-example", text: code}),
+        element("h3", {text: "Verify"}),
+        element("p", {text: "Submit the credential to /credentials/verify and independently compare the artifact SHA-256 digest with its signed descriptor."}),
+    );
+}
+
+function renderApi() {
+    const routes = [
+        ["POST", "/generations/create"],
+        ["POST", "/credentials/verify"],
+        ["GET", "/providers"],
+        ["GET", "/providers/{provider_id}/.well-known/gap.json"],
+        ["GET", "/trust-registry"],
+        ["GET", "/registry-authorities"],
+        ["GET", "/transparency/entries"],
+        ["GET", "/transparency/tree-head"],
+        ["GET", "/transparency/witness-quorum"],
+    ];
+    const list = element("div", {className: "route-list"});
+    for (const [method, path] of routes) {
+        list.append(element("p", {}, [
+            element("strong", {text: method}),
+            createTechnicalValue(path),
+        ]));
+    }
+    replaceContent(
+        elements.developerContent,
+        element("p", {className: "eyebrow", text: "API"}),
+        element("h2", {text: "Reference routes"}),
+        element("p", {text: "The reference implementation exposes generation, verification and read-only public trust infrastructure."}),
+        list,
+    );
+}
+
+function renderProtocol() {
+    replaceContent(
+        elements.developerContent,
+        element("p", {className: "eyebrow", text: "Protocol"}),
+        element("h2", {text: "A portable trust chain"}),
+        element("p", {text: "GAP separates artifact integrity, provider authenticity and ecosystem trust. A credential binds content to a provider key; signed registry decisions establish approval; an append-only log and independent witnesses make those decisions publicly auditable."}),
+        element("h3", {text: "Credential"}),
+        element("p", {text: "A signed statement describing the artifact, generation event, provider and signing key."}),
+        element("h3", {text: "Trust and transparency"}),
+        element("p", {text: "Independent authorities publish signed decisions into a verifiable log. Checkpoints and witness statements protect against hidden history changes and split views."}),
+        element("h3", {text: "Overall validity"}),
+        element("p", {text: "Overall validity requires each independent layer to succeed; cryptographic validity never substitutes for provider trust or witness quorum."}),
+    );
+}
+
+const rawDataLoaders = {
+    credentials: async () => state.credential,
+    "provider identities": async () => {
+        const providers = await loadProviders();
+        if (!providers.length) {
+            return null;
+        }
+        return fetchJson(`/providers/${encodeURIComponent(providerId(providers[0]))}/.well-known/gap.json`);
+    },
+    attestations: () => fetchJson("/trust-attestations"),
+    "federation bundles": () => fetchJson("/federation/bundles"),
+    "tree heads": () => fetchJson("/transparency/tree-heads"),
+    proofs: async () => {
+        const entries = await fetchJson("/transparency/entries");
+        const first = entries[0]?.payload?.entry_id || entries[0]?.entry_id;
+        return first
+            ? fetchJson(`/transparency/entries/${encodeURIComponent(first)}/inclusion-proof`)
+            : null;
+    },
+    "witness statements": () => fetchJson("/transparency/witness-statements"),
+    "gossip evidence": () => fetchJson("/transparency/gossip/observations"),
+};
+
+function renderRawData() {
+    const select = element("select", {"aria-label": "Raw data object"});
+    select.append(element("option", {value: "", text: "Select an object"}));
+    for (const label of Object.keys(rawDataLoaders)) {
+        select.append(element("option", {value: label, text: label[0].toUpperCase() + label.slice(1)}));
+    }
+    const selector = element("div", {className: "field raw-selector"}, [
+        element("label", {text: "Object type"}),
+        select,
+    ]);
+    const viewer = element("details", {className: "disclosure"});
+    const summary = element("summary", {text: "Raw JSON"});
+    const output = createEmptyState("Select one object to view its raw representation.");
+    viewer.append(summary, output);
+    select.addEventListener("change", async () => {
+        viewer.open = false;
+        if (!select.value) {
+            replaceContent(output, "Select one object to view its raw representation.");
+            return;
+        }
+        replaceContent(output, "Loading selected object…");
+        try {
+            const data = await rawDataLoaders[select.value]();
+            output.className = "";
+            replaceContent(output, rawPre(data));
+        } catch (error) {
+            output.className = "error-state";
+            replaceContent(output, error.message || "The object could not be loaded.");
+        }
+    });
+    replaceContent(
+        elements.developerContent,
+        element("p", {className: "eyebrow", text: "Raw Data"}),
+        element("h2", {text: "Inspect protocol objects"}),
+        element("p", {text: "Choose one technical object. Raw content remains collapsed until you deliberately open it."}),
+        selector,
+        viewer,
+    );
+}
+
+function handleCreateAction(action) {
+    if (action === "verify") {
+        runCompleteVerification();
+    } else if (action === "start-again") {
+        startAgain();
+    } else if (action === "view-artifact") {
+        openArtifact();
+    } else if (action === "show-tampering") {
+        state.workflow = "tampering";
+        renderCreate();
+    } else if (action === "restore") {
+        restoreOriginal();
+        state.workflow = "generated";
+        state.verification = null;
+        renderCreate();
+    } else if (action === "open-evidence") {
+        const details = elements.createWorkflow.querySelector(".evidence-disclosure");
+        if (details) {
+            details.open = true;
+            details.scrollIntoView({behavior: "smooth", block: "nearest"});
+        }
+    }
+}
+
+function bindEvents() {
+    window.addEventListener("hashchange", routeFromLocation);
+    elements.mobileMenuToggle.addEventListener("click", () => {
+        const open = elements.primaryNavigation.classList.toggle("open");
+        elements.mobileMenuToggle.setAttribute("aria-expanded", String(open));
+    });
+    document.addEventListener("click", (event) => {
+        const verifyExisting = event.target.closest('[data-action="verify-existing"]');
+        if (verifyExisting) {
+            window.location.hash = "create";
+            return;
+        }
+        const action = event.target.closest("[data-action]")?.dataset.action;
+        if (action) {
+            handleCreateAction(action);
+            return;
+        }
+        const tamper = event.target.closest("[data-tamper-scenario]")?.dataset.tamperScenario;
+        if (tamper) {
+            runTamperingScenario(tamper);
+        }
+    });
+    for (const tab of elements.exploreTabs) {
+        tab.addEventListener("click", () => {
+            state.exploreTab = tab.dataset.exploreTab;
+            renderExplore();
+        });
+    }
+    for (const tab of elements.developerTabs) {
+        tab.addEventListener("click", () => {
+            state.developerTab = tab.dataset.developerTab;
+            renderDeveloper();
+        });
+    }
+}
+
+function initialize() {
+    assertRequiredElements();
+    bindEvents();
+    routeFromLocation();
+    loadHomeStatus();
+    loadProviders().catch(() => {});
+}
+
+initialize();

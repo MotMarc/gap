@@ -12,7 +12,7 @@ from app.schemas.transparency_log import TransparencyLogIdentityDocument
 
 class InclusionProof(BaseModel):
     model_config = ConfigDict(frozen=True)
-    version: Literal["0.12.0"] = "0.12.0"
+    version: Literal["0.12.0", "0.13.0"] = "0.13.0"
     log_id: str
     tree_size: int = Field(ge=1, le=1_000_000)
     leaf_index: int = Field(ge=0)
@@ -24,7 +24,7 @@ class InclusionProof(BaseModel):
 
 class ConsistencyProof(BaseModel):
     model_config = ConfigDict(frozen=True)
-    version: Literal["0.12.0"] = "0.12.0"
+    version: Literal["0.12.0", "0.13.0"] = "0.13.0"
     log_id: str
     old_tree_size: int = Field(ge=0, le=1_000_000)
     new_tree_size: int = Field(ge=0, le=1_000_000)

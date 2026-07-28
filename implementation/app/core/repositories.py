@@ -16,6 +16,16 @@ from app.services.federation_file_service import load_accepted_bundle_directory
 from pathlib import Path
 from app.core.transparency_log_config import REFERENCE_TRANSPARENCY_LOG
 from app.services.transparency_log_repository import TransparencyLogRepository
+from app.core.transparency_witness_config import (
+    REFERENCE_TRANSPARENCY_WITNESS,
+)
+from app.services.checkpoint_gossip_repository import CheckpointGossipRepository
+from app.services.checkpoint_gossip_service import create_checkpoint_gossip_package
+from app.services.transparency_log_identity_service import (
+    create_transparency_log_identity_document,
+)
+from app.services.transparency_witness_service import issue_witness_statement
+from app.services.witness_statement_repository import WitnessStatementRepository
 
 
 attribution_repository = AttributionRepository()
@@ -96,3 +106,60 @@ if (
     or latest_tree_head.payload.root_hash != transparency_log_repository.current_root()
 ):
     transparency_log_repository.create_current_tree_head()
+
+WITNESS_RUNTIME_DIRECTORY = (
+    Path(__file__).resolve().parents[3] / "runtime" / "witnesses"
+)
+GOSSIP_RUNTIME_DIRECTORY = Path(__file__).resolve().parents[3] / "runtime" / "gossip"
+witness_statement_repository = WitnessStatementRepository(WITNESS_RUNTIME_DIRECTORY)
+checkpoint_gossip_repository = CheckpointGossipRepository(GOSSIP_RUNTIME_DIRECTORY)
+
+
+def record_reference_witness_evidence(tree_head) -> None:
+    statements = witness_statement_repository.list_by_tree_head(
+        tree_head.payload.tree_head_id
+    )
+    if not statements:
+        statement = issue_witness_statement(
+            REFERENCE_TRANSPARENCY_WITNESS,
+            tree_head,
+            create_transparency_log_identity_document(REFERENCE_TRANSPARENCY_LOG),
+            observed_at=tree_head.payload.timestamp + timedelta(minutes=1),
+            statement_id=f"gap-reference-statement-{tree_head.payload.tree_head_id}",
+        )
+        witness_statement_repository.add(statement)
+        statements = [statement]
+    packages = checkpoint_gossip_repository.list_all()
+    if any(
+        item.signed_tree_head.payload.tree_head_id == tree_head.payload.tree_head_id
+        for item in packages
+    ):
+        return
+    previous_package = packages[-1] if packages else None
+    previous_head = (
+        previous_package.signed_tree_head if previous_package is not None else None
+    )
+    proof = None
+    if (
+        previous_head is not None
+        and previous_head.payload.tree_size <= tree_head.payload.tree_size
+    ):
+        proof = transparency_log_repository.consistency_proof(
+            previous_head.payload.tree_size, tree_head.payload.tree_size
+        )
+    checkpoint_gossip_repository.add(
+        create_checkpoint_gossip_package(
+            tree_head,
+            statements,
+            previous_signed_tree_head=previous_head,
+            consistency_proof_to_previous=proof,
+            exported_at=tree_head.payload.timestamp + timedelta(minutes=2),
+            gossip_id=f"gap-reference-gossip-{tree_head.payload.tree_head_id}",
+        )
+    )
+
+
+latest_tree_head = transparency_log_repository.latest_tree_head()
+if latest_tree_head is not None:
+    record_reference_witness_evidence(latest_tree_head)
+transparency_log_repository.on_tree_head_created = record_reference_witness_evidence

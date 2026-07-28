@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class TreeHeadPayload(BaseModel):
     model_config = ConfigDict(frozen=True)
-    version: Literal["0.12.0"] = "0.12.0"
+    version: Literal["0.12.0", "0.13.0"] = "0.13.0"
     tree_head_id: str = Field(min_length=1, max_length=200)
     log_id: str = Field(min_length=1, max_length=200)
     log_name: str = Field(min_length=1, max_length=300)

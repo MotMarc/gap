@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 
-class TransparencyLogPublishedKey(BaseModel):
+class TransparencyWitnessPublishedKey(BaseModel):
     model_config = ConfigDict(frozen=True)
     key_id: str
     algorithm: Literal["Ed25519"] = "Ed25519"
@@ -16,13 +16,12 @@ class TransparencyLogPublishedKey(BaseModel):
     revocation_reason: str | None = None
 
 
-class TransparencyLogIdentityDocument(BaseModel):
+class TransparencyWitnessIdentityDocument(BaseModel):
     model_config = ConfigDict(frozen=True)
-    gap_version: Literal["0.12.0", "0.13.0"] = "0.13.0"
-    log_id: str
-    log_name: str
+    gap_version: Literal["0.13.0"] = "0.13.0"
+    witness_id: str
+    witness_name: str
     active_key_id: str
-    signature_algorithm: Literal["Ed25519"] = "Ed25519"
-    hash_algorithm: Literal["SHA-256"] = "SHA-256"
-    tree_algorithm: Literal["GAP-RFC6962-SHA256-v1"] = "GAP-RFC6962-SHA256-v1"
-    signing_keys: tuple[TransparencyLogPublishedKey, ...]
+    supported_statement_version: Literal["0.13.0"] = "0.13.0"
+    supported_log_hash_algorithm: Literal["SHA-256"] = "SHA-256"
+    signing_keys: tuple[TransparencyWitnessPublishedKey, ...]

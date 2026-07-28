@@ -1,5 +1,26 @@
 # GAP Reference Architecture
 
+## Sprint 13 witness and gossip architecture
+
+`TransparencyWitness` is independent of providers, Registry Authorities and the
+Transparency Log Operator. Its public identity publishes complete Ed25519 key
+history. Active keys sign new statements, retired keys verify history and
+revoked keys reject referenced statements.
+
+Each canonical statement binds one exact checkpoint and optional consistency
+reference. A local trusted-witness repository, not a signature alone,
+establishes whether it counts. Freshness defaults are 24 hours maximum
+observation delay, five minutes future skew and 30 days current age. Quorum
+counts each trusted witness once and supports required counts and identities.
+
+Portable gossip packages contain a signed tree head, bounded witness statements
+and optional prior checkpoint/proof. Atomic append-only files live in
+`runtime/witnesses` and `runtime/gossip`. Same-size different roots are a split
+view; signing both is witness equivocation; a smaller later observation is
+rollback. Missing continuity evidence is `consistency-unproven`, not a proven
+split view. Exchange is manual with no URL fetching, polling, discovery or
+unauthenticated mutation API.
+
 ## Sprint 12 transparency architecture
 
 The Transparency Log Operator is distinct from Providers and Registry

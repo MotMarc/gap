@@ -6,7 +6,13 @@ The objective of GAP is to enable participating AI providers to cryptographicall
 
 ## Current Status
 
-Early research and reference implementation, version 0.12.0.
+Early research and reference implementation, version 0.13.0.
+
+Sprint 13 adds independent Transparency Witness identities and Ed25519
+checkpoint statements, configurable witness quorum, and manually exchanged,
+file-based checkpoint gossip. The monitor retains conflicting observations and
+fails closed on split views, rollback, witness equivocation, invalid
+consistency, stale statements, and insufficient quorum.
 
 Sprint 12 adds a dedicated Transparency Log Operator, typed public log entries,
 signed Merkle-tree checkpoints, verifiable inclusion proofs and append-only
@@ -64,7 +70,11 @@ overall_valid =
     AND registry_authority_trusted
     AND federation_state_valid
     AND transparency_verified
+    AND witness_quorum_met
+    AND checkpoint_gossip_consistent
     AND NOT federation_conflict
+    AND NOT split_view_detected
+    AND NOT witness_equivocation_detected
 ```
 
 The credential-verification API reports every constituent control separately.
@@ -118,6 +128,29 @@ Runtime entries and checkpoints are atomically persisted under ignored
 `runtime/transparency/`. The browser's Transparency Log view exposes public
 entries, signed checkpoints and proofs without filesystem paths or private
 records.
+
+## Sprint 13 witnesses and gossip
+
+A witness statement signs one exact log ID, tree-head ID, tree size, root,
+checkpoint timestamp, observation timestamp and optional consistency
+reference. It confirms checkpoint observation, not the underlying trust
+artifact. Unknown, revoked or stale witnesses do not count; retired keys may
+verify history, and a log operator cannot count as its own witness.
+
+Public read/stateless routes are under `/transparency/witnesses`,
+`/transparency/witness-statements`, `/transparency/witness-quorum`, and
+`/transparency/gossip`. There are no public signing or import routes. Runtime
+evidence is atomically retained under ignored `runtime/witnesses/` and
+`runtime/gossip/`.
+
+```powershell
+.\.venv\Scripts\python.exe scripts\generate_transparency_witness_keys.py
+```
+
+Manual exchange uses `export_checkpoint_gossip.py`,
+`verify_checkpoint_gossip.py`, and `import_checkpoint_gossip.py`. Missing
+consistency evidence is `consistency-unproven`, distinct from a proven split
+view.
 
 ## Local setup
 

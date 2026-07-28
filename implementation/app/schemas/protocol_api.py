@@ -119,6 +119,17 @@ class VerificationResponse(BaseModel):
     transparency_consistency_valid: bool = True
     transparency_failure_reason: str | None = None
     transparency_sources: list[dict] = []
+    witness_quorum_met: bool = False
+    required_witness_count: int = 1
+    valid_witness_count: int = 0
+    valid_witness_ids: list[str] = []
+    witness_failure_reason: str | None = None
+    checkpoint_gossip_consistent: bool = False
+    split_view_detected: bool = False
+    witness_equivocation_detected: bool = False
+    rollback_detected: bool = False
+    consistency_unproven: bool = False
+    gossip_failure_reason: str | None = None
     provider_id: str
     generation_id: str
     credential_id: str

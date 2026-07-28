@@ -9,12 +9,14 @@ from app.core.repositories import (
     FEDERATION_INVALID_FILE_COUNT,
     FEDERATION_LOADED_BUNDLE_COUNT,
     transparency_log_repository,
+    witness_statement_repository,
+    checkpoint_gossip_repository,
 )
 
 
 APPLICATION_DIRECTORY = Path(__file__).resolve().parent
 WEB_DIRECTORY = APPLICATION_DIRECTORY / "web"
-APPLICATION_VERSION = "0.12.0"
+APPLICATION_VERSION = "0.13.0"
 
 
 app = FastAPI(
@@ -78,4 +80,13 @@ def read_health() -> dict[str, str | int | bool]:
             transparency_log_repository.invalid_runtime_object_count
         ),
         "transparency_consistency_valid": True,
+        "trusted_witness_count": 1,
+        "witness_statement_count": len(witness_statement_repository.list_all()),
+        "witness_invalid_runtime_object_count": (
+            witness_statement_repository.invalid_runtime_object_count
+        ),
+        "gossip_observation_count": len(checkpoint_gossip_repository.list_all()),
+        "gossip_invalid_runtime_object_count": (
+            checkpoint_gossip_repository.invalid_runtime_object_count
+        ),
     }

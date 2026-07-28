@@ -9,7 +9,7 @@ from app.schemas.trust_attestation import TrustDecisionAttestation
 
 class _EntryBase(BaseModel):
     model_config = ConfigDict(frozen=True)
-    version: Literal["0.12.0"] = "0.12.0"
+    version: Literal["0.12.0", "0.13.0"] = "0.13.0"
     entry_id: str = Field(min_length=1, max_length=200)
     object_id: str = Field(min_length=1, max_length=200)
     source_authority_id: str = Field(min_length=1, max_length=200)

@@ -1,1482 +1,197 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <meta
-        name="description"
-        content="Generation Attribution Protocol browser demonstrator."
-    >
-
-    <title>GAP Demonstrator</title>
-
-    <link
-        rel="stylesheet"
-        href="/static/styles.css"
-    >
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Generation Attribution Protocol reference system">
+  <title>GAP — Verifiable provenance</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
 </head>
-
 <body>
-    <header class="site-header">
-        <div class="header-content">
-            <button
-                class="brand"
-                type="button"
-                data-tab-target="generate"
-                aria-label="Open the GAP generation interface"
-            >
-                <span class="brand-mark">GAP</span>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="#home" data-route="home" aria-label="GAP home">
+        <span class="brand-mark" aria-hidden="true">G</span>
+        <span>GAP</span>
+        <span class="version">v0.13.0</span>
+      </a>
+      <button id="mobile-menu-toggle" class="mobile-menu-toggle" type="button"
+              aria-controls="primary-navigation" aria-expanded="false">
+        <span class="sr-only">Toggle navigation</span><span></span><span></span>
+      </button>
+      <nav id="primary-navigation" class="primary-navigation" aria-label="Primary">
+        <a href="#home" data-primary-nav data-route="home">Home</a>
+        <a href="#create" data-primary-nav data-route="create">Create</a>
+        <a href="#explore" data-primary-nav data-route="explore">Explore</a>
+        <a href="#developer" data-primary-nav data-route="developer">Developer</a>
+      </nav>
+      <div id="header-health" class="header-health status-line" role="status">
+        <span class="status-dot"></span><span>Checking system</span>
+      </div>
+    </div>
+  </header>
 
-                <span class="brand-copy">
-                    <strong>Generation Attribution Protocol</strong>
-                    <small>Reference Demonstrator v0.12.0</small>
-                </span>
-            </button>
-
-            <nav class="header-navigation" aria-label="Primary navigation">
-                <button
-                    class="navigation-button active"
-                    type="button"
-                    data-tab-target="generate"
-                >
-                    Generate
-                </button>
-
-                <button
-                    class="navigation-button"
-                    type="button"
-                    data-tab-target="verify"
-                >
-                    Verify
-                </button>
-
-                <button
-                    class="navigation-button"
-                    type="button"
-                    data-tab-target="explorer"
-                >
-                    Credential Explorer
-                </button>
-
-                <button
-                    class="navigation-button"
-                    type="button"
-                    data-tab-target="registry"
-                >
-                    Trust Registry
-                </button>
-
-                <button
-                    class="navigation-button"
-                    type="button"
-                    data-tab-target="transparency"
-                >
-                    Transparency Log
-                </button>
-
-                <button
-                    class="navigation-button"
-                    type="button"
-                    data-tab-target="protocol"
-                >
-                    Protocol
-                </button>
-
-                <a href="/docs">API</a>
-            </nav>
-
-            <span
-                id="service-status"
-                class="status-badge status-neutral"
-            >
-                Checking service
-            </span>
+  <main id="main-content">
+    <section id="page-home" class="page home-page" data-page="home">
+      <div class="home-intro">
+        <p class="eyebrow">Generation Attribution Protocol</p>
+        <h1>Verifiable provenance for AI-generated media</h1>
+        <p class="lede">GAP allows AI providers to sign generated content and lets independent verifiers confirm its origin, integrity and public trust evidence.</p>
+        <div class="actions">
+          <a class="button primary-button" href="#create" data-route="create">Create and verify an artifact</a>
+          <button class="text-action" type="button" data-action="verify-existing">Verify an existing credential</button>
         </div>
-    </header>
-
-    <main class="page-shell">
-        <section
-            id="tab-generate"
-            class="tab-page"
-            data-tab-page="generate"
-        >
-            <section class="hero">
-                <div class="hero-copy">
-                    <span class="eyebrow">
-                        Privacy-preserving generated-media attribution
-                    </span>
-
-                    <h1>
-                        Generate, credential and verify an attributable artifact.
-                    </h1>
-
-                    <p>
-                        GAP binds a generated artifact to a signed public
-                        credential while retaining private attribution
-                        information separately under controlled disclosure.
-                    </p>
-                </div>
-
-                <div class="protocol-flow">
-                    <div class="flow-stage">
-                        <span>1</span>
-                        <strong>Generate</strong>
-                        <small>Create the artifact</small>
-                    </div>
-
-                    <div class="flow-connector">↓</div>
-
-                    <div class="flow-stage">
-                        <span>2</span>
-                        <strong>Credential</strong>
-                        <small>Sign its provenance</small>
-                    </div>
-
-                    <div class="flow-connector">↓</div>
-
-                    <div class="flow-stage">
-                        <span>3</span>
-                        <strong>Verify</strong>
-                        <small>Check authenticity and trust</small>
-                    </div>
-                </div>
-            </section>
-
-            <section class="workspace">
-                <article class="panel generation-panel">
-                    <div class="panel-heading">
-                        <div>
-                            <span class="section-number">01</span>
-                            <h2>Generate an artifact</h2>
-                        </div>
-
-                        <span
-                            id="generation-status"
-                            class="status-badge status-neutral"
-                        >
-                            Waiting
-                        </span>
-                    </div>
-
-                    <form id="generation-form">
-                        <div class="field">
-                            <label for="provider-id">
-                                Participating provider
-                            </label>
-
-                            <select
-                                id="provider-id"
-                                name="provider_id"
-                                required
-                                disabled
-                            >
-                                <option value="" selected>
-                                    Discovering providers…
-                                </option>
-                            </select>
-
-                            <small>
-                                Loaded dynamically from approved GAP registry participants.
-                            </small>
-                        </div>
-
-                        <section
-                            id="provider-identity-card"
-                            class="provider-identity-card hidden"
-                            aria-live="polite"
-                        >
-                            <div class="provider-identity-heading">
-                                <div>
-                                    <span class="provider-card-label">
-                                        Resolved identity
-                                    </span>
-                                    <h3 id="selected-provider-name">—</h3>
-                                </div>
-
-                                <span
-                                    id="selected-provider-status"
-                                    class="status-badge status-neutral"
-                                >
-                                    Resolving
-                                </span>
-                            </div>
-
-                            <div class="provider-identity-grid">
-                                <div>
-                                    <span>Provider ID</span>
-                                    <code id="selected-provider-id">—</code>
-                                </div>
-
-                                <div>
-                                    <span>GAP version</span>
-                                    <code id="selected-provider-gap-version">—</code>
-                                </div>
-
-                                <div>
-                                    <span>Signing key</span>
-                                    <code id="selected-provider-key-id">—</code>
-                                </div>
-
-                                <div>
-                                    <span>Algorithm</span>
-                                    <code id="selected-provider-algorithm">—</code>
-                                </div>
-
-                                <div>
-                                    <span>Key status</span>
-                                    <code id="selected-provider-key-status">—</code>
-                                </div>
-
-                                <div>
-                                    <span>Public-key fingerprint</span>
-                                    <code id="selected-provider-fingerprint">—</code>
-                                </div>
-
-                                <div>
-                                    <span>Registry trust</span>
-                                    <code id="selected-provider-trust-status">—</code>
-                                </div>
-
-                                <div>
-                                    <span>Latest trust decision</span>
-                                    <code id="selected-provider-trust-decision">—</code>
-                                </div>
-                            </div>
-
-                            <p class="provider-trust-source">
-                                Trust is resolved independently from the provider's
-                                identity document through the GAP Trust Registry.
-                            </p>
-
-                            <div class="provider-key-lifecycle-heading">
-                                <div>
-                                    <span>Published key history</span>
-                                    <strong id="selected-provider-key-count">—</strong>
-                                </div>
-
-                                <small>
-                                    Active keys issue credentials; retired keys
-                                    preserve historical verification; revoked keys
-                                    are explicitly rejected.
-                                </small>
-                            </div>
-
-                            <div
-                                id="selected-provider-key-history"
-                                class="provider-key-history"
-                                aria-live="polite"
-                            ></div>
-
-                            <a
-                                id="selected-provider-identity-link"
-                                class="provider-identity-link"
-                                href="#"
-                                target="_blank"
-                                rel="noreferrer"
-                            >
-                                Open public identity document
-                            </a>
-                        </section>
-
-                        <div class="field">
-                            <label for="account-reference">
-                                Private account reference
-                            </label>
-
-                            <input
-                                id="account-reference"
-                                name="account_reference"
-                                type="text"
-                                value="demo-user-001"
-                                maxlength="200"
-                                autocomplete="off"
-                                required
-                            >
-
-                            <small>
-                                Stored privately and excluded from the public
-                                Generation Credential.
-                            </small>
-                        </div>
-
-                        <div class="field">
-                            <label for="prompt">Generation prompt</label>
-
-                            <textarea
-                                id="prompt"
-                                name="prompt"
-                                rows="7"
-                                maxlength="10000"
-                                required
-                            >A cyberpunk city at sunset beside the ocean.</textarea>
-
-                            <div class="field-footer">
-                                <small>
-                                    CPU-only semantic procedural generation.
-                                </small>
-
-                                <small id="prompt-count">0 / 10,000</small>
-                            </div>
-                        </div>
-
-                        <div class="field">
-                            <label for="retention-days">
-                                Private record retention
-                            </label>
-
-                            <div class="input-with-suffix">
-                                <input
-                                    id="retention-days"
-                                    name="retention_days"
-                                    type="number"
-                                    value="365"
-                                    min="1"
-                                    max="3650"
-                                    required
-                                >
-
-                                <span>days</span>
-                            </div>
-                        </div>
-
-                        <button
-                            id="generate-button"
-                            class="primary-button"
-                            type="submit"
-                            disabled
-                        >
-                            <span class="button-label">
-                                Generate and issue credential
-                            </span>
-
-                            <span
-                                class="button-spinner"
-                                aria-hidden="true"
-                            ></span>
-                        </button>
-                    </form>
-
-                    <div
-                        id="generation-error"
-                        class="message message-error hidden"
-                        role="alert"
-                    ></div>
-                </article>
-
-                <article class="panel result-panel">
-                    <div class="panel-heading">
-                        <div>
-                            <span class="section-number">02</span>
-                            <h2>Generated result</h2>
-                        </div>
-                    </div>
-
-                    <div id="empty-state" class="empty-state">
-                        <div class="empty-state-icon">◇</div>
-
-                        <h3>No artifact generated yet</h3>
-
-                        <p>
-                            Generate an artifact to receive its signed GAP
-                            Generation Credential.
-                        </p>
-                    </div>
-
-                    <div id="result-content" class="hidden">
-                        <div class="artifact-preview">
-                            <img
-                                id="artifact-image"
-                                alt="Generated GAP artifact"
-                            >
-                        </div>
-
-                        <div class="artifact-metadata">
-                            <div class="metadata-item">
-                                <span>Filename</span>
-                                <strong id="artifact-filename">—</strong>
-                            </div>
-
-                            <div class="metadata-item">
-                                <span>Media type</span>
-                                <strong id="artifact-media-type">—</strong>
-                            </div>
-
-                            <div class="metadata-item">
-                                <span>Provider</span>
-                                <strong id="artifact-provider">—</strong>
-                            </div>
-
-                            <div class="metadata-item">
-                                <span>Model</span>
-                                <strong id="artifact-model">—</strong>
-                            </div>
-                        </div>
-
-                        <div class="action-row">
-                            <button
-                                id="download-artifact-button"
-                                class="secondary-button"
-                                type="button"
-                            >
-                                Download artifact
-                            </button>
-
-                            <button
-                                id="download-credential-button"
-                                class="secondary-button"
-                                type="button"
-                            >
-                                Download credential
-                            </button>
-
-                            <button
-                                id="open-verification-button"
-                                class="primary-button compact-button"
-                                type="button"
-                            >
-                                Verify this artifact
-                            </button>
-                        </div>
-                    </div>
-                </article>
-            </section>
-        </section>
-
-        <section
-            id="tab-verify"
-            class="tab-page hidden"
-            data-tab-page="verify"
-        >
-            <section class="page-introduction">
-                <span class="eyebrow">Independent verification</span>
-
-                <h1>Verify an artifact against its credential.</h1>
-
-                <p>
-                    GAP checks the artifact digest, credential signature,
-                    provider identity and independent registry trust separately.
-                </p>
-            </section>
-
-            <section class="verification-workspace">
-                <article class="panel verification-input-panel">
-                    <div class="panel-heading">
-                        <div>
-                            <span class="section-number">01</span>
-                            <h2>Verification inputs</h2>
-                        </div>
-                    </div>
-
-                    <div class="upload-grid">
-                        <label class="upload-zone" for="artifact-file-input">
-                            <span class="upload-icon">◇</span>
-                            <strong>Artifact file</strong>
-                            <small id="artifact-upload-name">
-                                Select a generated artifact
-                            </small>
-
-                            <input
-                                id="artifact-file-input"
-                                type="file"
-                                accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                            >
-                        </label>
-
-                        <label class="upload-zone" for="credential-file-input">
-                            <span class="upload-icon">{ }</span>
-                            <strong>Credential JSON</strong>
-                            <small id="credential-upload-name">
-                                Select a GAP credential
-                            </small>
-
-                            <input
-                                id="credential-file-input"
-                                type="file"
-                                accept=".json,application/json"
-                            >
-                        </label>
-                    </div>
-
-                    <button
-                        id="use-generated-button"
-                        class="secondary-button full-width-button"
-                        type="button"
-                    >
-                        Use the latest generated artifact
-                    </button>
-
-                    <button
-                        id="run-verification-button"
-                        class="primary-button full-width-button"
-                        type="button"
-                    >
-                        Run complete verification
-                    </button>
-
-                    <div
-                        id="verification-error"
-                        class="message message-error hidden"
-                        role="alert"
-                    ></div>
-                </article>
-
-                <article class="panel verification-results-panel">
-                    <div class="panel-heading">
-                        <div>
-                            <span class="section-number">02</span>
-                            <h2>Verification result</h2>
-                        </div>
-
-                        <span
-                            id="complete-verification-status"
-                            class="status-badge status-neutral"
-                        >
-                            Not verified
-                        </span>
-                    </div>
-
-                    <div class="verification-summary-card">
-                        <div
-                            id="verification-result-icon"
-                            class="verification-result-icon"
-                        >
-                            ?
-                        </div>
-
-                        <div>
-                            <h3 id="verification-result-title">
-                                Awaiting verification
-                            </h3>
-
-                            <p id="verification-result-description">
-                                Supply an artifact and credential to begin.
-                            </p>
-                        </div>
-                    </div>
-
-                    <section
-                        class="provider-trust-chain"
-                        aria-labelledby="provider-trust-chain-title"
-                    >
-                        <div class="provider-trust-chain-heading">
-                            <div>
-                                <span class="provider-card-label">
-                                    Cryptography plus governance
-                                </span>
-                                <h3 id="provider-trust-chain-title">
-                                    Identity and registry trust chain
-                                </h3>
-                            </div>
-
-                            <span
-                                id="trust-chain-status"
-                                class="status-badge status-neutral"
-                            >
-                                Awaiting verification
-                            </span>
-                        </div>
-
-                        <ol>
-                            <li class="timeline-phase" aria-hidden="true">Artifact integrity</li>
-                            <li id="trust-credential-node">
-                                <span>1</span>
-                                <div>
-                                    <strong>Credential issuer</strong>
-                                    <small id="trust-credential-provider">
-                                        Awaiting credential
-                                    </small>
-                                </div>
-                            </li>
-
-                            <li id="trust-identity-node">
-                                <span>2</span>
-                                <div>
-                                    <strong>Identity document</strong>
-                                    <small id="trust-identity-document">
-                                        Not resolved
-                                    </small>
-                                </div>
-                            </li>
-
-                            <li id="trust-key-node">
-                                <span>3</span>
-                                <div>
-                                    <strong>Provider verification key and lifecycle</strong>
-                                    <small id="trust-key-id">
-                                        Not resolved
-                                    </small>
-                                </div>
-                            </li>
-
-                            <li id="trust-signature-node">
-                                <span>4</span>
-                                <div>
-                                    <strong>Ed25519 verification</strong>
-                                    <small id="trust-signature-result">
-                                        Not checked
-                                    </small>
-                                </div>
-                            </li>
-
-                            <li id="trust-registry-node">
-                                <span>5</span>
-                                <div>
-                                    <strong>Independent registry trust</strong>
-                                    <small id="trust-registry-result">
-                                        Not resolved
-                                    </small>
-                                </div>
-                            </li>
-                        </ol>
-                    </section>
-
-                    <div class="verification-checks">
-                        <article class="verification-check">
-                            <span
-                                id="signature-check-icon"
-                                class="check-icon"
-                            >○</span>
-
-                            <div>
-                                <strong>Credential signature</strong>
-                                <small id="signature-check-detail">
-                                    Not checked
-                                </small>
-                            </div>
-                        </article>
-
-                        <article class="verification-check">
-                            <span
-                                id="artifact-check-icon"
-                                class="check-icon"
-                            >○</span>
-
-                            <div>
-                                <strong>Artifact SHA-256</strong>
-                                <small id="artifact-check-detail">
-                                    Not checked
-                                </small>
-                            </div>
-                        </article>
-
-                        <article class="verification-check">
-                            <span
-                                id="provider-check-icon"
-                                class="check-icon"
-                            >○</span>
-
-                            <div>
-                                <strong>Provider identity</strong>
-                                <small id="provider-check-detail">
-                                    Not checked
-                                </small>
-                            </div>
-                        </article>
-
-                        <article class="verification-check">
-                            <span
-                                id="registry-check-icon"
-                                class="check-icon"
-                            >○</span>
-
-                            <div>
-                                <strong>GAP Trust Registry</strong>
-                                <small id="registry-check-detail">
-                                    Not checked
-                                </small>
-                            </div>
-                        </article>
-                        <article class="verification-check">
-                            <span id="attestation-check-icon" class="check-icon">○</span>
-                            <div>
-                                <strong>Trust-attestation validity</strong>
-                                <small id="attestation-check-detail">Signed decision not checked</small>
-                            </div>
-                        </article>
-                        <article class="verification-check">
-                            <span id="authority-check-icon" class="check-icon">○</span>
-                            <div>
-                                <strong>Registry-authority trust</strong>
-                                <small id="authority-check-detail">Local federation trust not checked</small>
-                            </div>
-                        </article>
-                        <article class="verification-check">
-                            <span id="overall-check-icon" class="check-icon">○</span>
-                            <div>
-                                <strong>Overall GAP validity</strong>
-                                <small id="overall-check-detail">Awaiting all independent checks</small>
-                            </div>
-                        </article>
-                    </div>
-
-                    <div class="verification-timeline">
-                        <h3>Verification timeline</h3>
-
-                        <ol>
-                            <li id="timeline-artifact">
-                                <span>1</span>
-                                <div>
-                                    <strong>Read artifact</strong>
-                                    <small>Awaiting input</small>
-                                </div>
-                            </li>
-
-                            <li id="timeline-hash">
-                                <span>2</span>
-                                <div>
-                                    <strong>Calculate SHA-256</strong>
-                                    <small>Awaiting input</small>
-                                </div>
-                            </li>
-
-                            <li id="timeline-compare">
-                                <span>3</span>
-                                <div>
-                                    <strong>Compare artifact descriptor</strong>
-                                    <small>Awaiting input</small>
-                                </div>
-                            </li>
-
-                            <li class="timeline-phase" aria-hidden="true">Provider authentication</li>
-                            <li id="timeline-signature">
-                                <span>4</span>
-                                <div>
-                                    <strong>Verify Ed25519 signature</strong>
-                                    <small>Awaiting input</small>
-                                </div>
-                            </li>
-
-                            <li id="timeline-provider">
-                                <span>5</span>
-                                <div>
-                                    <strong>Resolve provider identity and signing key</strong>
-                                    <small>Awaiting input</small>
-                                </div>
-                            </li>
-
-                            <li class="timeline-phase" aria-hidden="true">Trust and federation</li>
-                            <li id="timeline-registry">
-                                <span>6</span>
-                                <div>
-                                    <strong>Resolve signed trust attestation</strong>
-                                    <small>Awaiting input</small>
-                                </div>
-                            </li>
-                            <li id="timeline-authority-identity">
-                                <span>7</span><div><strong>Resolve registry-authority identity</strong><small>Awaiting input</small></div>
-                            </li>
-                            <li id="timeline-authority-key">
-                                <span>8</span><div><strong>Resolve authority signing-key lifecycle</strong><small>Awaiting input</small></div>
-                            </li>
-                            <li id="timeline-attestation">
-                                <span>9</span><div><strong>Verify attestation signature</strong><small>Awaiting input</small></div>
-                            </li>
-                            <li id="timeline-federation-chain">
-                                <span>10</span><div><strong>Resolve federation bundle freshness and chain</strong><small>Awaiting input</small></div>
-                            </li>
-                            <li id="timeline-federation-conflict">
-                                <span>11</span><div><strong>Detect cross-authority trust conflicts</strong><small>Awaiting input</small></div>
-                            </li>
-                            <li class="timeline-phase" aria-hidden="true">Transparency</li>
-                            <li id="timeline-transparency-entry">
-                                <span>12</span><div><strong>Resolve transparency-log entry</strong><small>Awaiting input</small></div>
-                            </li>
-                            <li id="timeline-transparency-proof">
-                                <span>13</span><div><strong>Verify signed tree head and Merkle inclusion</strong><small>Awaiting input</small></div>
-                            </li>
-                            <li class="timeline-phase" aria-hidden="true">Final policy</li>
-                            <li id="timeline-overall">
-                                <span>14</span><div><strong>Calculate overall GAP validity</strong><small>Awaiting input</small></div>
-                            </li>
-                        </ol>
-                    </div>
-                </article>
-            </section>
-
-            <section class="panel tamper-panel">
-                <div class="panel-heading">
-                    <div>
-                        <span class="section-number">03</span>
-                        <h2>Tamper demonstration</h2>
-                    </div>
-                </div>
-
-                <p class="panel-description">
-                    Intentionally alter one component and run verification again
-                    to see which security control detects the change.
-                </p>
-
-                <div class="tamper-actions">
-                    <button
-                        id="tamper-artifact-button"
-                        class="danger-button"
-                        type="button"
-                    >
-                        Modify artifact bytes
-                    </button>
-
-                    <button
-                        id="tamper-credential-button"
-                        class="danger-button"
-                        type="button"
-                    >
-                        Modify credential model ID
-                    </button>
-
-                    <button
-                        id="tamper-provider-button"
-                        class="danger-button"
-                        type="button"
-                    >
-                        Substitute provider identity
-                    </button>
-
-                    <button
-                        id="tamper-revoked-key-button"
-                        class="danger-button"
-                        type="button"
-                    >
-                        Reference revoked key
-                    </button>
-
-                    <button
-                        id="restore-verification-button"
-                        class="secondary-button"
-                        type="button"
-                    >
-                        Restore original inputs
-                    </button>
-                </div>
-
-                <div
-                    id="tamper-message"
-                    class="message message-warning hidden"
-                ></div>
-
-                <div class="registry-authority-panel">
-                    <div class="section-header">
-                        <div>
-                        <span class="eyebrow">Configuration-based federation</span>
-                        <h2>Registry Authority</h2>
-                        <p>
-                            Local trusted-authority configuration determines which
-                            signed registry decisions can establish provider trust.
-                            Each Registry authority identity document publishes its
-                            complete verification-key lifecycle.
-                        </p>
-                        </div>
-                    </div>
-                    <div id="registry-authority-grid" class="registry-authority-grid loading-state" aria-live="polite">
-                        Loading registry authority identity…
-                    </div>
-                </div>
-
-                <div class="trust-attestation-panel">
-                    <div class="section-header">
-                        <div>
-                            <span class="eyebrow">Current decisions first</span>
-                            <h2>Signed trust attestations</h2>
-                            <p>Filter current decisions quickly; historical signed evidence remains available on demand. Attestation signature validity remains independently inspectable.</p>
-                        </div>
-                        <span id="attestation-result-count" class="status-badge status-neutral">Loading</span>
-                    </div>
-                    <form id="attestation-toolbar" class="data-toolbar" role="search">
-                        <label><span>Provider</span><select id="attestation-provider-filter"><option value="">All providers</option></select></label>
-                        <label><span>Status</span><select id="attestation-status-filter"><option value="">All statuses</option><option value="approved">Approved</option><option value="applicant">Applicant</option><option value="suspended">Suspended</option><option value="removed">Removed</option></select></label>
-                        <label><span>Evidence</span><select id="attestation-history-filter"><option value="current">Current only</option><option value="all">Current and history</option><option value="historical">History only</option></select></label>
-                        <label class="toolbar-search"><span>Search identifiers</span><input id="attestation-search" type="search" placeholder="Provider, decision or attestation ID"></label>
-                    </form>
-                    <div id="trust-attestation-grid" class="trust-attestation-grid loading-state" aria-live="polite">
-                        Loading attestation signatures…
-                    </div>
-                </div>
-                <div class="panel registry-authority-panel">
-                    <div class="section-heading">
-                        <span class="eyebrow">Portable federation</span>
-                        <h2>Federation bundles</h2>
-                        <p>
-                            Accepted, signed authority chains with freshness,
-                            replay protection and conflict-safe provider trust.
-                        </p>
-                    </div>
-                    <div id="federation-bundle-grid" class="trust-registry-grid">
-                        Loading accepted federation bundles…
-                    </div>
-                </div>
-            </section>
-        </section>
-
-        <section
-            id="tab-transparency"
-            class="tab-page hidden"
-            data-tab-page="transparency"
-        >
-            <section class="page-introduction">
-                <span class="eyebrow">Append-only public trust history</span>
-                <h1>Transparency Log</h1>
-                <p>
-                    Signed trust attestations and accepted federation bundles are
-                    committed to an RFC-6962-shaped Merkle tree.
-                </p>
-            </section>
-            <section class="panel transparency-log-panel">
-                <div id="transparency-health-banner" class="outcome-banner outcome-info">
-                    <strong>Loading Transparency Log…</strong>
-                    <span>Checking the current signed checkpoint and consistency state.</span>
-                </div>
-                <div id="transparency-log-summary" class="metric-grid loading-state">Loading transparency log…</div>
-                <div class="section-actions">
-                    <a id="transparency-identity-link" class="secondary-button" href="/transparency/log/.well-known/gap-transparency.json">View log identity</a>
-                    <button id="inspect-current-tree-head" class="secondary-button" type="button">Inspect current tree head</button>
-                    <button id="browse-transparency-entries" class="secondary-button" type="button">Browse entries</button>
-                </div>
-                <section class="evidence-section" aria-labelledby="tree-head-history-heading">
-                    <div class="section-header">
-                        <div><span class="eyebrow">Bounded checkpoint evidence</span><h2 id="tree-head-history-heading">Signed tree-head history</h2></div>
-                        <button id="toggle-tree-head-history" class="text-button" type="button" aria-expanded="false">Show all</button>
-                    </div>
-                    <div id="transparency-tree-heads" class="compact-table-wrap loading-state">Loading checkpoints…</div>
-                </section>
-                <section class="checkpoint-comparison" aria-labelledby="checkpoint-comparison-heading">
-                    <div class="section-header"><div><span class="eyebrow">Cryptographic continuity</span><h2 id="checkpoint-comparison-heading">Compare checkpoints</h2></div></div>
-                    <div class="comparison-controls">
-                        <label><span>Older checkpoint</span><select id="older-checkpoint-select"></select></label>
-                        <label><span>Newer checkpoint</span><select id="newer-checkpoint-select"></select></label>
-                        <button id="compare-checkpoints-button" class="secondary-button" type="button">Compare</button>
-                    </div>
-                    <div id="transparency-consistency-status" class="outcome-banner outcome-info" aria-live="polite">Append-only continuity awaiting verification.</div>
-                    <div id="transparency-split-view-warning" class="critical-banner hidden" role="alert">
-                        <strong>Potential split view detected</strong>
-                        <span>The same log state cannot safely present conflicting signed roots.</span>
-                    </div>
-                </section>
-                <section id="transparency-entry-browser" class="evidence-section" aria-labelledby="log-entry-browser-heading">
-                    <div class="section-header">
-                        <div><span class="eyebrow">Searchable public commitments</span><h2 id="log-entry-browser-heading">Public log entries</h2></div>
-                        <span id="transparency-entry-count" class="status-badge status-neutral">Loading</span>
-                    </div>
-                    <form id="transparency-entry-toolbar" class="data-toolbar" role="search">
-                        <label><span>Entry type</span><select id="transparency-entry-type-filter"><option value="">All types</option><option value="trust-attestation">Trust attestation</option><option value="federation-bundle">Federation bundle</option></select></label>
-                        <label><span>Source authority</span><select id="transparency-authority-filter"><option value="">All authorities</option></select></label>
-                        <label class="toolbar-search"><span>Search identifiers</span><input id="transparency-entry-search" type="search" placeholder="Entry or object ID"></label>
-                        <label><span>Sort</span><select id="transparency-entry-sort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="index">Leaf index</option></select></label>
-                    </form>
-                    <div class="entry-master-detail">
-                        <div id="transparency-entry-grid" class="entry-list loading-state" role="listbox" aria-label="Transparency log entries">Loading public trust artifacts…</div>
-                        <article id="transparency-entry-explorer" class="entry-explorer" aria-live="polite">
-                            <div class="empty-state"><strong>Select a log entry</strong><span>Inspect its signed object and inclusion proof here.</span></div>
-                        </article>
-                    </div>
-                </section>
-            </section>
-        </section>
-
-        <section
-            id="tab-explorer"
-            class="tab-page hidden"
-            data-tab-page="explorer"
-        >
-            <section class="page-introduction">
-                <span class="eyebrow">Credential Explorer</span>
-
-                <h1>Understand every part of a GAP credential.</h1>
-
-                <p>
-                    The explorer translates cryptographic JSON into
-                    human-readable provenance information.
-                </p>
-            </section>
-
-            <section id="explorer-empty" class="panel explorer-empty">
-                <div class="empty-state-icon">◇</div>
-
-                <h2>No credential loaded</h2>
-
-                <p>
-                    Generate an artifact or load a credential in the Verify tab.
-                </p>
-            </section>
-
-            <section id="explorer-content" class="hidden">
-                <div class="explorer-status-row">
-                    <span
-                        id="explorer-signature-status"
-                        class="status-badge status-neutral"
-                    >
-                        Not verified
-                    </span>
-
-                    <button
-                        id="explorer-verify-button"
-                        class="primary-button compact-button"
-                        type="button"
-                    >
-                        Verify signature
-                    </button>
-                </div>
-
-                <div class="credential-card-grid">
-                    <details class="credential-card" open>
-                        <summary>
-                            <span>Credential identity</span>
-                            <small>Unique public proof</small>
-                        </summary>
-
-                        <div class="credential-card-body">
-                            <div class="explorer-field">
-                                <span>Credential ID</span>
-                                <code id="explorer-credential-id">—</code>
-                            </div>
-
-                            <p>
-                                Uniquely identifies this Generation Credential
-                                independently of the artifact itself.
-                            </p>
-                        </div>
-                    </details>
-
-                    <details class="credential-card" open>
-                        <summary>
-                            <span>Generation event</span>
-                            <small>When the artifact was produced</small>
-                        </summary>
-
-                        <div class="credential-card-body">
-                            <div class="explorer-field">
-                                <span>Generation ID</span>
-                                <code id="explorer-generation-id">—</code>
-                            </div>
-
-                            <div class="explorer-field">
-                                <span>Generated at</span>
-                                <code id="explorer-generated-at">—</code>
-                            </div>
-
-                            <p>
-                                The generation identifier links the public
-                                credential to the provider's separately retained
-                                private attribution record.
-                            </p>
-                        </div>
-                    </details>
-
-                    <details class="credential-card">
-                        <summary>
-                            <span>Provider identity</span>
-                            <small>Who issued the credential</small>
-                        </summary>
-
-                        <div class="credential-card-body">
-                            <div class="explorer-field">
-                                <span>Provider ID</span>
-                                <code id="explorer-provider-id">—</code>
-                            </div>
-
-                            <p>
-                                Verification resolves this identifier to the
-                                provider's public identity document and signing
-                                key.
-                            </p>
-                        </div>
-                    </details>
-
-                    <details class="credential-card">
-                        <summary>
-                            <span>Model information</span>
-                            <small>How the artifact was generated</small>
-                        </summary>
-
-                        <div class="credential-card-body">
-                            <div class="explorer-field">
-                                <span>Model ID</span>
-                                <code id="explorer-model-id">—</code>
-                            </div>
-
-                            <p>
-                                Identifies the generation system declared by the
-                                provider when the artifact was produced.
-                            </p>
-                        </div>
-                    </details>
-
-                    <details class="credential-card">
-                        <summary>
-                            <span>Artifact descriptor</span>
-                            <small>Cryptographic binding to the file</small>
-                        </summary>
-
-                        <div class="credential-card-body">
-                            <div class="explorer-field">
-                                <span>Media type</span>
-                                <code id="explorer-media-type">—</code>
-                            </div>
-
-                            <div class="explorer-field">
-                                <span>SHA-256</span>
-                                <code id="explorer-artifact-hash">—</code>
-                            </div>
-
-                            <p>
-                                Any change to the artifact produces a different
-                                SHA-256 value and causes artifact verification to
-                                fail.
-                            </p>
-                        </div>
-                    </details>
-
-                    <details class="credential-card">
-                        <summary>
-                            <span>Digital signature</span>
-                            <small>Protection against credential tampering</small>
-                        </summary>
-
-                        <div class="credential-card-body">
-                            <div class="explorer-field">
-                                <span>Algorithm</span>
-                                <code id="explorer-algorithm">—</code>
-                            </div>
-
-                            <div class="explorer-field">
-                                <span>Key ID</span>
-                                <code id="explorer-key-id">—</code>
-                            </div>
-
-                            <p>
-                                The Ed25519 signature protects the complete
-                                credential payload from unauthorised alteration.
-                            </p>
-                        </div>
-                    </details>
-                </div>
-
-                <article class="panel raw-json-panel">
-                    <div class="panel-heading">
-                        <div>
-                            <span class="section-number">JSON</span>
-                            <h2>Raw credential</h2>
-                        </div>
-
-                        <button
-                            id="copy-credential-button"
-                            class="text-button"
-                            type="button"
-                        >
-                            Copy JSON
-                        </button>
-                    </div>
-
-                    <pre
-                        id="credential-json"
-                        class="credential-json"
-                        tabindex="0"
-                    ></pre>
-                </article>
-            </section>
-        </section>
-
-        <section
-            id="tab-registry"
-            class="tab-page hidden"
-            data-tab-page="registry"
-        >
-            <section class="page-introduction">
-                <span class="eyebrow">Independent ecosystem governance</span>
-
-                <h1>Cryptographic identity does not equal ecosystem trust.</h1>
-
-                <p>
-                    Provider identity documents prove which signing keys belong to
-                    a provider. The GAP Trust Registry separately records whether
-                    that provider is currently approved to participate.
-                </p>
-            </section>
-
-            <section class="trust-registry-overview">
-                <article class="trust-principle-card">
-                    <span class="provider-card-label">Decision model</span>
-                    <h2>Two independent questions</h2>
-
-                    <div class="trust-equation">
-                        <div>
-                            <strong>Cryptographic validity</strong>
-                            <small>
-                                Is the credential authentic under the provider's
-                                published key history?
-                            </small>
-                        </div>
-
-                        <span>+</span>
-
-                        <div>
-                            <strong>Registry trust</strong>
-                            <small>
-                                Is the provider currently approved by the independent
-                                GAP registry?
-                            </small>
-                        </div>
-
-                        <span>=</span>
-
-                        <div>
-                            <strong>Overall GAP validity</strong>
-                            <small>
-                                Both conditions must be true at verification time.
-                            </small>
-                        </div>
-                    </div>
-                </article>
-
-                <article class="trust-principle-card">
-                    <span class="provider-card-label">Public status model</span>
-                    <h2>Provider lifecycle</h2>
-
-                    <div class="trust-status-legend">
-                        <span class="trust-status-pill trust-status-self-declared">
-                            Self-declared
-                        </span>
-                        <span class="trust-status-pill trust-status-applicant">
-                            Applicant
-                        </span>
-                        <span class="trust-status-pill trust-status-approved">
-                            Approved
-                        </span>
-                        <span class="trust-status-pill trust-status-suspended">
-                            Suspended
-                        </span>
-                        <span class="trust-status-pill trust-status-removed">
-                            Removed
-                        </span>
-                    </div>
-
-                    <p>
-                        Only approved providers may issue new credentials. A
-                        credential from a suspended or removed provider can remain
-                        cryptographically authentic while failing overall trust.
-                    </p>
-                </article>
-            </section>
-
-            <section class="trust-registry-section">
-                <div class="provider-ecosystem-heading">
-                    <div>
-                        <span class="eyebrow">Authoritative public view</span>
-                        <h2>GAP Trust Registry</h2>
-                    </div>
-
-                    <span
-                        id="trust-registry-status"
-                        class="status-badge status-neutral"
-                    >
-                        Loading registry
-                    </span>
-                </div>
-
-                <p>
-                    This view is loaded from <code>GET /trust-registry</code>.
-                    Provider-controlled identity documents cannot change these
-                    decisions, and private onboarding contact references are never
-                    exposed here.
-                </p>
-
-                <div
-                    id="trust-registry-grid"
-                    class="trust-registry-grid"
-                    aria-live="polite"
-                ></div>
-            </section>
-        </section>
-
-        <section
-            id="tab-protocol"
-            class="tab-page hidden"
-            data-tab-page="protocol"
-        >
-            <section class="page-introduction">
-                <span class="eyebrow">How GAP works</span>
-
-                <h1>Public provenance with controlled private attribution.</h1>
-
-                <p>
-                    GAP separates public artifact verification from private
-                    identity retention and lawful disclosure.
-                </p>
-            </section>
-
-            <section class="protocol-diagram">
-                <article>
-                    <span>1</span>
-                    <h2>Generation request</h2>
-                    <p>
-                        A provider receives a prompt and private account
-                        reference.
-                    </p>
-                </article>
-
-                <div class="diagram-arrow">→</div>
-
-                <article>
-                    <span>2</span>
-                    <h2>Artifact generation</h2>
-                    <p>
-                        The provider generates the artifact and calculates its
-                        SHA-256 digest.
-                    </p>
-                </article>
-
-                <div class="diagram-arrow">→</div>
-
-                <article>
-                    <span>3</span>
-                    <h2>Credential issuance</h2>
-                    <p>
-                        A public Generation Credential is signed using the
-                        provider's Ed25519 key.
-                    </p>
-                </article>
-
-                <div class="diagram-arrow">→</div>
-
-                <article>
-                    <span>4</span>
-                    <h2>Independent verification</h2>
-                    <p>
-                        Anyone can verify the file hash, credential signature,
-                        provider identity and independent registry trust.
-                    </p>
-                </article>
-
-                <div class="diagram-arrow">→</div>
-
-                <article>
-                    <span>5</span>
-                    <h2>Controlled disclosure</h2>
-                    <p>
-                        Private attribution is disclosed only after structured
-                        authorisation checks and audit logging.
-                    </p>
-                </article>
-            </section>
-
-            <section class="provider-ecosystem-section">
-                <div class="provider-ecosystem-heading">
-                    <div>
-                        <span class="eyebrow">Participating trust domains</span>
-                        <h2>Multi-provider ecosystem</h2>
-                    </div>
-
-                    <span
-                        id="provider-ecosystem-status"
-                        class="status-badge status-neutral"
-                    >
-                        Discovering providers
-                    </span>
-                </div>
-
-                <p>
-                    Every participating provider publishes an independent identity
-                    document and complete verification-key history. The GAP Trust
-                    Registry separately decides whether that provider is approved.
-                    A credential cannot be reassigned to another trust domain, and a
-                    revoked key cannot be silently reused.
-                </p>
-
-                <div
-                    id="provider-ecosystem-grid"
-                    class="provider-ecosystem-grid"
-                    aria-live="polite"
-                ></div>
-            </section>
-
-            <section class="key-lifecycle-section">
-                <div class="provider-ecosystem-heading">
-                    <div>
-                        <span class="eyebrow">Cryptographic continuity</span>
-                        <h2>Signing-key lifecycle</h2>
-                    </div>
-                </div>
-
-                <p>
-                    GAP separates permission to issue new credentials from the
-                    ability to verify historical credentials. Identity documents
-                    retain lifecycle state so verifiers can make the correct
-                    decision for every referenced key ID.
-                </p>
-
-                <div class="key-lifecycle-grid">
-                    <article class="key-lifecycle-card key-lifecycle-active">
-                        <span class="key-status-pill key-status-active">Active</span>
-                        <h3>Issue and verify</h3>
-                        <p>
-                            The provider's single active key signs new credentials
-                            and validates credentials already issued with that key.
-                        </p>
-                    </article>
-
-                    <article class="key-lifecycle-card key-lifecycle-retired">
-                        <span class="key-status-pill key-status-retired">Retired</span>
-                        <h3>Verify history only</h3>
-                        <p>
-                            A retired key cannot issue new credentials, but authentic
-                            historical credentials remain verifiable.
-                        </p>
-                    </article>
-
-                    <article class="key-lifecycle-card key-lifecycle-revoked">
-                        <span class="key-status-pill key-status-revoked">Revoked</span>
-                        <h3>Reject explicitly</h3>
-                        <p>
-                            A revoked key stays published with revocation metadata so
-                            every credential that references it is rejected.
-                        </p>
-                    </article>
-                </div>
-            </section>
-
-            <section class="privacy-grid">
-                <article>
-                    <span class="privacy-label public-label">Public</span>
-                    <h3>Generation Credential</h3>
-                    <p>
-                        Provider, model, generation ID, artifact digest and
-                        digital signature.
-                    </p>
-                </article>
-
-                <article>
-                    <span class="privacy-label private-label">Private</span>
-                    <h3>Attribution Record</h3>
-                    <p>
-                        Account reference and prompt hash retained by the
-                        provider.
-                    </p>
-                </article>
-
-                <article>
-                    <span class="privacy-label controlled-label">
-                        Controlled
-                    </span>
-                    <h3>Disclosure</h3>
-                    <p>
-                        Authorisation validation, retention enforcement and an
-                        auditable disclosure decision.
-                    </p>
-                </article>
-            </section>
-        </section>
-    </main>
-
-    <footer class="site-footer">
-        <p>
-            GAP is a research reference implementation and is not presented as
-            a production identity or evidence system.
-        </p>
-    </footer>
-
-    <script src="/static/app.js"></script>
+      </div>
+
+      <div class="process" aria-label="How GAP works">
+        <section><h2>Create</h2><p>The provider generates content and signs its provenance.</p></section>
+        <section><h2>Publish</h2><p>Provider trust is recorded through public, independently verifiable infrastructure.</p></section>
+        <section><h2>Verify</h2><p>Anyone can check the artifact, provider and supporting trust evidence.</p></section>
+      </div>
+
+      <div class="home-status">
+        <p class="status-line"><span class="status-dot"></span><span>Reference system healthy</span></p>
+        <details id="infrastructure-status" class="disclosure">
+          <summary>View infrastructure status</summary>
+          <div id="infrastructure-status-list" class="status-list" aria-live="polite">
+            <p class="loading-state">Loading current status…</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section id="page-create" class="page" data-page="create" hidden>
+      <header class="page-heading">
+        <p class="eyebrow">Create</p>
+        <h1>Create and verify</h1>
+        <p>Generate a sample artifact with a participating provider, then verify its GAP provenance.</p>
+      </header>
+      <div id="create-workflow" class="create-workflow" data-workflow-state="idle" aria-live="polite"></div>
+    </section>
+
+    <section id="page-explore" class="page" data-page="explore" hidden>
+      <header class="page-heading">
+        <p class="eyebrow">Explore</p>
+        <h1>Public trust infrastructure</h1>
+        <p>Inspect one part of the GAP trust network at a time.</p>
+      </header>
+      <div class="segmented-control" role="tablist" aria-label="Explore category">
+        <button role="tab" aria-selected="true" data-explore-tab="providers">Providers</button>
+        <button role="tab" aria-selected="false" data-explore-tab="authorities">Authorities</button>
+        <button role="tab" aria-selected="false" data-explore-tab="transparency">Transparency</button>
+        <button role="tab" aria-selected="false" data-explore-tab="witnesses">Witnesses</button>
+      </div>
+      <div id="explore-content" class="explore-content" aria-live="polite">
+        <p class="loading-state">Loading providers…</p>
+      </div>
+    </section>
+
+    <section id="page-developer" class="page" data-page="developer" hidden>
+      <header class="page-heading">
+        <p class="eyebrow">Developer</p>
+        <h1>Build with GAP</h1>
+        <p>Integrate signed provenance, verification and public trust evidence.</p>
+      </header>
+      <div class="segmented-control developer-tabs" role="tablist" aria-label="Developer content">
+        <button role="tab" aria-selected="true" data-developer-tab="integration">Integration</button>
+        <button role="tab" aria-selected="false" data-developer-tab="api">API</button>
+        <button role="tab" aria-selected="false" data-developer-tab="protocol">Protocol</button>
+        <button role="tab" aria-selected="false" data-developer-tab="raw">Raw Data</button>
+      </div>
+      <div id="developer-content" class="developer-content" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <template id="create-idle-template">
+    <form id="generation-form" class="surface create-form">
+      <div class="field">
+        <label for="provider-id">Provider</label>
+        <select id="provider-id" name="provider_id" required><option value="">Loading providers…</option></select>
+      </div>
+      <div class="field">
+        <label for="generation-prompt">Prompt</label>
+        <textarea id="generation-prompt" name="prompt" rows="4" required placeholder="Describe the image to generate"></textarea>
+      </div>
+      <p id="generation-error" class="error-state" role="alert" hidden></p>
+      <button class="button primary-button" type="submit">Generate artifact</button>
+      <p class="form-note">A GAP credential will be issued automatically with the generated artifact.</p>
+    </form>
+  </template>
+
+  <template id="create-generated-template">
+    <section class="surface artifact-result">
+      <div class="artifact-preview"><img data-artifact-image alt="Generated artifact preview"></div>
+      <div class="artifact-summary">
+        <p class="eyebrow">Artifact preview</p>
+        <h2 data-provider-name></h2>
+        <p class="muted">Generated <time data-generated-time></time></p>
+        <div class="actions">
+          <button class="button primary-button" type="button" data-action="verify">Verify provenance</button>
+          <button class="text-action" type="button" data-action="start-again">Generate another</button>
+        </div>
+        <details class="disclosure">
+          <summary>Issued credential</summary>
+          <pre class="raw-data-viewer" data-issued-credential></pre>
+        </details>
+      </div>
+    </section>
+  </template>
+
+  <template id="create-verifying-template">
+    <section class="verification-progress">
+      <p class="eyebrow">Verification in progress</p>
+      <h2>Verifying provenance</h2>
+      <div class="check-list">
+        <p data-check="integrity"><span class="check-indicator"></span>Artifact integrity</p>
+        <p data-check="authenticity"><span class="check-indicator"></span>Provider authenticity</p>
+        <p data-check="trust"><span class="check-indicator"></span>Provider trust</p>
+        <p data-check="transparency"><span class="check-indicator"></span>Public transparency</p>
+        <p data-check="witnesses"><span class="check-indicator"></span>Independent witnesses</p>
+      </div>
+    </section>
+  </template>
+
+  <template id="create-verified-template">
+    <section class="surface verification-result success-result">
+      <p class="result-symbol" aria-hidden="true">✓</p>
+      <p class="eyebrow">Verification complete</p>
+      <h2>Verified</h2>
+      <p class="result-copy">This artifact is unchanged, was signed by an approved provider and is supported by public transparency and independent witness evidence.</p>
+      <div class="result-rows">
+        <p><span>Artifact integrity</span><strong>Passed</strong></p>
+        <p><span>Provider signature</span><strong>Valid</strong></p>
+        <p><span>Provider trust</span><strong>Approved</strong></p>
+        <p><span>Transparency evidence</span><strong>Verified</strong></p>
+        <p><span>Witness quorum</span><strong>Met</strong></p>
+      </div>
+      <div class="actions">
+        <button class="button primary-button" type="button" data-action="view-artifact">View artifact</button>
+        <button class="button secondary-button" type="button" data-action="show-tampering">Test tampering detection</button>
+        <button class="text-action" type="button" data-action="start-again">Start again</button>
+      </div>
+      <details class="disclosure evidence-disclosure">
+        <summary>Technical verification evidence</summary>
+        <div data-technical-evidence></div>
+      </details>
+    </section>
+  </template>
+
+  <template id="create-failed-template">
+    <section class="surface verification-result failure-result">
+      <p class="eyebrow">Verification complete</p>
+      <h2>Verification failed</h2>
+      <p class="result-copy" data-failure-message></p>
+      <div class="detected-by"><span>Detected by</span><strong data-failure-source></strong></div>
+      <div class="actions">
+        <button class="button primary-button" type="button" data-action="restore">Restore original artifact</button>
+        <button class="text-action" type="button" data-action="open-evidence">View technical evidence</button>
+      </div>
+      <details class="disclosure evidence-disclosure">
+        <summary>Technical verification evidence</summary>
+        <div data-technical-evidence></div>
+      </details>
+    </section>
+  </template>
 </body>
 </html>

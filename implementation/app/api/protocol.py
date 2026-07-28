@@ -17,6 +17,8 @@ from app.core.repositories import (
     federation_bundle_repository,
     federated_trust_service,
     transparency_log_repository,
+    witness_statement_repository,
+    checkpoint_gossip_repository,
 )
 from app.core.transparency_log_config import (
     REFERENCE_TRANSPARENCY_LOG,
@@ -115,11 +117,33 @@ from app.services.trust_registry_service import InvalidTrustTransitionError
 from app.services.verification_service import (
     verify_generation_credential_details,
 )
+from app.core.transparency_witness_config import transparency_witness_repository
+from app.schemas.checkpoint_gossip import (
+    CheckpointGossipPackage,
+    GossipMonitorResult,
+)
+from app.schemas.transparency_witness import TransparencyWitnessIdentityDocument
+from app.schemas.witness_statement import (
+    WitnessStatement,
+    WitnessStatementVerificationResult,
+)
+from app.services.checkpoint_gossip_service import verify_checkpoint_gossip_package
+from app.services.transparency_witness_identity_service import (
+    create_transparency_witness_identity_document,
+)
+from app.services.transparency_witness_service import verify_witness_statement
+from app.services.witness_quorum_service import (
+    WitnessQuorumPolicy,
+    WitnessQuorumResult,
+    evaluate_witness_quorum,
+)
 
 
 router = APIRouter(
     tags=["GAP Protocol"],
 )
+
+DEFAULT_WITNESS_POLICY = WitnessQuorumPolicy(required_witness_count=1)
 
 
 def get_provider_document(
@@ -642,6 +666,181 @@ def read_consistency_proof(old_tree_size: int, new_tree_size: int):
         raise HTTPException(status_code=422, detail=str(error)) from error
 
 
+@router.get("/transparency/witnesses")
+def list_transparency_witnesses() -> dict:
+    witnesses = [
+        {
+            "witness_id": witness.witness_id,
+            "witness_name": witness.witness_name,
+            "active_key_id": witness.active_key_id,
+            "published_key_count": len(witness.signing_keys),
+        }
+        for witness in transparency_witness_repository.list_trusted_witnesses()
+    ]
+    return {"witnesses": witnesses, "count": len(witnesses)}
+
+
+@router.get(
+    "/transparency/witnesses/{witness_id}/.well-known/gap-witness.json",
+    response_model=TransparencyWitnessIdentityDocument,
+)
+def read_transparency_witness_identity(
+    witness_id: str,
+) -> TransparencyWitnessIdentityDocument:
+    try:
+        witness = transparency_witness_repository.get(witness_id)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return create_transparency_witness_identity_document(witness)
+
+
+@router.get(
+    "/transparency/witness-statements",
+)
+def list_witness_statements(
+    witness_id: str | None = None,
+    log_id: str | None = None,
+    tree_head_id: str | None = None,
+    limit: int = 100,
+) -> dict:
+    if limit < 1 or limit > 500:
+        raise HTTPException(status_code=422, detail="limit must be between 1 and 500")
+    statements = witness_statement_repository.list_all()
+    if witness_id:
+        statements = [
+            item for item in statements if item.payload.witness_id == witness_id
+        ]
+    if log_id:
+        statements = [item for item in statements if item.payload.log_id == log_id]
+    if tree_head_id:
+        statements = [
+            item for item in statements if item.payload.tree_head_id == tree_head_id
+        ]
+    records = statements[-limit:]
+    return {
+        "witness_statements": records,
+        "count": len(records),
+    }
+
+
+@router.get(
+    "/transparency/witness-statements/{statement_id}",
+    response_model=WitnessStatement,
+)
+def read_witness_statement(statement_id: str) -> WitnessStatement:
+    try:
+        return witness_statement_repository.get(statement_id)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.post(
+    "/transparency/witness-statements/verify",
+    response_model=WitnessStatementVerificationResult,
+)
+def verify_witness_statement_stateless(
+    statement: WitnessStatement, tree_head: SignedTreeHead
+) -> WitnessStatementVerificationResult:
+    return verify_witness_statement(
+        statement, tree_head, transparency_witness_repository
+    )
+
+
+@router.get("/transparency/witness-quorum", response_model=WitnessQuorumResult)
+def read_witness_quorum(tree_head_id: str | None = None) -> WitnessQuorumResult:
+    try:
+        tree_head = (
+            transparency_log_repository.get_tree_head(tree_head_id)
+            if tree_head_id
+            else transparency_log_repository.latest_tree_head()
+        )
+    except TransparencyTreeHeadNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    if tree_head is None:
+        raise HTTPException(status_code=404, detail="No signed tree head is available.")
+    return evaluate_witness_quorum(
+        tree_head,
+        witness_statement_repository.list_by_tree_head(tree_head.payload.tree_head_id),
+        transparency_witness_repository,
+        DEFAULT_WITNESS_POLICY,
+    )
+
+
+@router.get(
+    "/transparency/gossip/observations",
+)
+def list_gossip_observations(limit: int = 100) -> dict:
+    try:
+        observations = checkpoint_gossip_repository.list_all(limit)
+        return {
+            "observations": observations,
+            "count": len(observations),
+        }
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.get(
+    "/transparency/gossip/observations/{gossip_id}",
+    response_model=CheckpointGossipPackage,
+)
+def read_gossip_observation(gossip_id: str) -> CheckpointGossipPackage:
+    try:
+        return checkpoint_gossip_repository.get(gossip_id)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.post(
+    "/transparency/gossip/verify",
+    response_model=GossipMonitorResult,
+)
+def verify_gossip_stateless(
+    package: CheckpointGossipPackage,
+) -> GossipMonitorResult:
+    return verify_checkpoint_gossip_package(
+        package,
+        TRUSTED_TRANSPARENCY_LOGS,
+        transparency_witness_repository,
+        DEFAULT_WITNESS_POLICY,
+        checkpoint_gossip_repository.list_all(),
+    )
+
+
+def _current_gossip_status() -> GossipMonitorResult:
+    packages = checkpoint_gossip_repository.list_all()
+    if not packages:
+        return GossipMonitorResult(
+            checkpoint_gossip_consistent=False,
+            consistency_unproven=True,
+            failure_reason="no-gossip-observations",
+        )
+    current = packages[-1]
+    return verify_checkpoint_gossip_package(
+        current,
+        TRUSTED_TRANSPARENCY_LOGS,
+        transparency_witness_repository,
+        DEFAULT_WITNESS_POLICY,
+        packages[:-1],
+    )
+
+
+@router.get("/transparency/gossip/status")
+def read_gossip_status() -> dict:
+    status_result = _current_gossip_status()
+    observations = checkpoint_gossip_repository.list_all()
+    return {
+        "status": status_result,
+        "observation_count": len(observations),
+    }
+
+
+@router.get("/transparency/gossip/state", response_model=GossipMonitorResult)
+def read_gossip_state() -> GossipMonitorResult:
+    """Compatibility alias for the original Sprint 13 route."""
+    return _current_gossip_status()
+
+
 @router.post(
     "/transparency/verify-inclusion",
     response_model=InclusionVerificationResult,
@@ -859,11 +1058,65 @@ def verify_credential(
     ]
     transparency_verified = bool(transparent) and provider_trusted
     transparency_source = transparent[0] if transparent else None
+    selected_tree_head = (
+        transparency_log_repository.get_tree_head(
+            transparency_source.transparency_tree_head_id
+        )
+        if transparency_source and transparency_source.transparency_tree_head_id
+        else None
+    )
+    quorum = (
+        evaluate_witness_quorum(
+            selected_tree_head,
+            witness_statement_repository.list_by_tree_head(
+                selected_tree_head.payload.tree_head_id
+            ),
+            transparency_witness_repository,
+            DEFAULT_WITNESS_POLICY,
+        )
+        if selected_tree_head
+        else None
+    )
+    gossip_packages = checkpoint_gossip_repository.list_all()
+    matching_gossip = next(
+        (
+            item
+            for item in reversed(gossip_packages)
+            if selected_tree_head
+            and item.signed_tree_head.payload.tree_head_id
+            == selected_tree_head.payload.tree_head_id
+        ),
+        None,
+    )
+    gossip = (
+        verify_checkpoint_gossip_package(
+            matching_gossip,
+            TRUSTED_TRANSPARENCY_LOGS,
+            transparency_witness_repository,
+            DEFAULT_WITNESS_POLICY,
+            [
+                item
+                for item in gossip_packages
+                if item.gossip_id != matching_gossip.gossip_id
+            ],
+        )
+        if matching_gossip
+        else GossipMonitorResult(
+            checkpoint_gossip_consistent=False,
+            consistency_unproven=True,
+            failure_reason="no-gossip-observations",
+        )
+    )
     valid = (
         cryptographic_valid
         and provider_trusted
         and transparency_verified
+        and quorum is not None
+        and quorum.quorum_met
+        and gossip.checkpoint_gossip_consistent
         and not federation.federation_conflict
+        and not gossip.split_view_detected
+        and not gossip.witness_equivocation_detected
     )
 
     failure_reason = cryptographic_verification.failure_reason
@@ -939,6 +1192,19 @@ def verify_credential(
             None if transparency_verified else "transparency-entry-missing",
         ),
         transparency_sources=transparency_sources,
+        witness_quorum_met=quorum.quorum_met if quorum else False,
+        required_witness_count=quorum.required_witness_count if quorum else 1,
+        valid_witness_count=quorum.valid_witness_count if quorum else 0,
+        valid_witness_ids=quorum.valid_witness_ids if quorum else [],
+        witness_failure_reason=quorum.failure_reason
+        if quorum
+        else "no-witness-statements",
+        checkpoint_gossip_consistent=gossip.checkpoint_gossip_consistent,
+        split_view_detected=gossip.split_view_detected,
+        witness_equivocation_detected=gossip.witness_equivocation_detected,
+        rollback_detected=gossip.rollback_detected,
+        consistency_unproven=gossip.consistency_unproven,
+        gossip_failure_reason=gossip.failure_reason,
         provider_id=provider_id,
         generation_id=credential.payload.generation.generation_id,
         credential_id=credential.payload.credential_id,
