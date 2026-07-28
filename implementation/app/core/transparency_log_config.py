@@ -1,13 +1,12 @@
 from datetime import datetime, timezone
-from pathlib import Path
-
+from app.core.settings import get_settings
 from app.domain.transparency_log import (
     TransparencyLogOperator,
     TransparencyLogSigningKey,
 )
 
 
-KEY_DIRECTORY = Path(__file__).resolve().parents[2] / "keys"
+KEY_DIRECTORY = get_settings().key_directory
 
 REFERENCE_TRANSPARENCY_LOG = TransparencyLogOperator(
     log_id="gap-reference-transparency-log",

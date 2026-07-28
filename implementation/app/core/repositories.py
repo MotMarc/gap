@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
-
 from app.core.provider_config import PROVIDERS
+from app.core.settings import get_settings
 from app.services.attribution_repository import AttributionRepository
 from app.services.disclosure_audit_repository import DisclosureAuditRepository
 from app.services.provider_application_repository import (
@@ -13,7 +13,6 @@ from app.services.trust_attestation_repository import TrustAttestationRepository
 from app.services.federation_bundle_repository import FederationBundleRepository
 from app.services.federated_trust_service import FederatedTrustService
 from app.services.federation_file_service import load_accepted_bundle_directory
-from pathlib import Path
 from app.core.transparency_log_config import REFERENCE_TRANSPARENCY_LOG
 from app.services.transparency_log_repository import TransparencyLogRepository
 from app.core.transparency_witness_config import (
@@ -28,19 +27,46 @@ from app.services.transparency_witness_service import issue_witness_statement
 from app.services.witness_statement_repository import WitnessStatementRepository
 
 
-attribution_repository = AttributionRepository()
-disclosure_audit_repository = DisclosureAuditRepository()
+settings = get_settings()
+database = None
+if settings.persistence_mode == "database":
+    from app.database import Database, require_head
+    from app.database.repositories import (
+        SqlAttributionRepository,
+        SqlCheckpointGossipRepository,
+        SqlDisclosureAuditRepository,
+        SqlFederationBundleRepository,
+        SqlProviderApplicationRepository,
+        SqlTransparencyLogRepository,
+        SqlTrustAttestationRepository,
+        SqlTrustRegistryRepository,
+        SqlWitnessStatementRepository,
+    )
+    from app.database.uow import UnitOfWork
 
-provider_application_repository = ProviderApplicationRepository()
-trust_registry_repository = TrustRegistryRepository()
-trust_attestation_repository = TrustAttestationRepository()
-federation_bundle_repository = FederationBundleRepository()
-TRANSPARENCY_RUNTIME_DIRECTORY = (
-    Path(__file__).resolve().parents[3] / "runtime" / "transparency"
-)
-transparency_log_repository = TransparencyLogRepository(
-    REFERENCE_TRANSPARENCY_LOG, TRANSPARENCY_RUNTIME_DIRECTORY
-)
+    database = Database(settings.database_url)
+    require_head(database.engine)
+    factory = database.session_factory
+    attribution_repository = SqlAttributionRepository(factory)
+    disclosure_audit_repository = SqlDisclosureAuditRepository(factory)
+    provider_application_repository = SqlProviderApplicationRepository(factory)
+    trust_registry_repository = SqlTrustRegistryRepository(factory)
+    trust_attestation_repository = SqlTrustAttestationRepository(factory)
+    federation_bundle_repository = SqlFederationBundleRepository(factory)
+    transparency_log_repository = SqlTransparencyLogRepository(
+        factory, REFERENCE_TRANSPARENCY_LOG
+    )
+else:
+    attribution_repository = AttributionRepository()
+    disclosure_audit_repository = DisclosureAuditRepository()
+    provider_application_repository = ProviderApplicationRepository()
+    trust_registry_repository = TrustRegistryRepository()
+    trust_attestation_repository = TrustAttestationRepository()
+    federation_bundle_repository = FederationBundleRepository()
+    transparency_log_repository = TransparencyLogRepository(
+        REFERENCE_TRANSPARENCY_LOG,
+        settings.runtime_directory / "transparency",
+    )
 trust_registry_service = TrustRegistryService(
     trust_repository=trust_registry_repository,
     application_repository=provider_application_repository,
@@ -60,35 +86,72 @@ federated_trust_service = FederatedTrustService(
 
 SEED_APPLICATION_TIME = datetime(
     2026,
-    1,
-    1,
+    7,
+    27,
     tzinfo=timezone.utc,
 )
 SEED_APPROVAL_TIME = SEED_APPLICATION_TIME + timedelta(days=1)
 
 
-for index, provider in enumerate(PROVIDERS, start=1):
-    trust_registry_service.record_decision(
-        provider_id=provider.provider_id,
-        status="applicant",
-        authority="GAP Registry Bootstrap",
-        reason="Existing provider entered the registry bootstrap review.",
-        decided_at=SEED_APPLICATION_TIME,
-        decision_id=f"seed-application-{index}",
-    )
+def bootstrap_reference_state() -> dict[str, int]:
+    existing = {
+        decision.decision_id: decision
+        for decision in trust_registry_repository.list_all()
+    }
+    created = 0
+    for index, provider in enumerate(PROVIDERS, start=1):
+        specifications = (
+            (
+                "applicant",
+                SEED_APPLICATION_TIME,
+                f"seed-application-{index}",
+                "Existing provider entered the registry bootstrap review.",
+            ),
+            (
+                "approved",
+                SEED_APPROVAL_TIME,
+                f"seed-approval-{index}",
+                "Existing provider approved during registry bootstrap.",
+            ),
+        )
+        for status, decided_at, decision_id, reason in specifications:
+            current = existing.get(decision_id)
+            if current is not None:
+                compatible = (
+                    current.provider_id == provider.provider_id
+                    and current.status == status
+                    and current.decided_at == decided_at
+                    and current.reason == reason
+                )
+                if not compatible and settings.startup_strict_mode:
+                    raise RuntimeError(f"Bootstrap divergence for {decision_id}.")
+                continue
+            if database is None:
+                trust_registry_service.record_decision(
+                    provider_id=provider.provider_id,
+                    status=status,
+                    authority="GAP Registry Bootstrap",
+                    reason=reason,
+                    decided_at=decided_at,
+                    decision_id=decision_id,
+                )
+            else:
+                with UnitOfWork(database.session_factory):
+                    trust_registry_service.record_decision(
+                        provider_id=provider.provider_id,
+                        status=status,
+                        authority="GAP Registry Bootstrap",
+                        reason=reason,
+                        decided_at=decided_at,
+                        decision_id=decision_id,
+                    )
+            created += 1
+    return {"created": created, "existing": len(existing)}
 
-    trust_registry_service.record_decision(
-        provider_id=provider.provider_id,
-        status="approved",
-        authority="GAP Registry Bootstrap",
-        reason="Existing provider approved during registry bootstrap.",
-        decided_at=SEED_APPROVAL_TIME,
-        decision_id=f"seed-approval-{index}",
-    )
 
-FEDERATION_ACCEPTED_DIRECTORY = (
-    Path(__file__).resolve().parents[3] / "runtime" / "federation" / "accepted"
-)
+BOOTSTRAP_REPORT = bootstrap_reference_state()
+
+FEDERATION_ACCEPTED_DIRECTORY = settings.runtime_directory / "federation" / "accepted"
 (
     FEDERATION_LOADED_BUNDLE_COUNT,
     FEDERATION_INVALID_FILE_COUNT,
@@ -107,12 +170,14 @@ if (
 ):
     transparency_log_repository.create_current_tree_head()
 
-WITNESS_RUNTIME_DIRECTORY = (
-    Path(__file__).resolve().parents[3] / "runtime" / "witnesses"
-)
-GOSSIP_RUNTIME_DIRECTORY = Path(__file__).resolve().parents[3] / "runtime" / "gossip"
-witness_statement_repository = WitnessStatementRepository(WITNESS_RUNTIME_DIRECTORY)
-checkpoint_gossip_repository = CheckpointGossipRepository(GOSSIP_RUNTIME_DIRECTORY)
+WITNESS_RUNTIME_DIRECTORY = settings.runtime_directory / "witnesses"
+GOSSIP_RUNTIME_DIRECTORY = settings.runtime_directory / "gossip"
+if settings.persistence_mode == "database":
+    witness_statement_repository = SqlWitnessStatementRepository(factory)
+    checkpoint_gossip_repository = SqlCheckpointGossipRepository(factory)
+else:
+    witness_statement_repository = WitnessStatementRepository(WITNESS_RUNTIME_DIRECTORY)
+    checkpoint_gossip_repository = CheckpointGossipRepository(GOSSIP_RUNTIME_DIRECTORY)
 
 
 def record_reference_witness_evidence(tree_head) -> None:

@@ -1,12 +1,10 @@
 from datetime import datetime, timezone
-from pathlib import Path
-
 from app.domain.provider import Provider, ProviderSigningKey
 from app.services.provider_repository import ProviderRepository
+from app.core.settings import get_settings
 
 
-IMPLEMENTATION_ROOT = Path(__file__).resolve().parents[2]
-KEY_DIRECTORY = IMPLEMENTATION_ROOT / "keys"
+KEY_DIRECTORY = get_settings().key_directory
 
 
 DEMO_PROVIDER = Provider(

@@ -301,11 +301,14 @@ class TrustRegistryService:
                 if binding is None:
                     self._transparency_repository.append(
                         create_trust_attestation_log_entry(
-                            attestation, recorded_at=decision_time
+                            attestation,
+                            recorded_at=decision_time,
+                            entry_id=f"gap-log-entry-{decision.decision_id}",
                         )
                     )
                     self._transparency_repository.create_current_tree_head(
-                        timestamp=decision_time
+                        timestamp=decision_time,
+                        tree_head_id=f"gap-tree-head-{decision.decision_id}",
                     )
         self._finalise_active_application(provider_id, status)
 

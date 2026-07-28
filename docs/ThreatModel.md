@@ -1,5 +1,37 @@
 # Threat Model
 
+## Sprint 14 operational threats
+
+Database compromise exposes persistent application state and private
+onboarding/attribution data, though never signing keys. Database integrity
+constraints, signed-object verification, Merkle recomputation and
+persistent-state audits detect classes of corruption but do not prevent an
+attacker with database access from deleting or rolling back all evidence.
+External checkpoints and protected backups remain necessary.
+
+Migrations are explicit and revision-checked; this detects an absent or stale
+revision, not maliciously modified migration code. Backups use SHA-256
+manifests to detect accidental or unauthorised modification but are not
+encrypted or signed by default. Theft exposes their database contents.
+Restores require explicit confirmation and post-restore audit, but an authentic
+old backup can still cause rollback.
+
+Administrator token theft permits pilot administrative transitions. The
+service stores only its hash, uses constant-time comparison, accepts it only in
+the bearer header and records a fingerprint/request ID audit event. HTTPS,
+network restriction and external secret rotation remain deployment duties;
+there is no replay nonce, OAuth or role system.
+
+Structured logging escapes line breaks and redacts named secret fields, but
+novel sensitive fields or dependency logs remain a residual leakage risk.
+Request-size limits reduce simple denial of service but are not a complete
+rate-limiting platform. Production rejects wildcard CORS.
+
+Container operation is non-root and keys are read-only mounts. Container
+escape, weak host volume permissions, an exposed PostgreSQL port, stale base
+images and host compromise remain external risks. Compose keeps the database
+on an internal network but is not a hardened HA platform.
+
 ## Witness and gossip threats
 
 A signed checkpoint can be shown selectively. GAP therefore requires fresh

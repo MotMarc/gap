@@ -1,0 +1,52 @@
+services:
+  database:
+    image: postgres:17.5-alpine
+    environment:
+      POSTGRES_DB: gap
+      POSTGRES_USER: gap
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gap -d gap"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - gap-postgres-data:/var/lib/postgresql/data
+    networks: [gap-internal]
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      APP_ENV: demonstration
+      APP_VERSION: 0.14.0
+      PERSISTENCE_MODE: database
+      DATABASE_URL: postgresql+psycopg://gap:${POSTGRES_PASSWORD}@database:5432/gap
+      RUNTIME_DIRECTORY: /data/runtime
+      BACKUP_DIRECTORY: /data/backups
+      KEY_DIRECTORY: /keys
+      ADMIN_API_ENABLED: ${ADMIN_API_ENABLED:-false}
+      ADMIN_API_TOKEN_HASH: ${ADMIN_API_TOKEN_HASH:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://127.0.0.1:8000}
+      STARTUP_STRICT_MODE: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      - gap-runtime:/data/runtime
+      - gap-backups:/data/backups
+      - ${GAP_KEY_DIRECTORY:?Set GAP_KEY_DIRECTORY}:/keys:ro
+    networks: [gap-internal]
+    restart: unless-stopped
+
+volumes:
+  gap-postgres-data:
+  gap-runtime:
+  gap-backups:
+
+networks:
+  gap-internal:
+    internal: true

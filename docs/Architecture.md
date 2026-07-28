@@ -1,5 +1,24 @@
 # GAP Reference Architecture
 
+## Sprint 14 persistent service architecture
+
+Production wiring selects compatible SQLAlchemy repositories through typed
+settings. SQLite is the local default and PostgreSQL is used by Compose. Domain
+objects and signed Pydantic models are reconstructed from exact canonical JSON;
+ordered and searchable fields are stored separately under database uniqueness
+constraints. Private keys remain mounted files.
+
+An explicit schema revision gates startup. Idempotent bootstrap compares fixed
+seed IDs, timestamps and content and never adds transparency or witness
+evidence merely because a process restarted. A shared SQLAlchemy session and
+unit-of-work define transaction boundaries; in-memory repositories remain for
+isolated protocol tests.
+
+Liveness is database-independent while readiness follows migration,
+configuration, key and integrity checks. Request-correlation, safe error
+envelopes, structured redacted logs and authenticated administrative routes
+sit at the HTTP boundary and do not alter protocol semantics.
+
 ## Sprint 13 witness and gossip architecture
 
 `TransparencyWitness` is independent of providers, Registry Authorities and the

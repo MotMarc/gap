@@ -230,3 +230,15 @@ runtime/transparency/
 implementation/keys/transparency_witness_private.key
 runtime/witnesses/
 runtime/gossip/
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+backups/
+runtime/*backups/
+runtime/*public-state*.json
+*.backup
+
+/runtime/

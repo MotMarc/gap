@@ -6,7 +6,12 @@ The objective of GAP is to enable participating AI providers to cryptographicall
 
 ## Current Status
 
-Early research and reference implementation, version 0.13.0.
+Early research and reference implementation, version 0.14.0.
+
+Sprint 14 adds typed environment configuration, SQLite/PostgreSQL persistence,
+explicit schema migrations, restart-safe bootstrap, authenticated pilot
+administration, operational health checks, backups, public-state export and a
+non-root Docker deployment. Protocol object versions remain unchanged.
 
 Sprint 13 adds independent Transparency Witness identities and Ed25519
 checkpoint statements, configurable witness quorum, and manually exchanged,
@@ -168,6 +173,7 @@ Git.
 Run the demonstrator from the repository root:
 
 ```powershell
+.\.venv\Scripts\python.exe scripts\manage_database.py upgrade
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --app-dir implementation
 ```
 
@@ -176,6 +182,12 @@ Then open `http://127.0.0.1:8000`.
 ## License
 
 Check LICENSE file
+
+Deployment and operational procedures are in
+[`docs/Deployment.md`](docs/Deployment.md),
+[`docs/Operations.md`](docs/Operations.md),
+[`docs/Administration.md`](docs/Administration.md), and
+[`docs/BackupAndRecovery.md`](docs/BackupAndRecovery.md).
 
 ## Current limitations
 
@@ -186,6 +198,6 @@ with blockchains, certificate transparency, HSMs or cloud key management.
 The local private keys are demonstration material rather than a production
 key-custody design. There is no public submission, remote gossip, witness
 cosigning, multi-log quorum, blockchain anchoring, CT interoperability,
-production database, distributed consensus, OAuth, KMS/HSM integration or
+distributed consensus, OAuth, KMS/HSM integration or
 automatic rotation. Sprint 13 should add witness cosigning, checkpoint gossip
 and split-view monitoring.

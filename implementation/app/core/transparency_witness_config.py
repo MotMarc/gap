@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
-from pathlib import Path
-
+from app.core.settings import get_settings
 from app.domain.transparency_witness import (
     TransparencyWitness,
     TransparencyWitnessSigningKey,
@@ -10,7 +9,7 @@ from app.services.transparency_witness_repository import (
 )
 
 
-KEY_DIRECTORY = Path(__file__).resolve().parents[2] / "keys"
+KEY_DIRECTORY = get_settings().key_directory
 REFERENCE_TRANSPARENCY_WITNESS = TransparencyWitness(
     witness_id="gap-reference-witness",
     witness_name="GAP Reference Transparency Witness",

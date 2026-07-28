@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
-from pathlib import Path
-
+from app.core.settings import get_settings
 from app.domain.registry_authority import (
     RegistryAuthority,
     RegistryAuthoritySigningKey,
@@ -8,7 +7,7 @@ from app.domain.registry_authority import (
 from app.services.registry_authority_repository import RegistryAuthorityRepository
 
 
-KEY_DIRECTORY = Path(__file__).resolve().parents[2] / "keys"
+KEY_DIRECTORY = get_settings().key_directory
 
 REFERENCE_REGISTRY_AUTHORITY = RegistryAuthority(
     authority_id="gap-reference-registry",
