@@ -63,12 +63,14 @@ class FederatedTrustService:
         bundle_repository,
         local_authority_id: str,
         transparency_repository=None,
+        trusted_logs=None,
     ) -> None:
         self.local_trust_service = local_trust_service
         self.authority_repository = authority_repository
         self.bundle_repository = bundle_repository
         self.local_authority_id = local_authority_id
         self.transparency_repository = transparency_repository
+        self.trusted_logs = trusted_logs
 
     def _transparency(self, entry_type: str, object_id: str) -> dict:
         repository = self.transparency_repository
@@ -91,11 +93,11 @@ class FederatedTrustService:
         from app.services.transparency_verification_service import verify_inclusion
         from app.core.transparency_log_config import TRUSTED_TRANSPARENCY_LOGS
 
+        trusted_logs = self.trusted_logs or TRUSTED_TRANSPARENCY_LOGS
+
         proof = repository.inclusion_proof(entry.entry_id, tree_head.payload.tree_size)
-        tree_result = verify_signed_tree_head_details(
-            tree_head, TRUSTED_TRANSPARENCY_LOGS
-        )
-        inclusion = verify_inclusion(entry, tree_head, proof, TRUSTED_TRANSPARENCY_LOGS)
+        tree_result = verify_signed_tree_head_details(tree_head, trusted_logs)
+        inclusion = verify_inclusion(entry, tree_head, proof, trusted_logs)
         verified = tree_result.valid and inclusion.valid
         return {
             "transparency_entry_id": entry.entry_id,

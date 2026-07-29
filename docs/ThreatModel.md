@@ -1,5 +1,30 @@
 # Threat Model
 
+## Sprint 15 SDK threats
+
+Credential, trust-bundle and service JSON are untrusted and validated with
+bounded typed models. Artifact paths and streams are hashed without modifying
+content; callers remain responsible for symlink policy and trusted file
+selection. Atomic sidecars refuse overwrite by default, but cannot eliminate
+all filesystem race risks on hostile shared storage. Filenames and absolute
+paths are excluded from credentials and safe SDK errors.
+
+Private prompts, accounts, billing data, email, IP addresses and private
+attribution records are not GenerationContext fields. Public metadata is
+caller-controlled and must be reviewed for accidental disclosure. Python
+cannot honestly guarantee secret zeroisation because immutable copies and
+interpreter/runtime buffers may remain; production custody should use a future
+KMS/HSM signer.
+
+TLS verification is enabled by default. A compromised client environment,
+malicious CA, dependency compromise or poisoned but correctly digested stale
+cache remains a risk. Trust material therefore requires freshness policy and
+protected distribution in production. The current SDK rejects a bad manifest
+and never converts missing evidence, skipped checks, or cryptographic-only
+success into full validity. Terminal output is concise and does not echo keys,
+tokens or paths, though malicious filenames and terminal control characters
+remain an operator concern.
+
 ## Sprint 14 operational threats
 
 Database compromise exposes persistent application state and private

@@ -1,0 +1,12 @@
+{
+  "tampered_artifact": {
+    "artifact_integrity_valid": false,
+    "cryptographic_valid": true,
+    "overall_cryptographic_valid": false
+  },
+  "valid_artifact": {
+    "artifact_integrity_valid": true,
+    "cryptographic_valid": true,
+    "overall_cryptographic_valid": true
+  }
+}

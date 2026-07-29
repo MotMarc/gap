@@ -1,5 +1,21 @@
 # GAP Reference Architecture
 
+## Sprint 15 integration architecture
+
+`gap_sdk` is an installable public façade. It reuses the reference
+implementation's Pydantic credential schemas, canonical serializer and
+signature verifier rather than implementing parallel cryptography. Provider
+issuance accepts an abstract signer; the bundled file signer is one adapter.
+File hashing is streamed and sidecars are written atomically.
+
+Verification is staged as cryptographic, trusted-provider or full. The result
+retains ordered checks and each constituent policy flag. Online full mode uses
+the service's authoritative repository-backed evaluation. Offline bundles are
+digest-checked before use and reconstruct public-only in-memory repositories.
+The backend signature, federation, Merkle, tree-head, witness and gossip
+verification functions evaluate the evidence without an API or database.
+Missing or stale evidence cannot achieve FULL.
+
 ## Sprint 14 persistent service architecture
 
 Production wiring selects compatible SQLAlchemy repositories through typed

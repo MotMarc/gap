@@ -112,6 +112,7 @@ from app.services.registry_authority_identity_service import (
     create_registry_authority_identity_document,
 )
 from app.services.registry_authority_repository import RegistryAuthorityNotFoundError
+from app.services.public_state_service import serialise_public_state
 from app.services.trust_attestation_repository import TrustAttestationNotFoundError
 from app.services.trust_registry_service import InvalidTrustTransitionError
 from app.services.verification_service import (
@@ -142,6 +143,13 @@ from app.services.witness_quorum_service import (
 router = APIRouter(
     tags=["GAP Protocol"],
 )
+
+
+@router.get("/public-state")
+def get_public_state() -> dict:
+    """Return complete public evidence required for repository-free verification."""
+    return serialise_public_state(provider_repository, registry_authority_repository)
+
 
 DEFAULT_WITNESS_POLICY = WitnessQuorumPolicy(required_witness_count=1)
 

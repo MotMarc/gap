@@ -12,6 +12,10 @@ from app.schemas.transparency_log import (
 def create_transparency_log_identity_document(
     operator: TransparencyLogOperator,
 ) -> TransparencyLogIdentityDocument:
+    if isinstance(operator, TransparencyLogIdentityDocument):
+        return operator.model_copy(deep=True)
+    if hasattr(operator, "identity_document"):
+        return operator.identity_document.model_copy(deep=True)
     keys = []
     for key in operator.signing_keys:
         public_key = load_public_key(key.public_key_path)

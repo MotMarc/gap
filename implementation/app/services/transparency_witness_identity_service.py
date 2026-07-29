@@ -9,6 +9,10 @@ from app.schemas.transparency_witness import (
 def create_transparency_witness_identity_document(
     witness: TransparencyWitness,
 ) -> TransparencyWitnessIdentityDocument:
+    if isinstance(witness, TransparencyWitnessIdentityDocument):
+        return witness.model_copy(deep=True)
+    if hasattr(witness, "identity_document"):
+        return witness.identity_document.model_copy(deep=True)
     return TransparencyWitnessIdentityDocument(
         witness_id=witness.witness_id,
         witness_name=witness.witness_name,

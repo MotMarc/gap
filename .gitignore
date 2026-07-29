@@ -242,3 +242,7 @@ runtime/*public-state*.json
 *.backup
 
 /runtime/
+/demo-output/sprint15-continuation/
+/public-state.json
+/dist/
+/build/

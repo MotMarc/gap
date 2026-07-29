@@ -1,0 +1,31 @@
+{
+  "files": {
+    "artifact.txt": "cb526327561be306b46e32c637fd44babdcecb8f2e405f3f60e5f5612b4dfa48",
+    "credential.json": "dfd39af2124c760e9c066f7e5499bb97e73f21889ac52b835ed72ebee02c4826",
+    "expected.json": "88dc310c3251548172032898bc745b82ce58ff3d72408fb56cd0b5a876b47fc8",
+    "provider-identity.json": "b030746ee5926ed0a2bfcd950b8df46ad68f5691c6159a64da8ec6a5ec496416",
+    "vector-artifact-tampered.json": "d2f75290a7ba012e687bae32fe4b8b5beb830a26c301ade3076cfbe1fcf4490d",
+    "vector-consistency-proof-invalid.json": "8106df33151430996e19c6fced10b254bad1710d72385a2a1fba79e9b55b2eb2",
+    "vector-credential-payload-tampered.json": "41962c46ae30d90cff64d9308658723a2df39a9daa96480a01f6f3a7cc9a860e",
+    "vector-cryptographic-only-incomplete.json": "96cead189b04007eebbe25c37d20e300cf0c575edc25a097e97a7bcba3278199",
+    "vector-federation-conflict.json": "783c7860a9ffe3d047cdc311bd5dd4ecdc1a81fe9e8ac7e5931097512c6d99af",
+    "vector-inclusion-proof-invalid.json": "cbcb299c74ce2640850c9403dfb0c0ede95b3cb7d68dab533cdcba1c969c41af",
+    "vector-provider-suspended.json": "5225552af1eef70d2307c984eeda9607722d6481e98ce18da4eebe9863fbfd77",
+    "vector-registry-authority-untrusted.json": "ba61920e48f767c2d736dcc1c9390a8f2c44f38b8f6c1b7fdf6882bdd15a8b1d",
+    "vector-retired-key-historical.json": "eb6830e0269e8f77ec713d5dd3d71d31e3d289bd3bd4a21edf9288d863b7622e",
+    "vector-revoked-key.json": "1401cbbaa0cdf910b82b0844a46a0f0e527550074a22a08b4b5a6b59ffa41136",
+    "vector-signature-tampered.json": "aa85287b9edbf71390d222219ade012526f17c2be5c5348366c7cad291b0518b",
+    "vector-split-view.json": "8e1704047b71d03a7f81b553f75ac189bb413c20562c594768071f86b8de7ca4",
+    "vector-transparency-inclusion-valid.json": "353ef9889846699ba24d4032c9671e99b7ad3a049bb0664e5c6652b5965bbd3f",
+    "vector-trust-material-stale.json": "723f052e60fb04c5401218b28b8603c8d1584e754704dec908e7c8617e27978c",
+    "vector-unknown-provider.json": "557de4fd3c34ae00be9ca9125c2564202bbda1a560cdf8cdc2ae6ef1660694f9",
+    "vector-valid-binary-artifact.json": "156332051be1dc96b5e3e93200ca0b84bb60212a888ef1ff11a87c20e5870fcc",
+    "vector-valid-text-artifact.json": "448633b7276c4bb6b299390d2dd4f76b8e982dabebc02da9a037ec36a6e9090d",
+    "vector-witness-equivocation.json": "c843b58fc876682f93ac27a67867e9a5592161851676b50f2e810bbe4a4493a8",
+    "vector-witness-quorum-met.json": "9edb6fb51480e152150fdebbb99e9a834b8d94646b9463822948452334f6a95e",
+    "vector-witness-quorum-missing.json": "8b3c8abb02c1b63e3f0e3f3b75edccf847470704b2e76de18f8c299bed61077f"
+  },
+  "format": "gap-test-vectors-v1",
+  "sdk_version": "0.15.0",
+  "test_keys_only": true
+}

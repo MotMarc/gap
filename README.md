@@ -6,7 +6,11 @@ The objective of GAP is to enable participating AI providers to cryptographicall
 
 ## Current Status
 
-Early research and reference implementation, version 0.14.0.
+Early research and reference implementation, version 0.15.0.
+
+Sprint 15 adds the installable Python provider/verifier SDK, typed HTTP client,
+atomic credential sidecars, explicit verification levels, offline public-state
+loading, the `gap` integration CLI, examples and deterministic test vectors.
 
 Sprint 14 adds typed environment configuration, SQLite/PostgreSQL persistence,
 explicit schema migrations, restart-safe bootstrap, authenticated pilot
@@ -178,6 +182,20 @@ Run the demonstrator from the repository root:
 ```
 
 Then open `http://127.0.0.1:8000`.
+
+## Python integration
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e .
+gap version
+```
+
+Providers use `GapProvider.issue_credential()` and verifiers use
+`GapVerifier.verify()`. Full online verification preserves the service's trust,
+transparency, witness and gossip policy. Cryptographic-only results are
+explicitly labelled and never presented as full verification. See
+[`docs/SDK.md`](docs/SDK.md), [`docs/ProviderIntegration.md`](docs/ProviderIntegration.md)
+and [`docs/VerifierIntegration.md`](docs/VerifierIntegration.md).
 
 ## License
 

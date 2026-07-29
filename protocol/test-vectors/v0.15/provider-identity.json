@@ -1,0 +1,15 @@
+{
+  "active_key_id": "gap-test-only-vector-key",
+  "gap_version": "0.0.1",
+  "keys": [
+    {
+      "algorithm": "Ed25519",
+      "created_at": "2026-07-29T12:00:00Z",
+      "key_id": "gap-test-only-vector-key",
+      "public_key": "ebVWLo/mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ=",
+      "status": "active"
+    }
+  ],
+  "provider_id": "gap-test-only-vector-provider",
+  "provider_name": "GAP TEST ONLY Vector Provider"
+}

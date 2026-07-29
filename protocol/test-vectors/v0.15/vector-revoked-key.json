@@ -1,0 +1,63 @@
+{
+  "artifact_base64": "R0FQIFNwcmludCAxNSBkZXRlcm1pbmlzdGljIFRFU1QgT05MWSBhcnRpZmFjdAo=",
+  "artifact_sha256": "cb526327561be306b46e32c637fd44babdcecb8f2e405f3f60e5f5612b4dfa48",
+  "credential": {
+    "payload": {
+      "artifacts": [
+        {
+          "digest": {
+            "algorithm": "sha-256",
+            "value": "cb526327561be306b46e32c637fd44babdcecb8f2e405f3f60e5f5612b4dfa48"
+          },
+          "media_type": "text/plain"
+        }
+      ],
+      "credential_id": "gc-test-only-sprint15-valid",
+      "generation": {
+        "created_at": "2026-07-29T12:00:00Z",
+        "generation_id": "gid-test-only-sprint15"
+      },
+      "model": {
+        "model_id": "gap-test-only-vector-model"
+      },
+      "provider": {
+        "provider_id": "gap-test-only-vector-provider"
+      },
+      "version": "0.0.1"
+    },
+    "proof": {
+      "key_id": "gap-test-only-vector-key",
+      "signature": "Pw++GInnkq0MjH4At+36jJnekIoxg9ekarFqJS+RNcn3DqgZmo0hAtiQgBo0XVqXj1FvmFxoNZAVuwIOM4vEAA==",
+      "type": "Ed25519"
+    }
+  },
+  "expected": {
+    "failure_code": "revoked-key",
+    "valid": false
+  },
+  "format": "gap-test-vector-v1",
+  "label": "TEST KEYS ONLY",
+  "scenario": "revoked-key",
+  "trust_material": {
+    "providers": [
+      {
+        "active_key_id": "gap-test-only-vector-key",
+        "gap_version": "0.0.1",
+        "keys": [
+          {
+            "algorithm": "Ed25519",
+            "created_at": "2026-07-29T12:00:00Z",
+            "key_id": "gap-test-only-vector-key",
+            "public_key": "ebVWLo/mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ=",
+            "status": "active"
+          }
+        ],
+        "provider_id": "gap-test-only-vector-provider",
+        "provider_name": "GAP TEST ONLY Vector Provider"
+      }
+    ],
+    "supported_maximum_verification_level": "full",
+    "test_keys_only": true
+  },
+  "version": "0.15.0"
+}

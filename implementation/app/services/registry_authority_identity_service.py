@@ -9,6 +9,10 @@ from app.schemas.registry_authority import (
 def create_registry_authority_identity_document(
     authority: RegistryAuthority,
 ) -> RegistryAuthorityIdentityDocument:
+    if isinstance(authority, RegistryAuthorityIdentityDocument):
+        return authority.model_copy(deep=True)
+    if hasattr(authority, "identity_document"):
+        return authority.identity_document.model_copy(deep=True)
     return RegistryAuthorityIdentityDocument(
         authority_id=authority.authority_id,
         authority_name=authority.authority_name,
