@@ -1029,33 +1029,33 @@ function renderDeveloper() {
 
 function renderIntegration() {
     const code = [
-        "const result = await fetch('/generations/create', {",
-        "  method: 'POST',",
-        "  headers: {'Content-Type': 'application/json'},",
-        "  body: JSON.stringify({",
-        "    provider_id: 'gap-demo-provider',",
-        "    prompt: 'A calm coastal horizon',",
-        "    account_reference: 'customer-42',",
-        "    retention_days: 30",
-        "  })",
-        "});",
+        "from gap_sdk import GapPackage, GapServiceClient",
         "",
-        "const {artifact_base64, credential} = await result.json();",
+        "client = GapServiceClient('https://gap.example')",
+        "capabilities = client.discover()",
+        "client.negotiate(binding_profile='gap-png-embedded-v1')",
+        "GapPackage.create(artifact, credential, 'artifact.gapbundle')",
+        "",
+        "# Portable package, PNG media binding and conformance",
+        "gap package verify artifact.gapbundle --offline",
+        "gap media verify artifact.png --service https://gap.example --level full",
+        "gap conformance verifier --service https://gap.example",
     ].join("\n");
     replaceContent(
         elements.developerContent,
         element("p", {className: "eyebrow", text: "Integration"}),
-        element("h2", {text: "Issue provenance at generation time"}),
-        element("p", {text: "A provider generates the artifact, binds its digest to a signed credential and returns both in one response. Verifiers can then resolve public identity, trust, transparency and witness evidence independently."}),
-        element("h3", {text: "Generate and issue"}),
+        element("h2", {text: "Discover, negotiate and exchange"}),
+        element("p", {text: "GAP 0.16 supports independent HTTP generators, portable packages and native PNG binding while retaining the same signed trust and FULL verification policy."}),
+        element("h3", {text: "Python SDK"}),
         element("pre", {className: "code-example", text: code}),
         element("h3", {text: "Verify"}),
-        element("p", {text: "Submit the credential to /credentials/verify and independently compare the artifact SHA-256 digest with its signed descriptor."}),
+        element("p", {text: "Use sidecars for raw bytes, .gapbundle for any media, or the explicit gap-png-embedded-v1 profile for PNG. Unknown or downgraded profiles fail."}),
     );
 }
 
 function renderApi() {
     const routes = [
+        ["GET", "/.well-known/gap.json"],
         ["POST", "/generations/create"],
         ["POST", "/credentials/verify"],
         ["GET", "/providers"],
@@ -1087,6 +1087,7 @@ function renderProtocol() {
         elements.developerContent,
         element("p", {className: "eyebrow", text: "Protocol"}),
         element("h2", {text: "A portable trust chain"}),
+        element("p", {text: "The gap-interop-v1 profile defines discovery, negotiation, raw and PNG bindings, packages, limits and fail-closed compatibility behavior. Discovery and package manifests are not trust roots."}),
         element("p", {text: "GAP separates artifact integrity, provider authenticity and ecosystem trust. A credential binds content to a provider key; signed registry decisions establish approval; an append-only log and independent witnesses make those decisions publicly auditable."}),
         element("h3", {text: "Credential"}),
         element("p", {text: "A signed statement describing the artifact, generation event, provider and signing key."}),

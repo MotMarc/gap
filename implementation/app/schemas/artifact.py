@@ -20,3 +20,11 @@ class ArtifactDescriptor(BaseModel):
         examples=["image/png"],
     )
     digest: ArtifactDigest
+    # Optional for backwards compatibility with credentials issued before 0.16.
+    # A missing value has the historical raw-byte meaning.
+    binding_profile: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+        pattern=r"^gap-[a-z0-9-]+-v[0-9]+$",
+    )

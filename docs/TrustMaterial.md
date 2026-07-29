@@ -1,5 +1,9 @@
 # Public trust material
 
+The interoperability format remains `gap-public-state-v2`. A package may carry
+the public export for disconnected verification, subject to freshness policy.
+Unsigned discovery neither replaces nor authenticates trust material.
+
 The `gap-public-state-v2` envelope contains a manifest and public state:
 providers, registry authorities, trust decisions and attestations, federation
 bundles, transparency entries and signed tree heads, witness statements,

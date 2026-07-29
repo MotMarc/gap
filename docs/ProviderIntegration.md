@@ -1,5 +1,10 @@
 # Provider integration
 
+External generators implement the sample service contract and retain no GAP
+signing material. Generate bytes, calculate the explicit raw or normalized PNG
+digest, issue in the provider process, then distribute a sidecar, package, or
+embedded PNG. Test keys are not deployment keys.
+
 Publish a Provider Identity Document and keep its active Ed25519 private key
 outside the application repository. GAP does not generate a key during normal
 issuance.

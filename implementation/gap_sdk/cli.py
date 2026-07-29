@@ -9,6 +9,10 @@ from . import GapProvider, GapServiceClient, GapVerifier, VerificationLevel, __v
 from .errors import GapError, NetworkError, ServiceError
 from .models import GapCredential, ProviderIdentity
 from .trust import load_trust_material
+from .interop import PNG_BINDING
+from .media import embed_credential_in_png, extract_credential_from_png
+from .package import GapPackage
+from .conformance import ConformanceCase, create_report
 
 
 EXIT_SUCCESS, EXIT_GENERAL, EXIT_USAGE, EXIT_MALFORMED = 0, 1, 2, 3
@@ -83,6 +87,64 @@ def parser() -> argparse.ArgumentParser:
     diagnostics = commands.add_parser("diagnostics")
     diagnostics.add_argument("--service", required=True)
     diagnostics.set_defaults(action="diagnostics")
+
+    package = commands.add_parser("package").add_subparsers(required=True)
+    create = package.add_parser("create")
+    create.add_argument("--artifact", required=True, type=Path)
+    create.add_argument("--credential", required=True, type=Path)
+    create.add_argument("--output", required=True, type=Path)
+    create.add_argument("--trust-material", type=Path)
+    create.add_argument("--overwrite", action="store_true")
+    create.set_defaults(action="package-create")
+    inspect = package.add_parser("inspect")
+    inspect.add_argument("package", type=Path)
+    inspect.set_defaults(action="package-inspect")
+    verify_package = package.add_parser("verify")
+    verify_package.add_argument("package", type=Path)
+    verify_package.add_argument("--service")
+    verify_package.add_argument("--trust-material", type=Path)
+    verify_package.add_argument("--offline", action="store_true")
+    verify_package.add_argument(
+        "--level", choices=[item.value for item in VerificationLevel], default="full"
+    )
+    verify_package.set_defaults(action="package-verify")
+    extract = package.add_parser("extract")
+    extract.add_argument("package", type=Path)
+    extract.add_argument("--destination", required=True, type=Path)
+    extract.add_argument("--overwrite", action="store_true")
+    extract.set_defaults(action="package-extract")
+
+    media = commands.add_parser("media").add_subparsers(required=True)
+    embed = media.add_parser("embed")
+    embed.add_argument("--artifact", required=True, type=Path)
+    embed.add_argument("--credential", required=True, type=Path)
+    embed.add_argument("--output", required=True, type=Path)
+    embed.add_argument("--overwrite", action="store_true")
+    embed.set_defaults(action="media-embed")
+    inspect = media.add_parser("inspect")
+    inspect.add_argument("artifact", type=Path)
+    inspect.set_defaults(action="media-inspect")
+    extract_credential = media.add_parser("extract-credential")
+    extract_credential.add_argument("artifact", type=Path)
+    extract_credential.add_argument("--output", required=True, type=Path)
+    extract_credential.add_argument("--overwrite", action="store_true")
+    extract_credential.set_defaults(action="media-extract")
+    media_verify = media.add_parser("verify")
+    media_verify.add_argument("artifact", type=Path)
+    media_source = media_verify.add_mutually_exclusive_group(required=True)
+    media_source.add_argument("--service")
+    media_source.add_argument("--trust-material", type=Path)
+    media_verify.add_argument(
+        "--level", choices=[item.value for item in VerificationLevel], default="full"
+    )
+    media_verify.set_defaults(action="media-verify")
+
+    conformance = commands.add_parser("conformance").add_subparsers(required=True)
+    for suite in ("provider", "verifier", "service"):
+        command = conformance.add_parser(suite)
+        command.add_argument("--service")
+        command.add_argument("--output", type=Path)
+        command.set_defaults(action="conformance", suite=suite)
     return root
 
 
@@ -176,11 +238,141 @@ def main(argv: list[str] | None = None) -> int:
                 "private_data_included": material.state.get("private_data_included"),
             }
         elif action == "diagnostics":
-            health = GapServiceClient(args.service).health()
+            client = GapServiceClient(args.service)
+            health = client.health()
+            discovery = client.discover()
             data = {
                 "healthy": health.get("status") == "healthy",
                 "version": health.get("version"),
+                "interoperability_profiles": discovery.interoperability_profiles,
+                "binding_profiles": discovery.binding_profiles,
             }
+        elif action == "package-create":
+            output = GapPackage.create(
+                args.artifact,
+                args.credential,
+                args.output,
+                trust_material=args.trust_material,
+                overwrite=args.overwrite,
+            )
+            data = {"created": True, "output": output.name, "format": "gap-package-v1"}
+        elif action == "package-inspect":
+            data = GapPackage.inspect(args.package)
+            data["integrity_valid"] = GapPackage.verify_integrity(args.package)
+        elif action == "package-verify":
+            if args.service:
+                verifier = GapVerifier.from_service(args.service)
+            elif args.trust_material:
+                verifier = GapVerifier.from_trust_material(
+                    load_trust_material(args.trust_material)
+                )
+            elif args.offline:
+                members = GapPackage.open(args.package)
+                try:
+                    trust = json.loads(members["trust/trust-material.json"])
+                    verifier = GapVerifier.from_trust_material(trust)
+                except (KeyError, ValueError) as exc:
+                    raise GapError(
+                        "Package does not contain valid offline trust material."
+                    ) from exc
+            else:
+                raise GapError(
+                    "Package verification requires --service, --trust-material, or --offline."
+                )
+            result = GapPackage.verify(
+                args.package, verifier, level=VerificationLevel(args.level)
+            )
+            _emit(result.model_dump(mode="json", exclude_none=True), args.json_output)
+            return _verification_exit(result)
+        elif action == "package-extract":
+            files = GapPackage.extract(
+                args.package, args.destination, overwrite=args.overwrite
+            )
+            data = {
+                "extracted": True,
+                "destination": str(args.destination),
+                "file_count": len(files),
+            }
+        elif action == "media-embed":
+            if args.output.exists() and not args.overwrite:
+                raise GapError("Media output already exists.")
+            output = embed_credential_in_png(
+                args.artifact.read_bytes(), _read_credential(args.credential)
+            )
+            args.output.write_bytes(output)
+            data = {
+                "embedded": True,
+                "output": args.output.name,
+                "binding_profile": PNG_BINDING,
+            }
+        elif action == "media-inspect":
+            credential = extract_credential_from_png(args.artifact.read_bytes())
+            data = {
+                "binding_profile": credential.payload.artifacts[0].binding_profile,
+                "credential_id": credential.payload.credential_id[:20],
+                "provider_id": credential.payload.provider.provider_id,
+            }
+        elif action == "media-extract":
+            if args.output.exists() and not args.overwrite:
+                raise GapError("Credential output already exists.")
+            credential = extract_credential_from_png(args.artifact.read_bytes())
+            args.output.write_text(
+                json.dumps(credential.model_dump(mode="json"), indent=2, sort_keys=True)
+                + "\n",
+                "utf-8",
+            )
+            data = {"extracted": True, "output": args.output.name}
+        elif action == "media-verify":
+            verifier = (
+                GapVerifier.from_service(args.service)
+                if args.service
+                else GapVerifier.from_trust_material(
+                    load_trust_material(args.trust_material)
+                )
+            )
+            raw = args.artifact.read_bytes()
+            result = verifier.verify(
+                raw,
+                extract_credential_from_png(raw),
+                level=VerificationLevel(args.level),
+            )
+            _emit(result.model_dump(mode="json", exclude_none=True), args.json_output)
+            return _verification_exit(result)
+        elif action == "conformance":
+            cases = [
+                ConformanceCase(
+                    case_id=f"{args.suite}.sdk-version",
+                    status="passed" if __version__ == "0.16.0" else "failed",
+                )
+            ]
+            if args.service:
+                try:
+                    negotiated = GapServiceClient(args.service).negotiate()
+                    cases.append(
+                        ConformanceCase(
+                            case_id=f"{args.suite}.service-negotiation",
+                            status="passed"
+                            if negotiated.verification_level == "full"
+                            else "failed",
+                        )
+                    )
+                except GapError:
+                    cases.append(
+                        ConformanceCase(
+                            case_id=f"{args.suite}.service-negotiation",
+                            status="failed",
+                        )
+                    )
+            report = create_report(args.suite, cases)
+            data = report.model_dump(mode="json", exclude_none=True)
+            if args.output:
+                if args.output.exists():
+                    raise GapError("Conformance report output already exists.")
+                args.output.write_text(
+                    json.dumps(data, indent=2, sort_keys=True) + "\n", "utf-8"
+                )
+            _emit(data, args.json_output)
+            return EXIT_SUCCESS if report.passed else EXIT_GENERAL
         _emit(data, args.json_output)
         return EXIT_SUCCESS if data.get("healthy", True) else EXIT_GENERAL
     except FileNotFoundError:

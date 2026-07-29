@@ -4,6 +4,26 @@ class GapError(Exception):
     code = "gap-error"
 
 
+class CompatibilityError(GapError):
+    code = "compatibility-error"
+
+
+class PackageError(GapError):
+    code = "package-error"
+
+
+class MediaBindingError(GapError):
+    code = "media-binding-error"
+
+
+class ProviderAdapterError(GapError):
+    code = "provider-adapter-error"
+
+
+class ConformanceError(GapError):
+    code = "conformance-error"
+
+
 class CredentialError(GapError):
     code = "credential-error"
 

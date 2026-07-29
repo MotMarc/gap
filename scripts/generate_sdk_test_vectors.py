@@ -22,10 +22,9 @@ from app.schemas.generation_credential import (  # noqa: E402
     GenerationCredentialPayload,
     GenerationCredentialProof,
 )
-from gap_sdk.version import __version__  # noqa: E402
-
 
 OUTPUT = ROOT / "protocol" / "test-vectors" / "v0.15"
+VECTOR_SDK_VERSION = "0.15.0"
 TEST_PRIVATE_SEED = bytes(range(1, 33))
 
 
@@ -73,7 +72,7 @@ def build() -> dict[str, str]:
     }
     files = {
         "artifact.txt": artifact.decode(),
-        "credential.json": dump(credential.model_dump(mode="json")),
+        "credential.json": dump(credential.model_dump(mode="json", exclude_none=True)),
         "provider-identity.json": dump(identity),
         "expected.json": dump(
             {
@@ -113,12 +112,12 @@ def build() -> dict[str, str]:
         "cryptographic-only-incomplete": (False, "incomplete-verification"),
     }
     public_identity = identity
-    public_credential = credential.model_dump(mode="json")
+    public_credential = credential.model_dump(mode="json", exclude_none=True)
     for name, (valid, failure) in scenarios.items():
         files[f"vector-{name}.json"] = dump(
             {
                 "format": "gap-test-vector-v1",
-                "version": __version__,
+                "version": VECTOR_SDK_VERSION,
                 "label": "TEST KEYS ONLY",
                 "scenario": name,
                 "artifact_sha256": hashlib.sha256(artifact).hexdigest(),
@@ -141,7 +140,7 @@ def build() -> dict[str, str]:
         )
     manifest = {
         "format": "gap-test-vectors-v1",
-        "sdk_version": __version__,
+        "sdk_version": VECTOR_SDK_VERSION,
         "test_keys_only": True,
         "files": {
             name: hashlib.sha256(content.encode()).hexdigest()

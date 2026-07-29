@@ -1,5 +1,18 @@
 # GAP Reference Architecture
 
+## Sprint 16 interoperability boundary
+
+Generation may cross an HTTP process boundary, but credential issuance remains
+in the authoritative provider core. Discovery, packages, and PNG binding are
+transport modules; canonical signing and online/offline FULL verification are
+reused, not reimplemented.
+
+The portable verifier integration is stateless with respect to trust. It accepts
+bounded artifact bytes, a credential and an integrity-wrapped public export,
+invokes the authoritative SDK verifier and returns the typed result. Its local
+persistent database contains installation metadata only. It has no signing key,
+administrator token, Instance A database connection or direct repository access.
+
 ## Sprint 15 integration architecture
 
 `gap_sdk` is an installable public façade. It reuses the reference

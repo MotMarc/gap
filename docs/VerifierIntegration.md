@@ -1,5 +1,10 @@
 # Verifier integration
 
+Discover and negotiate advanced profiles first. Verification always follows the
+signed binding: absent means historical raw bytes, PNG means normalized PNG,
+and unknown means failure. Package manifests index integrity but do not prove
+origin. Online and exported-material offline FULL verification use one policy.
+
 ```python
 from gap_sdk import GapVerifier
 

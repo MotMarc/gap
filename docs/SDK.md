@@ -1,5 +1,10 @@
 # Python SDK
 
+Version 0.16 adds `GapServiceClient.discover()` and `.negotiate()`,
+`GapPackage`, PNG helpers, typed HTTP generation adapters, onboarding helpers,
+and deterministic conformance reports. Advanced operations require exact
+capability overlap and never reduce requested FULL verification.
+
 Install from the repository with `python -m pip install -e .`. The stable
 imports are `GapProvider`, `GapVerifier`, `GapServiceClient`,
 `GapAdministrativeClient`, `GapCredential`, `VerificationResult`,

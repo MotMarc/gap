@@ -19,6 +19,19 @@ from app.core.logging import configure_logging
 from app.core.middleware import operational_middleware
 from app.core.settings import get_settings
 from app.core.version import APPLICATION_VERSION
+from gap_sdk.interop import (
+    CREDENTIAL_SCHEMA,
+    DIGEST_ALGORITHM,
+    MAX_CREDENTIAL_SIZE,
+    MAX_EMBEDDED_METADATA_SIZE,
+    MAX_PACKAGE_SIZE,
+    PACKAGE_FORMAT,
+    PNG_BINDING,
+    PROTOCOL_PROFILE,
+    RAW_BINDING,
+    SIDECAR_FORMAT,
+    TRUST_FORMAT,
+)
 from app.crypto.provider_keys import (
     encode_public_key,
     load_private_key,
@@ -115,6 +128,38 @@ if settings.cors_allowed_origins:
 
 app.include_router(protocol_router)
 app.include_router(admin_router)
+
+
+@app.get("/.well-known/gap.json", tags=["System"])
+def service_discovery() -> dict:
+    from datetime import datetime, timezone
+
+    return {
+        "service_id": "gap-reference-implementation",
+        "application_version": APPLICATION_VERSION,
+        "interoperability_profiles": [PROTOCOL_PROFILE],
+        "protocol_object_versions": {
+            "credential": ["0.0.1"],
+            "sidecar": [SIDECAR_FORMAT],
+            "package": [PACKAGE_FORMAT],
+        },
+        "credential_schemas": [CREDENTIAL_SCHEMA],
+        "binding_profiles": [RAW_BINDING, PNG_BINDING],
+        "digest_algorithms": [DIGEST_ALGORITHM],
+        "trust_material_formats": [TRUST_FORMAT],
+        "verification_levels": ["cryptographic", "trusted-provider", "full"],
+        "public_endpoints": {
+            "verification": "/credentials/verify",
+            "public_state": "/public-state",
+            "providers": "/providers",
+        },
+        "maximum_credential_size": MAX_CREDENTIAL_SIZE,
+        "maximum_package_size": MAX_PACKAGE_SIZE,
+        "maximum_embedded_metadata_size": MAX_EMBEDDED_METADATA_SIZE,
+        "server_time": datetime.now(timezone.utc),
+        "documentation": "/docs",
+        "discovery_is_trust_root": False,
+    }
 
 
 app.mount(

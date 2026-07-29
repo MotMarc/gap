@@ -19,6 +19,7 @@ from .models import (
     VerificationResult,
 )
 from .offline import evaluate_offline_full
+from .interop import PNG_BINDING, RAW_BINDING, signed_binding_profile
 
 
 class GapVerifier:
@@ -70,7 +71,15 @@ class GapVerifier:
             credential = GapCredential.model_validate(credential)
         except ValueError as exc:
             raise CredentialError("Credential is malformed.") from exc
-        actual_digest = self._digest(artifact)
+        profile = signed_binding_profile(credential)
+        if profile == RAW_BINDING:
+            actual_digest = self._digest(artifact)
+        elif profile == PNG_BINDING:
+            from .media import calculate_png_binding_digest
+
+            actual_digest = calculate_png_binding_digest(self._read_bytes(artifact))
+        else:
+            raise CredentialError(f"Unsupported signed binding profile: {profile}.")
         expected_digest = credential.payload.artifacts[0].digest.value
         integrity = actual_digest == expected_digest
         checks = [
@@ -255,6 +264,14 @@ class GapVerifier:
         while chunk := artifact.read(1024 * 1024):
             digest.update(chunk)
         return digest.hexdigest()
+
+    @staticmethod
+    def _read_bytes(artifact: bytes | str | Path | BinaryIO) -> bytes:
+        if isinstance(artifact, bytes):
+            return artifact
+        if isinstance(artifact, (str, Path)):
+            return Path(artifact).read_bytes()
+        return artifact.read()
 
     @staticmethod
     def _result(

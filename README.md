@@ -2,11 +2,22 @@
 
 GAP is an open protocol proposal for privacy-preserving attribution of AI-generated artefacts.
 
+Version 0.16 adds the [interoperability profile](protocol/GAP-Interop-Profile-v1.md),
+service discovery, explicit negotiation, portable `.gapbundle` packages, native
+PNG binding, and an independent HTTP provider pilot. Other media continues to
+use sidecars or packages.
+
+Run instrumented desktop/mobile browser validation with
+`.\.venv\Scripts\python.exe scripts\validate_browser_console.py --url
+http://127.0.0.1:8780 --launch-service --json`. Run the isolated persisted
+two-installation validation with `.\.venv\Scripts\python.exe
+scripts\validate_cross_installation.py --json`.
+
 The objective of GAP is to enable participating AI providers to cryptographically associate generated artefacts with a unique Generation Identifier while preserving user privacy by default and supporting lawful attribution under due process.
 
 ## Current Status
 
-Early research and reference implementation, version 0.15.0.
+Early research and reference implementation, version 0.16.0.
 
 Sprint 15 adds the installable Python provider/verifier SDK, typed HTTP client,
 atomic credential sidecars, explicit verification levels, offline public-state

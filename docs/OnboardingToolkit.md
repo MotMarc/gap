@@ -1,5 +1,10 @@
 # Onboarding toolkit
 
+`gap-provider-onboarding-v1` declares public identity keys, capabilities,
+profiles and a test credential. Its manifest excludes private keys and
+production contact data. Submission uses the existing application API and
+never automatically approves a provider; backend transitions remain authoritative.
+
 1. Create and protect a provider key using the existing development setup or
    production custody process.
 2. Submit the public identity through the authenticated administrative

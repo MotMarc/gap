@@ -6,6 +6,7 @@ import httpx
 
 from .errors import NetworkError, ServiceError
 from .version import __version__
+from .interop import GapServiceCapabilities, negotiate
 
 
 class GapServiceClient:
@@ -44,6 +45,14 @@ class GapServiceClient:
 
     def health(self) -> dict:
         return self._request("GET", "/health")
+
+    def discover(self) -> GapServiceCapabilities:
+        return GapServiceCapabilities.model_validate(
+            self._request("GET", "/.well-known/gap.json")
+        )
+
+    def negotiate(self, **requirements):
+        return negotiate(self.discover(), **requirements)
 
     def get_provider(self, provider_id: str) -> dict:
         return self._request("GET", f"/providers/{provider_id}/.well-known/gap.json")

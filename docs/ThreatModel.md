@@ -1,5 +1,33 @@
 # Threat Model
 
+## Sprint 16 interoperability threats
+
+The signed binding profile prevents raw/PNG confusion and downgrade; missing
+historical values mean raw bytes only and unknown values fail. Discovery is
+untrusted metadata and cannot establish trust.
+
+Packages reject traversal, absolute/drive and backslash paths, case-folded
+duplicates, links, bombs, unsupported compression, substitution, and manifest
+tampering before extraction. PNG parsing bounds chunks and metadata, validates
+CRC and ordering, rejects duplicates/trailing bytes, and preserves unrelated
+metadata. Residual parser risk is why native support is PNG-only.
+
+External provider endpoints require HTTPS outside loopback, refuse redirects
+and explicit restricted-network targets, bound responses, redact authorization,
+avoid prompt logging, and never receive GAP private keys or admin tokens. DNS
+rebinding and compromise of an explicitly configured endpoint remain risks.
+Report digests detect conformance-report changes but are not certifications.
+Existing freshness, rollback, transparency, witness, gossip, split-view and
+equivocation controls govern cross-instance replay. Universal media and C2PA
+compatibility are not claimed.
+
+Cross-installation guards reject shared SQLite paths, runtime directories and
+ports. Instance B receives no private attribution records or signing/admin
+secrets and does not persist transferred trust. Malformed portable inputs remain
+bounded and fail closed. CDP browser validation uses a fresh temporary profile
+and terminates only the process it started; the user's normal browser profile is
+never opened.
+
 ## Sprint 15 SDK threats
 
 Credential, trust-bundle and service JSON are untrusted and validated with

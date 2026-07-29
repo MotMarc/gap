@@ -379,6 +379,6 @@ def test_health_endpoint() -> None:
     body = response.json()
     assert body["status"] == "healthy"
     assert body["service"] == "gap-reference-implementation"
-    assert body["version"] == "0.15.0"
+    assert body["version"] == "0.16.0"
     assert body["transparency_log_loaded"] is True
     assert body["federation_invalid_file_count"] >= 0

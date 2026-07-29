@@ -25,6 +25,7 @@ from app.services.verification_service import verify_generation_credential
 from .errors import CredentialError, KeyError
 from .files import read_sidecar, sha256_file, write_sidecar
 from .models import GenerationContext, ProviderIdentity
+from .interop import RAW_BINDING
 
 
 class CredentialSigner(Protocol):
@@ -92,9 +93,22 @@ class GapProvider:
         self,
         artifact: bytes,
         generation_context: GenerationContext | dict,
+        *,
+        binding_profile: str = RAW_BINDING,
     ) -> GenerationCredential:
         context = GenerationContext.model_validate(generation_context)
-        payload = self._payload(hashlib.sha256(artifact).hexdigest(), context)
+        if binding_profile == RAW_BINDING:
+            digest = hashlib.sha256(artifact).hexdigest()
+        else:
+            from .interop import PNG_BINDING
+            from .media import calculate_png_binding_digest
+
+            if binding_profile != PNG_BINDING:
+                raise CredentialError(
+                    f"Unsupported binding profile: {binding_profile}."
+                )
+            digest = calculate_png_binding_digest(artifact)
+        payload = self._payload(digest, context, binding_profile)
         signature = base64.b64encode(
             self.signer.sign(canonicalise_model(payload))
         ).decode("ascii")
@@ -106,10 +120,25 @@ class GapProvider:
         )
 
     def issue_credential_for_file(
-        self, path: str | Path, generation_context: GenerationContext | dict
+        self,
+        path: str | Path,
+        generation_context: GenerationContext | dict,
+        *,
+        binding_profile: str = RAW_BINDING,
     ) -> GenerationCredential:
         context = GenerationContext.model_validate(generation_context)
-        payload = self._payload(sha256_file(path), context)
+        if binding_profile == RAW_BINDING:
+            digest = sha256_file(path)
+        else:
+            from .interop import PNG_BINDING
+            from .media import calculate_png_binding_digest
+
+            if binding_profile != PNG_BINDING:
+                raise CredentialError(
+                    f"Unsupported binding profile: {binding_profile}."
+                )
+            digest = calculate_png_binding_digest(Path(path).read_bytes())
+        payload = self._payload(digest, context, binding_profile)
         signature = base64.b64encode(
             self.signer.sign(canonicalise_model(payload))
         ).decode("ascii")
@@ -121,7 +150,7 @@ class GapProvider:
         )
 
     def _payload(
-        self, digest: str, context: GenerationContext
+        self, digest: str, context: GenerationContext, binding_profile: str
     ) -> GenerationCredentialPayload:
         created_at = context.created_at
         if created_at.tzinfo is None:
@@ -139,6 +168,7 @@ class GapProvider:
                 ArtifactDescriptor(
                     media_type=context.media_type,
                     digest=ArtifactDigest(value=digest),
+                    binding_profile=binding_profile,
                 )
             ],
         )
