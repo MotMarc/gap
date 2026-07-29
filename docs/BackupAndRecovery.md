@@ -28,4 +28,13 @@ result into an external manifest, verify before restore, stop writers, and use
 `pg_restore` into a newly created target database. The bundled tool does not
 invoke external database commands automatically. Encrypt backup storage,
 restrict volume permissions and test recovery regularly.
+## Automated v1 rehearsal
+
+Run `python scripts/validate_backup_restore.py --json`. It creates an isolated
+SQLite database under ignored release output, invokes the existing backup and
+restore commands, verifies the manifest and schema revision, enforces explicit
+restore confirmation, excludes post-backup state, compares the restored backup
+point, rejects corruption, checks key/token exclusion, and preserves the source.
+Successful temporary state is cleaned up; safe diagnostic evidence is retained
+on failure.
 

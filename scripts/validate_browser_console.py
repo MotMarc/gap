@@ -190,8 +190,8 @@ async def _exercise(cdp: CDP, width: int, height: int) -> dict[str, Any]:
         cdp, "document.querySelector('#header-health')?.textContent.includes('healthy')"
     )
     version = await cdp.evaluate("document.querySelector('.version')?.textContent")
-    if version != "v0.16.0":
-        raise RuntimeError("Frontend version is not 0.16.0.")
+    if version != "v1.0.0":
+        raise RuntimeError("Frontend version is not 1.0.0.")
 
     await cdp.evaluate("location.hash='create'")
     await _wait_expression(cdp, "!!document.querySelector('#generation-form')")
@@ -337,6 +337,9 @@ def validate(url: str, browser: Path) -> dict:
             desktop = asyncio.run(
                 _validate_target(target["webSocketDebuggerUrl"], 1440, 900)
             )
+            tablet = asyncio.run(
+                _validate_target(target["webSocketDebuggerUrl"], 1024, 768)
+            )
             mobile = asyncio.run(
                 _validate_target(target["webSocketDebuggerUrl"], 390, 844)
             )
@@ -344,8 +347,8 @@ def validate(url: str, browser: Path) -> dict:
                 "format": "gap-browser-validation-v1",
                 "browser": browser.name,
                 "browser_version": browser_metadata.get("Browser", "unknown"),
-                "profiles": [desktop, mobile],
-                "passed": desktop["passed"] and mobile["passed"],
+                "profiles": [desktop, tablet, mobile],
+                "passed": desktop["passed"] and tablet["passed"] and mobile["passed"],
                 "temporary_profile_cleaned": True,
             }
             return redact_report(report)

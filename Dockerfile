@@ -1,7 +1,7 @@
 FROM python:3.12.11-slim-bookworm
 
 LABEL org.opencontainers.image.title="Generation Attribution Protocol" \
-      org.opencontainers.image.version="0.16.0"
+      org.opencontainers.image.version="1.0.0"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

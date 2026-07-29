@@ -342,7 +342,7 @@ def main(argv: list[str] | None = None) -> int:
             cases = [
                 ConformanceCase(
                     case_id=f"{args.suite}.sdk-version",
-                    status="passed" if __version__ == "0.16.0" else "failed",
+                    status="passed" if __version__ == "1.0.0" else "failed",
                 )
             ]
             if args.service:

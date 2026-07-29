@@ -14,7 +14,7 @@ VECTORS = ROOT / "protocol" / "test-vectors" / "v0.15"
 
 def test_cli_version_json(capsys):
     assert main(["--json", "version"]) == EXIT_VALID
-    assert json.loads(capsys.readouterr().out)["version"] == "0.16.0"
+    assert json.loads(capsys.readouterr().out)["version"] == "1.0.0"
 
 
 def test_cli_malformed_credential_has_no_traceback(tmp_path, capsys):

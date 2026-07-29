@@ -100,7 +100,7 @@ def test_service_discovery_and_negotiation():
     assert response.status_code == 200
     document = response.json()
     assert document["discovery_is_trust_root"] is False
-    assert document["application_version"] == "0.16.0"
+    assert document["application_version"] == "1.0.0"
     assert (
         negotiate(document, binding_profile=PNG_BINDING).binding_profile == PNG_BINDING
     )
@@ -115,7 +115,7 @@ def test_client_typed_discovery():
         )
     )
     capabilities = GapServiceClient("https://gap.test", transport=transport).discover()
-    assert capabilities.application_version == "0.16.0"
+    assert capabilities.application_version == "1.0.0"
 
 
 def test_png_embed_extract_and_normalized_digest(provider):

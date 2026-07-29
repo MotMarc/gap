@@ -23,7 +23,7 @@ services:
         condition: service_healthy
     environment:
       APP_ENV: demonstration
-      APP_VERSION: 0.16.0
+      APP_VERSION: 1.0.0
       PERSISTENCE_MODE: database
       DATABASE_URL: postgresql+psycopg://gap:${POSTGRES_PASSWORD}@database:5432/gap
       RUNTIME_DIRECTORY: /data/runtime

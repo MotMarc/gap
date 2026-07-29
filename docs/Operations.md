@@ -29,4 +29,10 @@ Current operational limits include one application process, no distributed
 transaction coordinator, no HA/replication, pilot-grade local bearer-token
 administration, manual federation/gossip transport, and file-mounted keys.
 Production key custody should use a KMS or HSM.
+## Release operational rehearsals
+
+Use `python scripts/validate_backup_restore.py --json` for the isolated recovery
+rehearsal and `python scripts/run_mvp_demo.py --output release-output/mvp-demo`
+for the authoritative process-isolated demonstration. Neither command uses the
+normal runtime database or Docker volumes.
 

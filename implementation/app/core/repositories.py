@@ -65,7 +65,7 @@ else:
     federation_bundle_repository = FederationBundleRepository()
     transparency_log_repository = TransparencyLogRepository(
         REFERENCE_TRANSPARENCY_LOG,
-        settings.runtime_directory / "transparency",
+        None,
     )
 trust_registry_service = TrustRegistryService(
     trust_repository=trust_registry_repository,
@@ -152,15 +152,18 @@ def bootstrap_reference_state() -> dict[str, int]:
 BOOTSTRAP_REPORT = bootstrap_reference_state()
 
 FEDERATION_ACCEPTED_DIRECTORY = settings.runtime_directory / "federation" / "accepted"
-(
-    FEDERATION_LOADED_BUNDLE_COUNT,
-    FEDERATION_INVALID_FILE_COUNT,
-) = load_accepted_bundle_directory(
-    FEDERATION_ACCEPTED_DIRECTORY,
-    registry_authority_repository,
-    federation_bundle_repository,
-    transparency_log_repository,
-)
+if settings.persistence_mode == "database":
+    (
+        FEDERATION_LOADED_BUNDLE_COUNT,
+        FEDERATION_INVALID_FILE_COUNT,
+    ) = load_accepted_bundle_directory(
+        FEDERATION_ACCEPTED_DIRECTORY,
+        registry_authority_repository,
+        federation_bundle_repository,
+        transparency_log_repository,
+    )
+else:
+    FEDERATION_LOADED_BUNDLE_COUNT = FEDERATION_INVALID_FILE_COUNT = 0
 
 latest_tree_head = transparency_log_repository.latest_tree_head()
 if (
@@ -176,8 +179,8 @@ if settings.persistence_mode == "database":
     witness_statement_repository = SqlWitnessStatementRepository(factory)
     checkpoint_gossip_repository = SqlCheckpointGossipRepository(factory)
 else:
-    witness_statement_repository = WitnessStatementRepository(WITNESS_RUNTIME_DIRECTORY)
-    checkpoint_gossip_repository = CheckpointGossipRepository(GOSSIP_RUNTIME_DIRECTORY)
+    witness_statement_repository = WitnessStatementRepository()
+    checkpoint_gossip_repository = CheckpointGossipRepository()
 
 
 def record_reference_witness_evidence(tree_head) -> None:

@@ -60,5 +60,5 @@ def test_verification_and_trust_responses_expose_transparency() -> None:
     registry = client.get("/trust-registry").json()
     assert all("transparency_verified" in entry for entry in registry)
     health = client.get("/health").json()
-    assert health["version"] == "0.16.0"
+    assert health["version"] == "1.0.0"
     assert health["transparency_log_loaded"] is True

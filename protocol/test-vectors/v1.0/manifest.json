@@ -1,0 +1,28 @@
+{
+  "cases": [
+    "valid-raw-sidecar",
+    "valid-package",
+    "valid-embedded-png",
+    "online-offline-equivalence",
+    "artifact-tampered",
+    "credential-tampered",
+    "package-tampered",
+    "png-tampered",
+    "unknown-provider",
+    "revoked-key",
+    "provider-suspended",
+    "federation-conflict",
+    "invalid-inclusion-proof",
+    "invalid-consistency-proof",
+    "missing-quorum",
+    "split-view",
+    "witness-equivocation",
+    "stale-trust-material",
+    "profile-downgrade",
+    "malformed-archive"
+  ],
+  "format": "gap-v1-release-vector-catalogue",
+  "historical_catalogue": "../v0.15/manifest.json",
+  "historical_sha256": "ac40c2dae8010bd3678491238a3d3401fc98f855382f1821497dfbaac842bbfa",
+  "warning": "TEST KEYS ONLY"
+}

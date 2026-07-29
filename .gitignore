@@ -246,3 +246,5 @@ runtime/*public-state*.json
 /public-state.json
 /dist/
 /build/
+/review-output/
+/release-output/

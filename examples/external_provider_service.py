@@ -8,7 +8,7 @@ import struct
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-app = FastAPI(title="GAP sample external provider", version="0.16.0")
+app = FastAPI(title="GAP sample external provider", version="1.0.0")
 
 
 class Request(BaseModel):

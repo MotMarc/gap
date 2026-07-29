@@ -4,32 +4,31 @@ from typing import Any
 from pydantic import BaseModel
 
 
+def canonical_json(value: BaseModel | dict[str, Any]) -> bytes:
+    data = (
+        value.model_dump(mode="json", exclude_none=True)
+        if isinstance(value, BaseModel)
+        else value
+    )
+
+    def reject_float(item: Any) -> None:
+        if isinstance(item, float):
+            raise TypeError(
+                "Floating-point values are not supported in canonical JSON."
+            )
+        if isinstance(item, dict):
+            for nested in item.values():
+                reject_float(nested)
+        elif isinstance(item, (list, tuple)):
+            for nested in item:
+                reject_float(nested)
+
+    reject_float(data)
+    return json.dumps(
+        data, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+
+
 def canonicalise_model(model: BaseModel) -> bytes:
-    """
-    Serialize a Pydantic model into deterministic UTF-8 JSON bytes.
-
-    Current experimental rules:
-
-    1. Fields are serialized using JSON-compatible values.
-    2. Object keys are sorted alphabetically.
-    3. Insignificant whitespace is removed.
-    4. Unicode characters are serialized directly.
-    5. The result is encoded using UTF-8.
-
-    This is an experimental canonical format and may later be replaced by
-    RFC 8785 JSON Canonicalization Scheme.
-    """
-
-    data: Any = model.model_dump(
-        mode="json",
-        exclude_none=True,
-    )
-
-    canonical_json = json.dumps(
-        data,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-    )
-
-    return canonical_json.encode("utf-8")
+    """Use the single protocol canonicaliser shared by service, SDK and CLI."""
+    return canonical_json(model)

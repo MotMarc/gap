@@ -1,0 +1,5415 @@
+{
+  "components": {
+    "schemas": {
+      "ArtifactDescriptor": {
+        "properties": {
+          "binding_profile": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "pattern": "^gap-[a-z0-9-]+-v[0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Binding Profile"
+          },
+          "digest": {
+            "$ref": "#/components/schemas/ArtifactDigest"
+          },
+          "media_type": {
+            "examples": [
+              "image/png"
+            ],
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Media Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "media_type",
+          "digest"
+        ],
+        "title": "ArtifactDescriptor",
+        "type": "object"
+      },
+      "ArtifactDigest": {
+        "properties": {
+          "algorithm": {
+            "default": "sha-256",
+            "pattern": "^sha-256$",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "title": "ArtifactDigest",
+        "type": "object"
+      },
+      "AttributionDisclosureResponse": {
+        "properties": {
+          "account_reference": {
+            "title": "Account Reference",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "generation_id": {
+            "title": "Generation Id",
+            "type": "string"
+          },
+          "model_id": {
+            "title": "Model Id",
+            "type": "string"
+          },
+          "prompt_hash": {
+            "title": "Prompt Hash",
+            "type": "string"
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "retained_until": {
+            "format": "date-time",
+            "title": "Retained Until",
+            "type": "string"
+          },
+          "retention_status": {
+            "title": "Retention Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "generation_id",
+          "provider_id",
+          "account_reference",
+          "prompt_hash",
+          "model_id",
+          "created_at",
+          "retained_until",
+          "retention_status"
+        ],
+        "title": "AttributionDisclosureResponse",
+        "type": "object"
+      },
+      "Body_verify_witness_statement_stateless_transparency_witness_statements_verify_post": {
+        "properties": {
+          "statement": {
+            "$ref": "#/components/schemas/WitnessStatement"
+          },
+          "tree_head": {
+            "$ref": "#/components/schemas/SignedTreeHead"
+          }
+        },
+        "required": [
+          "statement",
+          "tree_head"
+        ],
+        "title": "Body_verify_witness_statement_stateless_transparency_witness_statements_verify_post",
+        "type": "object"
+      },
+      "CheckpointGossipPackage": {
+        "properties": {
+          "consistency_proof_to_previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConsistencyProof"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exported_at": {
+            "format": "date-time",
+            "title": "Exported At",
+            "type": "string"
+          },
+          "gossip_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Gossip Id",
+            "type": "string"
+          },
+          "previous_signed_tree_head": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignedTreeHead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signed_tree_head": {
+            "$ref": "#/components/schemas/SignedTreeHead"
+          },
+          "version": {
+            "const": "0.13.0",
+            "default": "0.13.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "witness_statements": {
+            "items": {
+              "$ref": "#/components/schemas/WitnessStatement"
+            },
+            "maxItems": 100,
+            "title": "Witness Statements",
+            "type": "array"
+          }
+        },
+        "required": [
+          "gossip_id",
+          "exported_at",
+          "signed_tree_head",
+          "witness_statements"
+        ],
+        "title": "CheckpointGossipPackage",
+        "type": "object"
+      },
+      "ConsistencyProof": {
+        "properties": {
+          "consistency_path": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Consistency Path",
+            "type": "array"
+          },
+          "log_id": {
+            "title": "Log Id",
+            "type": "string"
+          },
+          "new_root_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "New Root Hash",
+            "type": "string"
+          },
+          "new_tree_size": {
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "New Tree Size",
+            "type": "integer"
+          },
+          "old_root_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Old Root Hash",
+            "type": "string"
+          },
+          "old_tree_size": {
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Old Tree Size",
+            "type": "integer"
+          },
+          "version": {
+            "default": "0.13.0",
+            "enum": [
+              "0.12.0",
+              "0.13.0"
+            ],
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "log_id",
+          "old_tree_size",
+          "new_tree_size",
+          "old_root_hash",
+          "new_root_hash",
+          "consistency_path"
+        ],
+        "title": "ConsistencyProof",
+        "type": "object"
+      },
+      "ConsistencyVerificationRequest": {
+        "properties": {
+          "new_tree_head": {
+            "$ref": "#/components/schemas/SignedTreeHead"
+          },
+          "old_tree_head": {
+            "$ref": "#/components/schemas/SignedTreeHead"
+          },
+          "proof": {
+            "$ref": "#/components/schemas/ConsistencyProof"
+          }
+        },
+        "required": [
+          "old_tree_head",
+          "new_tree_head",
+          "proof"
+        ],
+        "title": "ConsistencyVerificationRequest",
+        "type": "object"
+      },
+      "ConsistencyVerificationResult": {
+        "properties": {
+          "append_only": {
+            "default": false,
+            "title": "Append Only",
+            "type": "boolean"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "split_view": {
+            "default": false,
+            "title": "Split View",
+            "type": "boolean"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "valid"
+        ],
+        "title": "ConsistencyVerificationResult",
+        "type": "object"
+      },
+      "CredentialGeneration": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "generation_id": {
+            "title": "Generation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "generation_id",
+          "created_at"
+        ],
+        "title": "CredentialGeneration",
+        "type": "object"
+      },
+      "CredentialModel": {
+        "properties": {
+          "model_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Model Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model_id"
+        ],
+        "title": "CredentialModel",
+        "type": "object"
+      },
+      "CredentialProvider": {
+        "properties": {
+          "provider_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Provider Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider_id"
+        ],
+        "title": "CredentialProvider",
+        "type": "object"
+      },
+      "DisclosureAuditResponse": {
+        "properties": {
+          "approved": {
+            "title": "Approved",
+            "type": "boolean"
+          },
+          "authorisation_id": {
+            "title": "Authorisation Id",
+            "type": "string"
+          },
+          "denial_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denial Reason"
+          },
+          "disclosed_at": {
+            "format": "date-time",
+            "title": "Disclosed At",
+            "type": "string"
+          },
+          "disclosure_id": {
+            "title": "Disclosure Id",
+            "type": "string"
+          },
+          "generation_id": {
+            "title": "Generation Id",
+            "type": "string"
+          },
+          "investigator_reference": {
+            "title": "Investigator Reference",
+            "type": "string"
+          },
+          "issuing_authority": {
+            "title": "Issuing Authority",
+            "type": "string"
+          },
+          "jurisdiction": {
+            "title": "Jurisdiction",
+            "type": "string"
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "purpose": {
+            "title": "Purpose",
+            "type": "string"
+          }
+        },
+        "required": [
+          "disclosure_id",
+          "generation_id",
+          "provider_id",
+          "investigator_reference",
+          "authorisation_id",
+          "issuing_authority",
+          "jurisdiction",
+          "purpose",
+          "approved",
+          "denial_reason",
+          "disclosed_at"
+        ],
+        "title": "DisclosureAuditResponse",
+        "type": "object"
+      },
+      "DisclosureAuthorisationRequest": {
+        "properties": {
+          "authorisation_id": {
+            "examples": [
+              "court-order-001"
+            ],
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Authorisation Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "investigator_reference": {
+            "examples": [
+              "investigator-001"
+            ],
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Investigator Reference",
+            "type": "string"
+          },
+          "issued_at": {
+            "format": "date-time",
+            "title": "Issued At",
+            "type": "string"
+          },
+          "issuing_authority": {
+            "examples": [
+              "Crown Court"
+            ],
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Issuing Authority",
+            "type": "string"
+          },
+          "jurisdiction": {
+            "examples": [
+              "GB"
+            ],
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Jurisdiction",
+            "type": "string"
+          },
+          "provider_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "purpose": {
+            "enum": [
+              "criminal-investigation",
+              "civil-proceedings",
+              "regulatory-investigation",
+              "national-security-investigation"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorisation_id",
+          "investigator_reference",
+          "issuing_authority",
+          "jurisdiction",
+          "purpose",
+          "issued_at",
+          "expires_at",
+          "provider_id"
+        ],
+        "title": "DisclosureAuthorisationRequest",
+        "type": "object"
+      },
+      "DisclosureRequest": {
+        "properties": {
+          "authorisation": {
+            "$ref": "#/components/schemas/DisclosureAuthorisationRequest"
+          },
+          "generation_id": {
+            "minLength": 1,
+            "title": "Generation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "generation_id",
+          "authorisation"
+        ],
+        "title": "DisclosureRequest",
+        "type": "object"
+      },
+      "FederationBundle": {
+        "properties": {
+          "payload": {
+            "$ref": "#/components/schemas/FederationBundlePayload"
+          },
+          "proof": {
+            "$ref": "#/components/schemas/FederationBundleProof"
+          }
+        },
+        "required": [
+          "payload",
+          "proof"
+        ],
+        "title": "FederationBundle",
+        "type": "object"
+      },
+      "FederationBundleLogEntry": {
+        "properties": {
+          "entry_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Entry Id",
+            "type": "string"
+          },
+          "entry_type": {
+            "const": "federation-bundle",
+            "default": "federation-bundle",
+            "title": "Entry Type",
+            "type": "string"
+          },
+          "object_digest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Object Digest",
+            "type": "string"
+          },
+          "object_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Object Id",
+            "type": "string"
+          },
+          "public_object": {
+            "$ref": "#/components/schemas/FederationBundle"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "source_authority_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Source Authority Id",
+            "type": "string"
+          },
+          "version": {
+            "default": "0.13.0",
+            "enum": [
+              "0.12.0",
+              "0.13.0"
+            ],
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entry_id",
+          "object_id",
+          "source_authority_id",
+          "object_digest",
+          "recorded_at",
+          "public_object"
+        ],
+        "title": "FederationBundleLogEntry",
+        "type": "object"
+      },
+      "FederationBundlePayload": {
+        "properties": {
+          "attestations": {
+            "items": {
+              "$ref": "#/components/schemas/TrustDecisionAttestation"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Attestations",
+            "type": "array"
+          },
+          "bundle_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Bundle Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "issued_at": {
+            "format": "date-time",
+            "title": "Issued At",
+            "type": "string"
+          },
+          "previous_bundle_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Bundle Hash"
+          },
+          "registry_authority_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Registry Authority Id",
+            "type": "string"
+          },
+          "registry_authority_name": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Registry Authority Name",
+            "type": "string"
+          },
+          "sequence_number": {
+            "minimum": 1.0,
+            "title": "Sequence Number",
+            "type": "integer"
+          },
+          "version": {
+            "const": "0.11.0",
+            "default": "0.11.0",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bundle_id",
+          "registry_authority_id",
+          "registry_authority_name",
+          "sequence_number",
+          "issued_at",
+          "expires_at",
+          "attestations"
+        ],
+        "title": "FederationBundlePayload",
+        "type": "object"
+      },
+      "FederationBundleProof": {
+        "properties": {
+          "key_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Key Id",
+            "type": "string"
+          },
+          "signature": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Signature",
+            "type": "string"
+          },
+          "type": {
+            "const": "Ed25519",
+            "default": "Ed25519",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key_id",
+          "signature"
+        ],
+        "title": "FederationBundleProof",
+        "type": "object"
+      },
+      "FederationBundleVerificationResult": {
+        "properties": {
+          "attestation_count": {
+            "default": 0,
+            "title": "Attestation Count",
+            "type": "integer"
+          },
+          "attestations_valid": {
+            "default": false,
+            "title": "Attestations Valid",
+            "type": "boolean"
+          },
+          "authority_key_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authority Key Id"
+          },
+          "authority_key_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "active",
+                  "retired",
+                  "revoked"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authority Key Status"
+          },
+          "bundle_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bundle Hash"
+          },
+          "bundle_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bundle Id"
+          },
+          "chain_valid": {
+            "default": false,
+            "title": "Chain Valid",
+            "type": "boolean"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "invalid_attestation_count": {
+            "default": 0,
+            "title": "Invalid Attestation Count",
+            "type": "integer"
+          },
+          "registry_authority_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registry Authority Id"
+          },
+          "registry_authority_trusted": {
+            "default": false,
+            "title": "Registry Authority Trusted",
+            "type": "boolean"
+          },
+          "sequence_valid": {
+            "default": false,
+            "title": "Sequence Valid",
+            "type": "boolean"
+          },
+          "signature_valid": {
+            "default": false,
+            "title": "Signature Valid",
+            "type": "boolean"
+          },
+          "time_valid": {
+            "default": false,
+            "title": "Time Valid",
+            "type": "boolean"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          },
+          "valid_attestation_count": {
+            "default": 0,
+            "title": "Valid Attestation Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "valid"
+        ],
+        "title": "FederationBundleVerificationResult",
+        "type": "object"
+      },
+      "GenerateArtifactRequest": {
+        "properties": {
+          "account_reference": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Account Reference",
+            "type": "string"
+          },
+          "prompt": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "provider_id": {
+            "default": "gap-demo-provider",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "retention_days": {
+            "default": 365,
+            "maximum": 3650.0,
+            "minimum": 1.0,
+            "title": "Retention Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "account_reference",
+          "prompt"
+        ],
+        "title": "GenerateArtifactRequest",
+        "type": "object"
+      },
+      "GenerateArtifactResponse": {
+        "properties": {
+          "artifact_base64": {
+            "title": "Artifact Base64",
+            "type": "string"
+          },
+          "credential": {
+            "$ref": "#/components/schemas/GenerationCredential"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "media_type": {
+            "title": "Media Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename",
+          "media_type",
+          "artifact_base64",
+          "credential"
+        ],
+        "title": "GenerateArtifactResponse",
+        "type": "object"
+      },
+      "GenerationCredential": {
+        "properties": {
+          "payload": {
+            "$ref": "#/components/schemas/GenerationCredentialPayload"
+          },
+          "proof": {
+            "$ref": "#/components/schemas/GenerationCredentialProof"
+          }
+        },
+        "required": [
+          "payload",
+          "proof"
+        ],
+        "title": "GenerationCredential",
+        "type": "object"
+      },
+      "GenerationCredentialPayload": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactDescriptor"
+            },
+            "minItems": 1,
+            "title": "Artifacts",
+            "type": "array"
+          },
+          "credential_id": {
+            "title": "Credential Id",
+            "type": "string"
+          },
+          "generation": {
+            "$ref": "#/components/schemas/CredentialGeneration"
+          },
+          "model": {
+            "$ref": "#/components/schemas/CredentialModel"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/CredentialProvider"
+          },
+          "version": {
+            "default": "0.0.1",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "credential_id",
+          "generation",
+          "provider",
+          "model",
+          "artifacts"
+        ],
+        "title": "GenerationCredentialPayload",
+        "type": "object"
+      },
+      "GenerationCredentialProof": {
+        "properties": {
+          "key_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Key Id",
+            "type": "string"
+          },
+          "signature": {
+            "minLength": 1,
+            "title": "Signature",
+            "type": "string"
+          },
+          "type": {
+            "const": "Ed25519",
+            "default": "Ed25519",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key_id",
+          "signature"
+        ],
+        "title": "GenerationCredentialProof",
+        "type": "object"
+      },
+      "GossipMonitorResult": {
+        "properties": {
+          "checkpoint_gossip_consistent": {
+            "title": "Checkpoint Gossip Consistent",
+            "type": "boolean"
+          },
+          "conflicting_tree_head_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Conflicting Tree Head Ids",
+            "type": "array"
+          },
+          "consistency_proven": {
+            "default": false,
+            "title": "Consistency Proven",
+            "type": "boolean"
+          },
+          "consistency_unproven": {
+            "default": false,
+            "title": "Consistency Unproven",
+            "type": "boolean"
+          },
+          "equivocating_witness_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Equivocating Witness Ids",
+            "type": "array"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "log_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log Id"
+          },
+          "rollback_detected": {
+            "default": false,
+            "title": "Rollback Detected",
+            "type": "boolean"
+          },
+          "root_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root Hash"
+          },
+          "split_view_detected": {
+            "default": false,
+            "title": "Split View Detected",
+            "type": "boolean"
+          },
+          "tree_head_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tree Head Id"
+          },
+          "tree_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tree Size"
+          },
+          "witness_equivocation_detected": {
+            "default": false,
+            "title": "Witness Equivocation Detected",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "checkpoint_gossip_consistent"
+        ],
+        "title": "GossipMonitorResult",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "InclusionProof": {
+        "properties": {
+          "audit_path": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Audit Path",
+            "type": "array"
+          },
+          "entry_id": {
+            "title": "Entry Id",
+            "type": "string"
+          },
+          "leaf_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Leaf Hash",
+            "type": "string"
+          },
+          "leaf_index": {
+            "minimum": 0.0,
+            "title": "Leaf Index",
+            "type": "integer"
+          },
+          "log_id": {
+            "title": "Log Id",
+            "type": "string"
+          },
+          "root_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Root Hash",
+            "type": "string"
+          },
+          "tree_size": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Tree Size",
+            "type": "integer"
+          },
+          "version": {
+            "default": "0.13.0",
+            "enum": [
+              "0.12.0",
+              "0.13.0"
+            ],
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "log_id",
+          "tree_size",
+          "leaf_index",
+          "entry_id",
+          "leaf_hash",
+          "root_hash",
+          "audit_path"
+        ],
+        "title": "InclusionProof",
+        "type": "object"
+      },
+      "InclusionVerificationRequest": {
+        "properties": {
+          "entry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrustAttestationLogEntry"
+              },
+              {
+                "$ref": "#/components/schemas/FederationBundleLogEntry"
+              }
+            ],
+            "title": "Entry"
+          },
+          "log_identity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TransparencyLogIdentityDocument"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proof": {
+            "$ref": "#/components/schemas/InclusionProof"
+          },
+          "tree_head": {
+            "$ref": "#/components/schemas/SignedTreeHead"
+          }
+        },
+        "required": [
+          "entry",
+          "tree_head",
+          "proof"
+        ],
+        "title": "InclusionVerificationRequest",
+        "type": "object"
+      },
+      "InclusionVerificationResult": {
+        "properties": {
+          "entry_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Id"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "tree_head_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tree Head Id"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "valid"
+        ],
+        "title": "InclusionVerificationResult",
+        "type": "object"
+      },
+      "IssueCredentialRequest": {
+        "properties": {
+          "account_reference": {
+            "description": "Private provider-side account reference.",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Account Reference",
+            "type": "string"
+          },
+          "artifact_base64": {
+            "description": "Base64-encoded generated artifact bytes.",
+            "minLength": 1,
+            "title": "Artifact Base64",
+            "type": "string"
+          },
+          "media_type": {
+            "examples": [
+              "text/plain"
+            ],
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Media Type",
+            "type": "string"
+          },
+          "model_id": {
+            "examples": [
+              "demo-model-v1"
+            ],
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Model Id",
+            "type": "string"
+          },
+          "prompt": {
+            "description": "Prompt retained privately by the provider.",
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "provider_id": {
+            "default": "gap-demo-provider",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "retention_days": {
+            "default": 365,
+            "maximum": 3650.0,
+            "minimum": 1.0,
+            "title": "Retention Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "model_id",
+          "media_type",
+          "artifact_base64",
+          "account_reference",
+          "prompt"
+        ],
+        "title": "IssueCredentialRequest",
+        "type": "object"
+      },
+      "ProviderApplicationRequest": {
+        "properties": {
+          "contact_reference": {
+            "description": "Private onboarding contact reference. This value is not returned through public trust-registry responses.",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Contact Reference",
+            "type": "string"
+          },
+          "provider_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "provider_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Provider Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider_id",
+          "provider_name",
+          "contact_reference"
+        ],
+        "title": "ProviderApplicationRequest",
+        "type": "object"
+      },
+      "ProviderApplicationResponse": {
+        "properties": {
+          "application_id": {
+            "title": "Application Id",
+            "type": "string"
+          },
+          "application_status": {
+            "enum": [
+              "submitted",
+              "approved",
+              "rejected",
+              "withdrawn"
+            ],
+            "title": "Application Status",
+            "type": "string"
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "provider_name": {
+            "title": "Provider Name",
+            "type": "string"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "trust_status": {
+            "enum": [
+              "self-declared",
+              "applicant",
+              "approved",
+              "suspended",
+              "removed"
+            ],
+            "title": "Trust Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "application_id",
+          "provider_id",
+          "provider_name",
+          "application_status",
+          "trust_status",
+          "submitted_at"
+        ],
+        "title": "ProviderApplicationResponse",
+        "type": "object"
+      },
+      "ProviderIdentityDocument": {
+        "properties": {
+          "active_key_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Active Key Id",
+            "type": "string"
+          },
+          "gap_version": {
+            "default": "0.0.1",
+            "title": "Gap Version",
+            "type": "string"
+          },
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderVerificationKey"
+            },
+            "minItems": 1,
+            "title": "Keys",
+            "type": "array"
+          },
+          "provider_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "provider_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Provider Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider_id",
+          "provider_name",
+          "active_key_id",
+          "keys"
+        ],
+        "title": "ProviderIdentityDocument",
+        "type": "object"
+      },
+      "ProviderSummaryResponse": {
+        "properties": {
+          "active_key_id": {
+            "title": "Active Key Id",
+            "type": "string"
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "provider_name": {
+            "title": "Provider Name",
+            "type": "string"
+          },
+          "provider_trusted": {
+            "title": "Provider Trusted",
+            "type": "boolean"
+          },
+          "published_key_count": {
+            "title": "Published Key Count",
+            "type": "integer"
+          },
+          "trust_status": {
+            "enum": [
+              "self-declared",
+              "applicant",
+              "approved",
+              "suspended",
+              "removed"
+            ],
+            "title": "Trust Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider_id",
+          "provider_name",
+          "active_key_id",
+          "published_key_count",
+          "trust_status",
+          "provider_trusted"
+        ],
+        "title": "ProviderSummaryResponse",
+        "type": "object"
+      },
+      "ProviderTrustDecisionResponse": {
+        "properties": {
+          "authority": {
+            "title": "Authority",
+            "type": "string"
+          },
+          "decided_at": {
+            "format": "date-time",
+            "title": "Decided At",
+            "type": "string"
+          },
+          "decision_id": {
+            "title": "Decision Id",
+            "type": "string"
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "self-declared",
+              "applicant",
+              "approved",
+              "suspended",
+              "removed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision_id",
+          "provider_id",
+          "status",
+          "authority",
+          "reason",
+          "decided_at"
+        ],
+        "title": "ProviderTrustDecisionResponse",
+        "type": "object"
+      },
+      "ProviderTrustResponse": {
+        "properties": {
+          "attestation_issued_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attestation Issued At"
+          },
+          "authority_key_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authority Key Id"
+          },
+          "authority_key_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "active",
+                  "retired",
+                  "revoked"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authority Key Status"
+          },
+          "decision_history": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderTrustDecisionResponse"
+            },
+            "title": "Decision History",
+            "type": "array"
+          },
+          "effective_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "self-declared",
+                  "applicant",
+                  "approved",
+                  "suspended",
+                  "removed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Status"
+          },
+          "federation_conflict": {
+            "default": false,
+            "title": "Federation Conflict",
+            "type": "boolean"
+          },
+          "federation_failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Federation Failure Reason"
+          },
+          "federation_source_count": {
+            "default": 0,
+            "title": "Federation Source Count",
+            "type": "integer"
+          },
+          "federation_sources": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Federation Sources",
+            "type": "array"
+          },
+          "latest_decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderTrustDecisionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "provider_name": {
+            "title": "Provider Name",
+            "type": "string"
+          },
+          "registry_authority_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registry Authority Id"
+          },
+          "registry_authority_trusted": {
+            "default": false,
+            "title": "Registry Authority Trusted",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "self-declared",
+              "applicant",
+              "approved",
+              "suspended",
+              "removed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "transparency_failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transparency Failure Reason"
+          },
+          "transparency_required": {
+            "default": true,
+            "title": "Transparency Required",
+            "type": "boolean"
+          },
+          "transparency_sources": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Transparency Sources",
+            "type": "array"
+          },
+          "transparency_verified": {
+            "default": false,
+            "title": "Transparency Verified",
+            "type": "boolean"
+          },
+          "trust_attestation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Attestation Id"
+          },
+          "trust_attestation_present": {
+            "default": false,
+            "title": "Trust Attestation Present",
+            "type": "boolean"
+          },
+          "trust_attestation_valid": {
+            "default": false,
+            "title": "Trust Attestation Valid",
+            "type": "boolean"
+          },
+          "trust_failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Failure Reason"
+          },
+          "trusted": {
+            "title": "Trusted",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "provider_id",
+          "provider_name",
+          "status",
+          "trusted",
+          "decision_history"
+        ],
+        "title": "ProviderTrustResponse",
+        "type": "object"
+      },
+      "ProviderVerificationKey": {
+        "properties": {
+          "algorithm": {
+            "const": "Ed25519",
+            "default": "Ed25519",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "key_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Key Id",
+            "type": "string"
+          },
+          "public_key": {
+            "minLength": 1,
+            "title": "Public Key",
+            "type": "string"
+          },
+          "retired_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retired At"
+          },
+          "revocation_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revocation Reason"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "status": {
+            "default": "active",
+            "enum": [
+              "active",
+              "retired",
+              "revoked"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key_id",
+          "public_key",
+          "created_at"
+        ],
+        "title": "ProviderVerificationKey",
+        "type": "object"
+      },
+      "RegistryAuthorityIdentityDocument": {
+        "properties": {
+          "active_key_id": {
+            "title": "Active Key Id",
+            "type": "string"
+          },
+          "authority_id": {
+            "title": "Authority Id",
+            "type": "string"
+          },
+          "authority_name": {
+            "title": "Authority Name",
+            "type": "string"
+          },
+          "gap_version": {
+            "default": "0.10.0",
+            "title": "Gap Version",
+            "type": "string"
+          },
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/RegistryAuthorityVerificationKey"
+            },
+            "minItems": 1,
+            "title": "Keys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "authority_id",
+          "authority_name",
+          "active_key_id",
+          "keys"
+        ],
+        "title": "RegistryAuthorityIdentityDocument",
+        "type": "object"
+      },
+      "RegistryAuthoritySummaryResponse": {
+        "properties": {
+          "active_key_id": {
+            "title": "Active Key Id",
+            "type": "string"
+          },
+          "authority_id": {
+            "title": "Authority Id",
+            "type": "string"
+          },
+          "authority_name": {
+            "title": "Authority Name",
+            "type": "string"
+          },
+          "published_key_count": {
+            "title": "Published Key Count",
+            "type": "integer"
+          },
+          "trusted_by_local_registry": {
+            "title": "Trusted By Local Registry",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "authority_id",
+          "authority_name",
+          "active_key_id",
+          "published_key_count",
+          "trusted_by_local_registry"
+        ],
+        "title": "RegistryAuthoritySummaryResponse",
+        "type": "object"
+      },
+      "RegistryAuthorityVerificationKey": {
+        "properties": {
+          "algorithm": {
+            "const": "Ed25519",
+            "default": "Ed25519",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "key_id": {
+            "title": "Key Id",
+            "type": "string"
+          },
+          "public_key": {
+            "title": "Public Key",
+            "type": "string"
+          },
+          "retired_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retired At"
+          },
+          "revocation_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revocation Reason"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "retired",
+              "revoked"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key_id",
+          "public_key",
+          "status",
+          "created_at"
+        ],
+        "title": "RegistryAuthorityVerificationKey",
+        "type": "object"
+      },
+      "SignedTreeHead": {
+        "properties": {
+          "payload": {
+            "$ref": "#/components/schemas/TreeHeadPayload"
+          },
+          "proof": {
+            "$ref": "#/components/schemas/TreeHeadProof"
+          }
+        },
+        "required": [
+          "payload",
+          "proof"
+        ],
+        "title": "SignedTreeHead",
+        "type": "object"
+      },
+      "TransparencyLogIdentityDocument": {
+        "properties": {
+          "active_key_id": {
+            "title": "Active Key Id",
+            "type": "string"
+          },
+          "gap_version": {
+            "default": "0.13.0",
+            "enum": [
+              "0.12.0",
+              "0.13.0"
+            ],
+            "title": "Gap Version",
+            "type": "string"
+          },
+          "hash_algorithm": {
+            "const": "SHA-256",
+            "default": "SHA-256",
+            "title": "Hash Algorithm",
+            "type": "string"
+          },
+          "log_id": {
+            "title": "Log Id",
+            "type": "string"
+          },
+          "log_name": {
+            "title": "Log Name",
+            "type": "string"
+          },
+          "signature_algorithm": {
+            "const": "Ed25519",
+            "default": "Ed25519",
+            "title": "Signature Algorithm",
+            "type": "string"
+          },
+          "signing_keys": {
+            "items": {
+              "$ref": "#/components/schemas/TransparencyLogPublishedKey"
+            },
+            "title": "Signing Keys",
+            "type": "array"
+          },
+          "tree_algorithm": {
+            "const": "GAP-RFC6962-SHA256-v1",
+            "default": "GAP-RFC6962-SHA256-v1",
+            "title": "Tree Algorithm",
+            "type": "string"
+          }
+        },
+        "required": [
+          "log_id",
+          "log_name",
+          "active_key_id",
+          "signing_keys"
+        ],
+        "title": "TransparencyLogIdentityDocument",
+        "type": "object"
+      },
+      "TransparencyLogPublishedKey": {
+        "properties": {
+          "algorithm": {
+            "const": "Ed25519",
+            "default": "Ed25519",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "key_id": {
+            "title": "Key Id",
+            "type": "string"
+          },
+          "public_key": {
+            "title": "Public Key",
+            "type": "string"
+          },
+          "retired_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retired At"
+          },
+          "revocation_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revocation Reason"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "retired",
+              "revoked"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key_id",
+          "public_key",
+          "status",
+          "created_at"
+        ],
+        "title": "TransparencyLogPublishedKey",
+        "type": "object"
+      },
+      "TransparencyWitnessIdentityDocument": {
+        "properties": {
+          "active_key_id": {
+            "title": "Active Key Id",
+            "type": "string"
+          },
+          "gap_version": {
+            "const": "0.13.0",
+            "default": "0.13.0",
+            "title": "Gap Version",
+            "type": "string"
+          },
+          "signing_keys": {
+            "items": {
+              "$ref": "#/components/schemas/TransparencyWitnessPublishedKey"
+            },
+            "title": "Signing Keys",
+            "type": "array"
+          },
+          "supported_log_hash_algorithm": {
+            "const": "SHA-256",
+            "default": "SHA-256",
+            "title": "Supported Log Hash Algorithm",
+            "type": "string"
+          },
+          "supported_statement_version": {
+            "const": "0.13.0",
+            "default": "0.13.0",
+            "title": "Supported Statement Version",
+            "type": "string"
+          },
+          "witness_id": {
+            "title": "Witness Id",
+            "type": "string"
+          },
+          "witness_name": {
+            "title": "Witness Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "witness_id",
+          "witness_name",
+          "active_key_id",
+          "signing_keys"
+        ],
+        "title": "TransparencyWitnessIdentityDocument",
+        "type": "object"
+      },
+      "TransparencyWitnessPublishedKey": {
+        "properties": {
+          "algorithm": {
+            "const": "Ed25519",
+            "default": "Ed25519",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "key_id": {
+            "title": "Key Id",
+            "type": "string"
+          },
+          "public_key": {
+            "title": "Public Key",
+            "type": "string"
+          },
+          "retired_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retired At"
+          },
+          "revocation_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revocation Reason"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "retired",
+              "revoked"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key_id",
+          "public_key",
+          "status",
+          "created_at"
+        ],
+        "title": "TransparencyWitnessPublishedKey",
+        "type": "object"
+      },
+      "TreeHeadComparisonRequest": {
+        "properties": {
+          "new_tree_head": {
+            "$ref": "#/components/schemas/SignedTreeHead"
+          },
+          "old_tree_head": {
+            "$ref": "#/components/schemas/SignedTreeHead"
+          },
+          "proof": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConsistencyProof"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "old_tree_head",
+          "new_tree_head"
+        ],
+        "title": "TreeHeadComparisonRequest",
+        "type": "object"
+      },
+      "TreeHeadPayload": {
+        "properties": {
+          "log_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Log Id",
+            "type": "string"
+          },
+          "log_name": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Log Name",
+            "type": "string"
+          },
+          "root_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Root Hash",
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "tree_head_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Tree Head Id",
+            "type": "string"
+          },
+          "tree_size": {
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Tree Size",
+            "type": "integer"
+          },
+          "version": {
+            "default": "0.13.0",
+            "enum": [
+              "0.12.0",
+              "0.13.0"
+            ],
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tree_head_id",
+          "log_id",
+          "log_name",
+          "tree_size",
+          "root_hash",
+          "timestamp"
+        ],
+        "title": "TreeHeadPayload",
+        "type": "object"
+      },
+      "TreeHeadProof": {
+        "properties": {
+          "key_id": {
+            "title": "Key Id",
+            "type": "string"
+          },
+          "signature": {
+            "title": "Signature",
+            "type": "string"
+          },
+          "type": {
+            "const": "Ed25519",
+            "default": "Ed25519",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key_id",
+          "signature"
+        ],
+        "title": "TreeHeadProof",
+        "type": "object"
+      },
+      "TrustAttestationLogEntry": {
+        "properties": {
+          "entry_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Entry Id",
+            "type": "string"
+          },
+          "entry_type": {
+            "const": "trust-attestation",
+            "default": "trust-attestation",
+            "title": "Entry Type",
+            "type": "string"
+          },
+          "object_digest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Object Digest",
+            "type": "string"
+          },
+          "object_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Object Id",
+            "type": "string"
+          },
+          "public_object": {
+            "$ref": "#/components/schemas/TrustDecisionAttestation"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "source_authority_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Source Authority Id",
+            "type": "string"
+          },
+          "version": {
+            "default": "0.13.0",
+            "enum": [
+              "0.12.0",
+              "0.13.0"
+            ],
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entry_id",
+          "object_id",
+          "source_authority_id",
+          "object_digest",
+          "recorded_at",
+          "public_object"
+        ],
+        "title": "TrustAttestationLogEntry",
+        "type": "object"
+      },
+      "TrustAttestationPayload": {
+        "properties": {
+          "attestation_id": {
+            "title": "Attestation Id",
+            "type": "string"
+          },
+          "decided_at": {
+            "format": "date-time",
+            "title": "Decided At",
+            "type": "string"
+          },
+          "decision_authority": {
+            "title": "Decision Authority",
+            "type": "string"
+          },
+          "decision_id": {
+            "title": "Decision Id",
+            "type": "string"
+          },
+          "issued_at": {
+            "format": "date-time",
+            "title": "Issued At",
+            "type": "string"
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "registry_authority_id": {
+            "title": "Registry Authority Id",
+            "type": "string"
+          },
+          "registry_authority_name": {
+            "title": "Registry Authority Name",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "self-declared",
+              "applicant",
+              "approved",
+              "suspended",
+              "removed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "default": "0.10.0",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "attestation_id",
+          "decision_id",
+          "provider_id",
+          "status",
+          "decision_authority",
+          "reason",
+          "decided_at",
+          "registry_authority_id",
+          "registry_authority_name",
+          "issued_at"
+        ],
+        "title": "TrustAttestationPayload",
+        "type": "object"
+      },
+      "TrustAttestationProof": {
+        "properties": {
+          "key_id": {
+            "title": "Key Id",
+            "type": "string"
+          },
+          "signature": {
+            "minLength": 1,
+            "title": "Signature",
+            "type": "string"
+          },
+          "type": {
+            "const": "Ed25519",
+            "default": "Ed25519",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key_id",
+          "signature"
+        ],
+        "title": "TrustAttestationProof",
+        "type": "object"
+      },
+      "TrustDecisionAttestation": {
+        "properties": {
+          "payload": {
+            "$ref": "#/components/schemas/TrustAttestationPayload"
+          },
+          "proof": {
+            "$ref": "#/components/schemas/TrustAttestationProof"
+          }
+        },
+        "required": [
+          "payload",
+          "proof"
+        ],
+        "title": "TrustDecisionAttestation",
+        "type": "object"
+      },
+      "TrustRegistryEntryResponse": {
+        "properties": {
+          "authority_key_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authority Key Id"
+          },
+          "authority_key_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "active",
+                  "retired",
+                  "revoked"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authority Key Status"
+          },
+          "effective_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "self-declared",
+                  "applicant",
+                  "approved",
+                  "suspended",
+                  "removed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Status"
+          },
+          "federation_conflict": {
+            "default": false,
+            "title": "Federation Conflict",
+            "type": "boolean"
+          },
+          "federation_failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Federation Failure Reason"
+          },
+          "federation_source_count": {
+            "default": 0,
+            "title": "Federation Source Count",
+            "type": "integer"
+          },
+          "federation_sources": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Federation Sources",
+            "type": "array"
+          },
+          "latest_decision_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Decision At"
+          },
+          "latest_decision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Decision Id"
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "provider_name": {
+            "title": "Provider Name",
+            "type": "string"
+          },
+          "registry_authority_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registry Authority Id"
+          },
+          "registry_authority_trusted": {
+            "default": false,
+            "title": "Registry Authority Trusted",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "self-declared",
+              "applicant",
+              "approved",
+              "suspended",
+              "removed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "transparency_failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transparency Failure Reason"
+          },
+          "transparency_required": {
+            "default": true,
+            "title": "Transparency Required",
+            "type": "boolean"
+          },
+          "transparency_sources": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Transparency Sources",
+            "type": "array"
+          },
+          "transparency_verified": {
+            "default": false,
+            "title": "Transparency Verified",
+            "type": "boolean"
+          },
+          "trust_attestation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Attestation Id"
+          },
+          "trust_attestation_valid": {
+            "default": false,
+            "title": "Trust Attestation Valid",
+            "type": "boolean"
+          },
+          "trusted": {
+            "title": "Trusted",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "provider_id",
+          "provider_name",
+          "status",
+          "trusted"
+        ],
+        "title": "TrustRegistryEntryResponse",
+        "type": "object"
+      },
+      "TrustTransitionRequest": {
+        "properties": {
+          "authority": {
+            "default": "GAP Pilot Administrator",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Authority",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "pattern": "^(approved|suspended|removed)$",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "reason"
+        ],
+        "title": "TrustTransitionRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VerificationResponse": {
+        "properties": {
+          "algorithm": {
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "checkpoint_gossip_consistent": {
+            "default": false,
+            "title": "Checkpoint Gossip Consistent",
+            "type": "boolean"
+          },
+          "consistency_unproven": {
+            "default": false,
+            "title": "Consistency Unproven",
+            "type": "boolean"
+          },
+          "credential_id": {
+            "title": "Credential Id",
+            "type": "string"
+          },
+          "cryptographic_valid": {
+            "title": "Cryptographic Valid",
+            "type": "boolean"
+          },
+          "effective_provider_trust_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "self-declared",
+                  "applicant",
+                  "approved",
+                  "suspended",
+                  "removed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Provider Trust Status"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "federation_authority_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Federation Authority Ids",
+            "type": "array"
+          },
+          "federation_bundle_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Federation Bundle Ids",
+            "type": "array"
+          },
+          "federation_conflict": {
+            "default": false,
+            "title": "Federation Conflict",
+            "type": "boolean"
+          },
+          "federation_failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Federation Failure Reason"
+          },
+          "federation_source_count": {
+            "default": 0,
+            "title": "Federation Source Count",
+            "type": "integer"
+          },
+          "federation_sources": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Federation Sources",
+            "type": "array"
+          },
+          "generation_id": {
+            "title": "Generation Id",
+            "type": "string"
+          },
+          "gossip_failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gossip Failure Reason"
+          },
+          "key_id": {
+            "title": "Key Id",
+            "type": "string"
+          },
+          "key_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "active",
+                  "retired",
+                  "revoked"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Status"
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "provider_trust_status": {
+            "enum": [
+              "self-declared",
+              "applicant",
+              "approved",
+              "suspended",
+              "removed"
+            ],
+            "title": "Provider Trust Status",
+            "type": "string"
+          },
+          "provider_trusted": {
+            "title": "Provider Trusted",
+            "type": "boolean"
+          },
+          "registry_authority_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registry Authority Id"
+          },
+          "registry_authority_key_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registry Authority Key Id"
+          },
+          "registry_authority_key_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "active",
+                  "retired",
+                  "revoked"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registry Authority Key Status"
+          },
+          "registry_authority_trusted": {
+            "title": "Registry Authority Trusted",
+            "type": "boolean"
+          },
+          "required_witness_count": {
+            "default": 1,
+            "title": "Required Witness Count",
+            "type": "integer"
+          },
+          "rollback_detected": {
+            "default": false,
+            "title": "Rollback Detected",
+            "type": "boolean"
+          },
+          "split_view_detected": {
+            "default": false,
+            "title": "Split View Detected",
+            "type": "boolean"
+          },
+          "transparency_consistency_valid": {
+            "default": true,
+            "title": "Transparency Consistency Valid",
+            "type": "boolean"
+          },
+          "transparency_entry_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Transparency Entry Ids",
+            "type": "array"
+          },
+          "transparency_failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transparency Failure Reason"
+          },
+          "transparency_inclusion_valid": {
+            "default": false,
+            "title": "Transparency Inclusion Valid",
+            "type": "boolean"
+          },
+          "transparency_log_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transparency Log Id"
+          },
+          "transparency_log_trusted": {
+            "default": false,
+            "title": "Transparency Log Trusted",
+            "type": "boolean"
+          },
+          "transparency_required": {
+            "default": true,
+            "title": "Transparency Required",
+            "type": "boolean"
+          },
+          "transparency_root_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transparency Root Hash"
+          },
+          "transparency_sources": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Transparency Sources",
+            "type": "array"
+          },
+          "transparency_tree_head_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transparency Tree Head Id"
+          },
+          "transparency_tree_head_valid": {
+            "default": false,
+            "title": "Transparency Tree Head Valid",
+            "type": "boolean"
+          },
+          "transparency_tree_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transparency Tree Size"
+          },
+          "transparency_verified": {
+            "default": false,
+            "title": "Transparency Verified",
+            "type": "boolean"
+          },
+          "trust_attestation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Attestation Id"
+          },
+          "trust_attestation_present": {
+            "title": "Trust Attestation Present",
+            "type": "boolean"
+          },
+          "trust_attestation_valid": {
+            "title": "Trust Attestation Valid",
+            "type": "boolean"
+          },
+          "trust_decision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Decision Id"
+          },
+          "trust_failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Failure Reason"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          },
+          "valid_witness_count": {
+            "default": 0,
+            "title": "Valid Witness Count",
+            "type": "integer"
+          },
+          "valid_witness_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Valid Witness Ids",
+            "type": "array"
+          },
+          "witness_equivocation_detected": {
+            "default": false,
+            "title": "Witness Equivocation Detected",
+            "type": "boolean"
+          },
+          "witness_failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Witness Failure Reason"
+          },
+          "witness_quorum_met": {
+            "default": false,
+            "title": "Witness Quorum Met",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "valid",
+          "cryptographic_valid",
+          "provider_trusted",
+          "provider_trust_status",
+          "trust_attestation_present",
+          "trust_attestation_valid",
+          "registry_authority_trusted",
+          "provider_id",
+          "generation_id",
+          "credential_id",
+          "key_id",
+          "algorithm"
+        ],
+        "title": "VerificationResponse",
+        "type": "object"
+      },
+      "VerifyCredentialRequest": {
+        "properties": {
+          "credential": {
+            "$ref": "#/components/schemas/GenerationCredential"
+          }
+        },
+        "required": [
+          "credential"
+        ],
+        "title": "VerifyCredentialRequest",
+        "type": "object"
+      },
+      "WitnessQuorumResult": {
+        "properties": {
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "invalid_witness_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Invalid Witness Ids",
+            "type": "array"
+          },
+          "missing_required_witness_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Required Witness Ids",
+            "type": "array"
+          },
+          "quorum_met": {
+            "title": "Quorum Met",
+            "type": "boolean"
+          },
+          "required_witness_count": {
+            "title": "Required Witness Count",
+            "type": "integer"
+          },
+          "revoked_witness_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Revoked Witness Ids",
+            "type": "array"
+          },
+          "root_hash": {
+            "title": "Root Hash",
+            "type": "string"
+          },
+          "stale_witness_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stale Witness Ids",
+            "type": "array"
+          },
+          "tree_head_id": {
+            "title": "Tree Head Id",
+            "type": "string"
+          },
+          "tree_size": {
+            "title": "Tree Size",
+            "type": "integer"
+          },
+          "valid_witness_count": {
+            "title": "Valid Witness Count",
+            "type": "integer"
+          },
+          "valid_witness_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Valid Witness Ids",
+            "type": "array"
+          },
+          "witness_results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Witness Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "quorum_met",
+          "required_witness_count",
+          "valid_witness_count",
+          "valid_witness_ids",
+          "invalid_witness_ids",
+          "missing_required_witness_ids",
+          "stale_witness_ids",
+          "revoked_witness_ids",
+          "tree_head_id",
+          "tree_size",
+          "root_hash",
+          "witness_results"
+        ],
+        "title": "WitnessQuorumResult",
+        "type": "object"
+      },
+      "WitnessStatement": {
+        "properties": {
+          "payload": {
+            "$ref": "#/components/schemas/WitnessStatementPayload"
+          },
+          "proof": {
+            "$ref": "#/components/schemas/WitnessStatementProof"
+          }
+        },
+        "required": [
+          "payload",
+          "proof"
+        ],
+        "title": "WitnessStatement",
+        "type": "object"
+      },
+      "WitnessStatementPayload": {
+        "properties": {
+          "consistency_reference_root_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consistency Reference Root Hash"
+          },
+          "consistency_reference_tree_size": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consistency Reference Tree Size"
+          },
+          "log_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Log Id",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "root_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Root Hash",
+            "type": "string"
+          },
+          "statement_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Statement Id",
+            "type": "string"
+          },
+          "tree_head_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Tree Head Id",
+            "type": "string"
+          },
+          "tree_head_timestamp": {
+            "format": "date-time",
+            "title": "Tree Head Timestamp",
+            "type": "string"
+          },
+          "tree_size": {
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Tree Size",
+            "type": "integer"
+          },
+          "verification_outcome": {
+            "const": "accepted",
+            "default": "accepted",
+            "title": "Verification Outcome",
+            "type": "string"
+          },
+          "version": {
+            "const": "0.13.0",
+            "default": "0.13.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "witness_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Witness Id",
+            "type": "string"
+          },
+          "witness_name": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Witness Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "statement_id",
+          "witness_id",
+          "witness_name",
+          "log_id",
+          "tree_head_id",
+          "tree_size",
+          "root_hash",
+          "tree_head_timestamp",
+          "observed_at"
+        ],
+        "title": "WitnessStatementPayload",
+        "type": "object"
+      },
+      "WitnessStatementProof": {
+        "properties": {
+          "key_id": {
+            "title": "Key Id",
+            "type": "string"
+          },
+          "signature": {
+            "title": "Signature",
+            "type": "string"
+          },
+          "type": {
+            "const": "Ed25519",
+            "default": "Ed25519",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key_id",
+          "signature"
+        ],
+        "title": "WitnessStatementProof",
+        "type": "object"
+      },
+      "WitnessStatementVerificationResult": {
+        "properties": {
+          "checkpoint_binding_valid": {
+            "default": false,
+            "title": "Checkpoint Binding Valid",
+            "type": "boolean"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "log_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log Id"
+          },
+          "root_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root Hash"
+          },
+          "statement_fresh": {
+            "default": false,
+            "title": "Statement Fresh",
+            "type": "boolean"
+          },
+          "statement_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statement Id"
+          },
+          "statement_signature_valid": {
+            "default": false,
+            "title": "Statement Signature Valid",
+            "type": "boolean"
+          },
+          "tree_head_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tree Head Id"
+          },
+          "tree_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tree Size"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          },
+          "witness_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Witness Id"
+          },
+          "witness_key_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Witness Key Id"
+          },
+          "witness_key_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "active",
+                  "retired",
+                  "revoked"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Witness Key Status"
+          },
+          "witness_trusted": {
+            "default": false,
+            "title": "Witness Trusted",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "valid"
+        ],
+        "title": "WitnessStatementVerificationResult",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Reference implementation and browser demonstrator for the Generation Attribution Protocol.",
+    "title": "Generation Attribution Protocol",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/.well-known/gap.json": {
+      "get": {
+        "operationId": "service_discovery__well_known_gap_json_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Discovery  Well Known Gap Json Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Service Discovery",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/admin/audit": {
+      "get": {
+        "operationId": "administrative_audit_admin_audit_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Administrative Audit",
+        "tags": [
+          "Administration"
+        ]
+      }
+    },
+    "/admin/providers/{provider_id}/trust": {
+      "post": {
+        "operationId": "transition_provider_trust_admin_providers__provider_id__trust_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transition Provider Trust",
+        "tags": [
+          "Administration"
+        ]
+      }
+    },
+    "/credentials/issue": {
+      "post": {
+        "operationId": "issue_credential_credentials_issue_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueCredentialRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationCredential"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Issue Credential",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/credentials/verify": {
+      "post": {
+        "operationId": "verify_credential_credentials_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyCredentialRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Credential",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/disclosures/audit": {
+      "get": {
+        "operationId": "read_disclosure_audit_log_disclosures_audit_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DisclosureAuditResponse"
+                  },
+                  "title": "Response Read Disclosure Audit Log Disclosures Audit Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Disclosure Audit Log",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/disclosures/resolve": {
+      "post": {
+        "operationId": "resolve_attribution_record_disclosures_resolve_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisclosureRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttributionDisclosureResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve Attribution Record",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/federation/authorities/{authority_id}/chain": {
+      "get": {
+        "operationId": "read_federation_chain_federation_authorities__authority_id__chain_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "authority_id",
+            "required": true,
+            "schema": {
+              "title": "Authority Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Read Federation Chain Federation Authorities  Authority Id  Chain Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Federation Chain",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/federation/bundles": {
+      "get": {
+        "operationId": "list_federation_bundles_federation_bundles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Federation Bundles Federation Bundles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Federation Bundles",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/federation/bundles/verify": {
+      "post": {
+        "operationId": "verify_federation_bundle_stateless_federation_bundles_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FederationBundle"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FederationBundleVerificationResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Federation Bundle Stateless",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/federation/bundles/{bundle_id}": {
+      "get": {
+        "operationId": "read_federation_bundle_federation_bundles__bundle_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bundle_id",
+            "required": true,
+            "schema": {
+              "title": "Bundle Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FederationBundle"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Federation Bundle",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/generations/create": {
+      "post": {
+        "description": "Generate an artifact through a registered provider adapter and issue its\nGAP Generation Credential.",
+        "operationId": "create_generated_artifact_generations_create_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateArtifactRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateArtifactResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Generated Artifact",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "Return the current service status.",
+        "operationId": "read_health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
+                  },
+                  "title": "Response Read Health Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Health",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/health/live": {
+      "get": {
+        "operationId": "liveness_health_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Liveness Health Live Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Liveness",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "readiness_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Readiness",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/provider-applications": {
+      "post": {
+        "operationId": "submit_provider_application_provider_applications_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderApplicationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderApplicationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Provider Application",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/providers": {
+      "get": {
+        "operationId": "list_providers_providers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderSummaryResponse"
+                  },
+                  "title": "Response List Providers Providers Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Providers",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/providers/{provider_id}/.well-known/gap.json": {
+      "get": {
+        "operationId": "read_provider_identity_providers__provider_id___well_known_gap_json_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderIdentityDocument"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Provider Identity",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/providers/{provider_id}/trust": {
+      "get": {
+        "operationId": "read_provider_trust_providers__provider_id__trust_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderTrustResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Provider Trust",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/public-state": {
+      "get": {
+        "description": "Return complete public evidence required for repository-free verification.",
+        "operationId": "get_public_state_public_state_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Public State Public State Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Public State",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/registry-authorities": {
+      "get": {
+        "operationId": "list_registry_authorities_registry_authorities_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RegistryAuthoritySummaryResponse"
+                  },
+                  "title": "Response List Registry Authorities Registry Authorities Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Registry Authorities",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/registry-authorities/{authority_id}/.well-known/gap-registry.json": {
+      "get": {
+        "operationId": "read_registry_authority_identity_registry_authorities__authority_id___well_known_gap_registry_json_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "authority_id",
+            "required": true,
+            "schema": {
+              "title": "Authority Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryAuthorityIdentityDocument"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Registry Authority Identity",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/compare-tree-heads": {
+      "post": {
+        "operationId": "compare_tree_heads_transparency_compare_tree_heads_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TreeHeadComparisonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsistencyVerificationResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compare Tree Heads",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/consistency-proof": {
+      "get": {
+        "operationId": "read_consistency_proof_transparency_consistency_proof_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "old_tree_size",
+            "required": true,
+            "schema": {
+              "title": "Old Tree Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "new_tree_size",
+            "required": true,
+            "schema": {
+              "title": "New Tree Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Consistency Proof",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/entries": {
+      "get": {
+        "operationId": "list_transparency_entries_transparency_entries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "entry_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entry Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source_authority_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Authority Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "object_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Object Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Transparency Entries",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/entries/{entry_id}": {
+      "get": {
+        "operationId": "read_transparency_entry_transparency_entries__entry_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Transparency Entry",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/entries/{entry_id}/inclusion-proof": {
+      "get": {
+        "operationId": "read_inclusion_proof_transparency_entries__entry_id__inclusion_proof_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tree_size",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tree Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Inclusion Proof",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/gossip/observations": {
+      "get": {
+        "operationId": "list_gossip_observations_transparency_gossip_observations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Gossip Observations Transparency Gossip Observations Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Gossip Observations",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/gossip/observations/{gossip_id}": {
+      "get": {
+        "operationId": "read_gossip_observation_transparency_gossip_observations__gossip_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "gossip_id",
+            "required": true,
+            "schema": {
+              "title": "Gossip Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckpointGossipPackage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Gossip Observation",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/gossip/state": {
+      "get": {
+        "description": "Compatibility alias for the original Sprint 13 route.",
+        "operationId": "read_gossip_state_transparency_gossip_state_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GossipMonitorResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Gossip State",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/gossip/status": {
+      "get": {
+        "operationId": "read_gossip_status_transparency_gossip_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Read Gossip Status Transparency Gossip Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Gossip Status",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/gossip/verify": {
+      "post": {
+        "operationId": "verify_gossip_stateless_transparency_gossip_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckpointGossipPackage"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GossipMonitorResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Gossip Stateless",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/log": {
+      "get": {
+        "operationId": "read_transparency_log_transparency_log_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Read Transparency Log Transparency Log Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Transparency Log",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/log/.well-known/gap-transparency.json": {
+      "get": {
+        "operationId": "read_transparency_log_identity_transparency_log__well_known_gap_transparency_json_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransparencyLogIdentityDocument"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Transparency Log Identity",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/tree-head": {
+      "get": {
+        "operationId": "read_current_tree_head_transparency_tree_head_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedTreeHead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Current Tree Head",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/tree-heads": {
+      "get": {
+        "operationId": "list_tree_heads_transparency_tree_heads_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SignedTreeHead"
+                  },
+                  "title": "Response List Tree Heads Transparency Tree Heads Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Tree Heads",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/tree-heads/{tree_head_id}": {
+      "get": {
+        "operationId": "read_tree_head_transparency_tree_heads__tree_head_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tree_head_id",
+            "required": true,
+            "schema": {
+              "title": "Tree Head Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedTreeHead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Tree Head",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/verify-consistency": {
+      "post": {
+        "operationId": "verify_consistency_stateless_transparency_verify_consistency_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsistencyVerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsistencyVerificationResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Consistency Stateless",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/verify-inclusion": {
+      "post": {
+        "operationId": "verify_inclusion_stateless_transparency_verify_inclusion_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InclusionVerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InclusionVerificationResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Inclusion Stateless",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/witness-quorum": {
+      "get": {
+        "operationId": "read_witness_quorum_transparency_witness_quorum_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tree_head_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tree Head Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WitnessQuorumResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Witness Quorum",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/witness-statements": {
+      "get": {
+        "operationId": "list_witness_statements_transparency_witness_statements_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "witness_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Witness Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "log_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Log Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tree_head_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tree Head Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Witness Statements Transparency Witness Statements Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Witness Statements",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/witness-statements/verify": {
+      "post": {
+        "operationId": "verify_witness_statement_stateless_transparency_witness_statements_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_verify_witness_statement_stateless_transparency_witness_statements_verify_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WitnessStatementVerificationResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Witness Statement Stateless",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/witness-statements/{statement_id}": {
+      "get": {
+        "operationId": "read_witness_statement_transparency_witness_statements__statement_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "statement_id",
+            "required": true,
+            "schema": {
+              "title": "Statement Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WitnessStatement"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Witness Statement",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/witnesses": {
+      "get": {
+        "operationId": "list_transparency_witnesses_transparency_witnesses_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Transparency Witnesses Transparency Witnesses Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Transparency Witnesses",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/transparency/witnesses/{witness_id}/.well-known/gap-witness.json": {
+      "get": {
+        "operationId": "read_transparency_witness_identity_transparency_witnesses__witness_id___well_known_gap_witness_json_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "witness_id",
+            "required": true,
+            "schema": {
+              "title": "Witness Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransparencyWitnessIdentityDocument"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Transparency Witness Identity",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/trust-attestations": {
+      "get": {
+        "operationId": "list_trust_attestations_trust_attestations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "provider_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Provider Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrustDecisionAttestation"
+                  },
+                  "title": "Response List Trust Attestations Trust Attestations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Trust Attestations",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/trust-attestations/{attestation_id}": {
+      "get": {
+        "operationId": "read_trust_attestation_trust_attestations__attestation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "attestation_id",
+            "required": true,
+            "schema": {
+              "title": "Attestation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustDecisionAttestation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Trust Attestation",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    },
+    "/trust-registry": {
+      "get": {
+        "operationId": "list_trust_registry_trust_registry_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrustRegistryEntryResponse"
+                  },
+                  "title": "Response List Trust Registry Trust Registry Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Trust Registry",
+        "tags": [
+          "GAP Protocol"
+        ]
+      }
+    }
+  }
+}

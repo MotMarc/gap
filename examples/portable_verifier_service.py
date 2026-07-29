@@ -28,7 +28,7 @@ with sqlite3.connect(DATABASE_PATH) as connection:
         ("role", "portable-verifier"),
     )
 
-app = FastAPI(title="GAP Portable Verifier", version="0.16.0")
+app = FastAPI(title="GAP Portable Verifier", version="1.0.0")
 
 
 class PortableVerificationRequest(BaseModel):
@@ -42,7 +42,7 @@ class PortableVerificationRequest(BaseModel):
 def readiness():
     return {
         "status": "ready",
-        "version": "0.16.0",
+        "version": "1.0.0",
         "role": "portable-verifier",
         "persistence": "isolated-sqlite",
     }
