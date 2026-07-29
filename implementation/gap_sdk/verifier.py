@@ -9,7 +9,7 @@ from app.services.verification_service import verify_generation_credential_detai
 
 from .client import GapServiceClient
 from .errors import CredentialError
-from .files import sha256_file
+from .files import resolve_local_file
 from .models import (
     CheckStatus,
     GapCredential,
@@ -66,6 +66,45 @@ class GapVerifier:
         credential: GapCredential | dict,
         *,
         level: VerificationLevel = VerificationLevel.FULL,
+    ) -> VerificationResult:
+        """Verify bytes, a stream, or a caller-selected local artifact file.
+
+        String and Path values are local SDK inputs, never credential fields.
+        Applications handling untrusted requests should use :meth:`verify_bytes`.
+        """
+        if isinstance(artifact, (str, Path)):
+            return self.verify_file(artifact, credential, level=level)
+        return self._verify(artifact, credential, level=level)
+
+    def verify_file(
+        self,
+        path: str | Path,
+        credential: GapCredential | dict,
+        *,
+        level: VerificationLevel = VerificationLevel.FULL,
+    ) -> VerificationResult:
+        """Verify a local file explicitly selected by the SDK caller."""
+        with resolve_local_file(path).open("rb") as artifact:
+            return self._verify(artifact, credential, level=level)
+
+    def verify_bytes(
+        self,
+        data: bytes,
+        credential: GapCredential | dict,
+        *,
+        level: VerificationLevel = VerificationLevel.FULL,
+    ) -> VerificationResult:
+        """Verify already-loaded bytes without performing filesystem access."""
+        if not isinstance(data, bytes):
+            raise TypeError("data must be bytes")
+        return self._verify(data, credential, level=level)
+
+    def _verify(
+        self,
+        artifact: bytes | BinaryIO,
+        credential: GapCredential | dict,
+        *,
+        level: VerificationLevel,
     ) -> VerificationResult:
         try:
             credential = GapCredential.model_validate(credential)
@@ -255,22 +294,18 @@ class GapVerifier:
         )
 
     @staticmethod
-    def _digest(artifact: bytes | str | Path | BinaryIO) -> str:
+    def _digest(artifact: bytes | BinaryIO) -> str:
         if isinstance(artifact, bytes):
             return hashlib.sha256(artifact).hexdigest()
-        if isinstance(artifact, (str, Path)):
-            return sha256_file(artifact)
         digest = hashlib.sha256()
         while chunk := artifact.read(1024 * 1024):
             digest.update(chunk)
         return digest.hexdigest()
 
     @staticmethod
-    def _read_bytes(artifact: bytes | str | Path | BinaryIO) -> bytes:
+    def _read_bytes(artifact: bytes | BinaryIO) -> bytes:
         if isinstance(artifact, bytes):
             return artifact
-        if isinstance(artifact, (str, Path)):
-            return Path(artifact).read_bytes()
         return artifact.read()
 
     @staticmethod

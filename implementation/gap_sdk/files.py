@@ -10,9 +10,27 @@ from .models import GapCredential
 from .serialization import pretty_json
 
 
+def resolve_local_file(path: str | Path) -> Path:
+    """Resolve a file path selected by the local SDK caller.
+
+    This is intentionally not a sandbox: SDK callers may select files outside the
+    current directory. Protocol data must never be passed to this function.
+    """
+    value = str(path)
+    if not value or "\x00" in value:
+        raise CredentialError("Artifact path is invalid.")
+    try:
+        resolved = Path(path).resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise CredentialError("Artifact file could not be opened.") from exc
+    if not resolved.is_file():
+        raise CredentialError("Artifact path must identify a file.")
+    return resolved
+
+
 def sha256_file(path: str | Path, *, chunk_size: int = 1024 * 1024) -> str:
     digest = hashlib.sha256()
-    with Path(path).open("rb") as stream:
+    with resolve_local_file(path).open("rb") as stream:
         while chunk := stream.read(chunk_size):
             digest.update(chunk)
     return digest.hexdigest()
